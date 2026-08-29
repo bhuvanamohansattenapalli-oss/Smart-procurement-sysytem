@@ -1,0 +1,1 @@
+ALTER TABLE `otpChallenges` MODIFY COLUMN `otpHash` varchar(255) NOT NULL;

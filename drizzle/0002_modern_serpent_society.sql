@@ -1,0 +1,21 @@
+CREATE TABLE `otpChallenges` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`phone` varchar(20) NOT NULL,
+	`name` varchar(160) NOT NULL,
+	`passwordHash` varchar(255) NOT NULL,
+	`village` varchar(160) NOT NULL,
+	`district` varchar(160) NOT NULL,
+	`primaryCrop` varchar(80) NOT NULL,
+	`aadhaarMasked` varchar(32) NOT NULL,
+	`declarationAccepted` int NOT NULL DEFAULT 1,
+	`otpHash` varchar(128) NOT NULL,
+	`status` enum('PENDING','VERIFIED','EXPIRED','LOCKED') NOT NULL DEFAULT 'PENDING',
+	`expiresAt` timestamp NOT NULL,
+	`resendAvailableAt` timestamp NOT NULL,
+	`requestCount` int NOT NULL DEFAULT 1,
+	`attemptCount` int NOT NULL DEFAULT 0,
+	`verifiedAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `otpChallenges_id` PRIMARY KEY(`id`)
+);

@@ -1,0 +1,1048 @@
+// Standalone Browser Runtime for Smart Procurement Management System (SIH 2026)
+// Complete Farmer + Officer Dual Workflows, Multilingual (EN, TE, HI), Interactive Map, Approval Workflow, NIR Lab Specs, Demo DBT, and AI Farmer Assistant
+
+(function() {
+  if (window.__SPMS_INITIALIZED__) return;
+
+  const scriptsToLoad = [
+    'https://unpkg.com/react@18/umd/react.production.min.js',
+    'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js'
+  ];
+
+  let loadedCount = 0;
+  function checkAllLoaded() {
+    loadedCount++;
+    if (loadedCount === scriptsToLoad.length) {
+      initApp();
+    }
+  }
+
+  scriptsToLoad.forEach(src => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = checkAllLoaded;
+    s.onerror = checkAllLoaded;
+    document.head.appendChild(s);
+  });
+
+  function initApp() {
+    const React = window.React;
+    const ReactDOM = window.ReactDOM;
+    if (!React || !ReactDOM) return;
+
+    window.__SPMS_INITIALIZED__ = true;
+    const { useState, useEffect, useRef, createElement: h } = React;
+
+    // --- LOCAL DICTIONARIES ---
+    const translations = {
+      en: {
+        app_title: "SMART PROCUREMENT MANAGEMENT SYSTEM",
+        app_sub: "Book your procurement slot, track your queue, and know your procurement status — all in one place.",
+        role_farmer: "🌾 Farmer",
+        role_officer: "👨‍💼 Officer",
+        home: "Home",
+        dashboard: "Dashboard",
+        book_slot: "Book Slot",
+        live_queue: "Live Queue",
+        procurement: "Procurement",
+        payment: "Payment",
+        centres: "Centres",
+        register_btn: "1. Register as Farmer",
+        login_btn: "Farmer Login",
+        check_status: "Check Registration Status",
+        pending_approval: "🟡 Pending Officer Approval",
+        approved_badge: "🟢 Approved",
+        rejected_badge: "🔴 Rejected"
+      },
+      te: {
+        app_title: "స్మార్ట్ ధాన్యం సేకరణ నిర్వహణ వ్యవస్థ",
+        app_sub: "మీ ధాన్యం సేకరణ స్లాట్‌ను బుక్ చేయండి, లైవ్ క్యూ ట్రాక్ చేయండి మరియు సేకరణ స్థితిని తెలుసుకోండి.",
+        role_farmer: "🌾 రైతు",
+        role_officer: "👨‍💼 అధికారి",
+        home: "హోమ్",
+        dashboard: "డ్యాష్‌బోర్డ్",
+        book_slot: "స్లాట్ బుకింగ్",
+        live_queue: "లైవ్ క్యూ",
+        procurement: "ధాన్యం సేకరణ",
+        payment: "చెల్లింపు",
+        centres: "కేంద్రాలు",
+        register_btn: "1. రైతు నమోదు (Register)",
+        login_btn: "రైతు లాగిన్",
+        check_status: "నమోదు స్థితి తనిఖీ",
+        pending_approval: "🟡 అధికారి ఆమోదం కోసం వేచి ఉంది",
+        approved_badge: "🟢 ఆమోదించబడింది",
+        rejected_badge: "🔴 తిరస్కరించబడింది"
+      },
+      hi: {
+        app_title: "स्मार्ट खरीद प्रबंधन प्रणाली",
+        app_sub: "अपना खरीद स्लॉट बुक करें, अपनी कतार को ट्रैक करें, और अपनी खरीद स्थिति जानें।",
+        role_farmer: "🌾 किसान",
+        role_officer: "👨‍💼 अधिकारी",
+        home: "मुख्य पृष्ठ",
+        dashboard: "डैशबोर्ड",
+        book_slot: "स्लॉट बुकिंग",
+        live_queue: "लाइव कतार",
+        procurement: "खरीद स्थिति",
+        payment: "भुगतान",
+        centres: "खरीद केंद्र",
+        register_btn: "1. किसान पंजीकरण (Register)",
+        login_btn: "किसान लॉगिन",
+        check_status: "पंजीकरण स्थिति जांचें",
+        pending_approval: "🟡 अधिकारी अनुमोदन लंबित",
+        approved_badge: "🟢 स्वीकृत",
+        rejected_badge: "🔴 अस्वीकृत"
+      }
+    };
+
+    // --- MOCK DATA ---
+    const INITIAL_CENTRES = [
+      {
+        centreId: "CTR-GNT-01",
+        name: "Guntur Main Agricultural Market Yard",
+        city: "Guntur",
+        code: "AP-GNT-MKT01",
+        address: "Market Yard Road, Near Old Bus Stand, Guntur",
+        distanceKm: 4.2,
+        currentWaitMinutes: 35,
+        status: "Operational",
+        currentQueue: 24,
+        availableSlots: 18,
+        activeCounters: 4,
+        nextAvailableSlot: "11:00 AM",
+        inChargeOfficer: "Dr. V. Krishna Murthy",
+        x: 48, y: 52
+      },
+      {
+        centreId: "CTR-GNT-02",
+        name: "Tenali Rythu Bharosa Kendra (RBK)",
+        city: "Tenali",
+        code: "AP-GNT-TNL02",
+        address: "Station Road, Tenali Mandal",
+        distanceKm: 18.5,
+        currentWaitMinutes: 20,
+        status: "Operational",
+        currentQueue: 12,
+        availableSlots: 45,
+        activeCounters: 3,
+        nextAvailableSlot: "10:30 AM",
+        inChargeOfficer: "Sri K. Subba Rao",
+        x: 68, y: 62
+      },
+      {
+        centreId: "CTR-GNT-03",
+        name: "Vijayawada Regional Grain Terminal",
+        city: "Vijayawada",
+        code: "AP-VJA-TRM03",
+        address: "Kankipadu Highway, Vijayawada Rural",
+        distanceKm: 28.0,
+        currentWaitMinutes: 50,
+        status: "Operational",
+        currentQueue: 38,
+        availableSlots: 10,
+        activeCounters: 5,
+        nextAvailableSlot: "01:00 PM",
+        inChargeOfficer: "Smt. P. Lakshmi",
+        x: 74, y: 32
+      },
+      {
+        centreId: "CTR-GNT-04",
+        name: "Pedakakani Mandi Procurement Hub",
+        city: "Pedakakani",
+        code: "AP-GNT-PDK04",
+        address: "NH-16 Junction, Pedakakani Mandal",
+        distanceKm: 1.8,
+        currentWaitMinutes: 15,
+        status: "Operational",
+        currentQueue: 8,
+        availableSlots: 60,
+        activeCounters: 3,
+        nextAvailableSlot: "10:00 AM",
+        inChargeOfficer: "Sri B. Venkat",
+        x: 55, y: 46
+      },
+      {
+        centreId: "CTR-GNT-05",
+        name: "Narasaraopet Grain Depot",
+        city: "Narasaraopet",
+        code: "AP-NRT-DPT05",
+        address: "Palnadu Road, Narasaraopet",
+        distanceKm: 42.0,
+        currentWaitMinutes: 25,
+        status: "Operational",
+        currentQueue: 16,
+        availableSlots: 32,
+        activeCounters: 2,
+        nextAvailableSlot: "11:30 AM",
+        inChargeOfficer: "Sri M. Ramaiah",
+        x: 26, y: 68
+      }
+    ];
+
+    const INITIAL_REGISTRATIONS = [
+      {
+        registrationId: "REG-10245",
+        farmerId: "FRM-10245",
+        name: "Ramesh Kumar",
+        mobile: "9876543210",
+        village: "Pedakakani",
+        district: "Guntur",
+        state: "Andhra Pradesh",
+        status: "Approved",
+        password: "password123",
+        preferredLanguage: "en",
+        landAreaAcres: 4.5,
+        submittedAt: new Date(Date.now() - 86400000).toISOString()
+      },
+      {
+        registrationId: "REG-10246",
+        farmerId: "FRM-10246",
+        name: "Srinivasa Rao",
+        mobile: "9848012345",
+        village: "Chebrolu",
+        district: "Guntur",
+        state: "Andhra Pradesh",
+        status: "Pending",
+        password: "password123",
+        preferredLanguage: "te",
+        landAreaAcres: 6.2,
+        submittedAt: new Date().toISOString()
+      },
+      {
+        registrationId: "REG-10247",
+        farmerId: "FRM-10247",
+        name: "K. Venkateshwarlu",
+        mobile: "9848099887",
+        village: "Mangalagiri",
+        district: "Guntur",
+        state: "Andhra Pradesh",
+        status: "Rejected",
+        rejectionReason: "Pattadar passbook survey number does not match revenue record.",
+        password: "password123",
+        preferredLanguage: "te",
+        landAreaAcres: 3.0,
+        submittedAt: new Date(Date.now() - 172800000).toISOString()
+      }
+    ];
+
+    // --- MAIN REACT APPLICATION ROOT ---
+    function SmartProcureApp() {
+      // Top Level Role: 'farmer' | 'officer'
+      const [role, setRole] = useState('farmer');
+      const [lang, setLang] = useState('en');
+      const [view, setView] = useState('landing'); // 'landing', 'auth', 'status', 'dashboard', 'book_slot', 'queue', 'procurement', 'payments', 'centres', 'officer_login', 'officer_dashboard'
+
+      // Farmer Session
+      const [farmer, setFarmer] = useState(null);
+      const [officer, setOfficer] = useState(null);
+
+      // Registrations
+      const [registrations, setRegistrations] = useState(() => {
+        try {
+          const saved = localStorage.getItem('spms_farmer_registrations');
+          return saved ? JSON.parse(saved) : INITIAL_REGISTRATIONS;
+        } catch(e) { return INITIAL_REGISTRATIONS; }
+      });
+
+      // Active Booking & Queue
+      const [activeBooking, setActiveBooking] = useState({
+        bookingId: "PRC-10245",
+        tokenNumber: "#1059",
+        centreId: "CTR-GNT-01",
+        centreName: "Guntur Main Agricultural Market Yard",
+        centreAddress: "Market Yard Road, Near Old Bus Stand, Guntur",
+        date: "2026-08-29",
+        dateDisplay: "29 August 2026",
+        timeSlot: "11:00 AM – 12:00 PM",
+        crop: "Paddy (Grade A)",
+        variety: "BPT-5204 (Samba Mahsuri)",
+        estimatedQuantityKg: 850,
+        vehicleType: "Tractor-Trailer",
+        driverContact: "9876543210",
+        status: "Confirmed"
+      });
+
+      const [currentTokenNum, setCurrentTokenNum] = useState(1052);
+      const [paymentStatus, setPaymentStatus] = useState('Pending');
+      const [showPaymentModal, setShowPaymentModal] = useState(false);
+      const [paymentMethod, setPaymentMethod] = useState('DBT_NPCI');
+
+      // AI Chat Widget
+      const [aiOpen, setAiOpen] = useState(false);
+      const [aiMessages, setAiMessages] = useState([
+        { id: 1, sender: 'ai', text: "Namaste! 🙏 I am your AI Farmer Assistant. Ask me anything about your slot booking, token number, live queue, or DBT payment." }
+      ]);
+      const [aiInput, setAiInput] = useState('');
+      const [isListening, setIsListening] = useState(false);
+
+      // Toast Notification state
+      const [toast, setToast] = useState(null);
+
+      const t = (k) => translations[lang]?.[k] || translations.en[k] || k;
+
+      const showNotification = (msg, type = 'info') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 4000);
+      };
+
+      const saveRegistrations = (newRegs) => {
+        setRegistrations(newRegs);
+        localStorage.setItem('spms_farmer_registrations', JSON.stringify(newRegs));
+      };
+
+      // Handle Role Switch
+      const handleRoleSwitch = (newRole) => {
+        setRole(newRole);
+        if (newRole === 'officer') {
+          if (!officer) setView('officer_login');
+          else setView('officer_dashboard');
+        } else {
+          if (farmer) setView('dashboard');
+          else setView('landing');
+        }
+      };
+
+      // Voice recognition toggle
+      const toggleVoice = () => {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          alert("Speech recognition not supported in this browser. Please type your query.");
+          return;
+        }
+        if (isListening) {
+          setIsListening(false);
+          return;
+        }
+        const rec = new SpeechRec();
+        if (lang === 'te') rec.lang = 'te-IN';
+        else if (lang === 'hi') rec.lang = 'hi-IN';
+        else rec.lang = 'en-IN';
+
+        rec.onstart = () => setIsListening(true);
+        rec.onresult = (e) => {
+          const text = e.results[0][0].transcript;
+          if (text) {
+            setAiInput(text);
+            handleSendAiMessage(text);
+          }
+          setIsListening(false);
+        };
+        rec.onerror = () => setIsListening(false);
+        rec.onend = () => setIsListening(false);
+        rec.start();
+      };
+
+      const handleSendAiMessage = (msgText) => {
+        const query = (msgText || aiInput).trim();
+        if (!query) return;
+
+        const newMsgs = [...aiMessages, { id: Date.now(), sender: 'user', text: query }];
+        setAiMessages(newMsgs);
+        setAiInput('');
+
+        // Grounded intelligent NLP response
+        const lower = query.toLowerCase();
+        let reply = "";
+
+        if (lower.includes('token') || lower.includes('టోకెన్') || lower.includes('टोकन')) {
+          reply = lang === 'te' 
+            ? `మీ టోకెన్ నంబర్ ${activeBooking?.tokenNumber || '#1059'}. ప్రస్తుతం నడుస్తున్న టోకెన్ #${currentTokenNum}.`
+            : lang === 'hi'
+            ? `आपका टोकन नंबर ${activeBooking?.tokenNumber || '#1059'} है। वर्तमान में टोकन #${currentTokenNum} बुलाया जा रहा है।`
+            : `Your token number is ${activeBooking?.tokenNumber || '#1059'}. Currently serving token #${currentTokenNum}.`;
+        } else if (lower.includes('ahead') || lower.includes('ముందు') || lower.includes('कतार') || lower.includes('wait') || lower.includes('waiting')) {
+          const ahead = Math.max(0, 1059 - currentTokenNum);
+          reply = lang === 'te'
+            ? `మీ ముందు ${ahead} మంది రైతులు ఉన్నారు. అంచనా వేసిన నిరీక్షణ సమయం సుమారు ${ahead * 5} నిమిషాలు.`
+            : lang === 'hi'
+            ? `आपके आगे ${ahead} किसान हैं। अनुमानित प्रतीक्षा समय लगभग ${ahead * 5} मिनट है।`
+            : `There are ${ahead} farmers ahead of you. Estimated waiting time is approximately ${ahead * 5} minutes.`;
+        } else if (lower.includes('payment') || lower.includes('పేమెంట్') || lower.includes('భారం') || lower.includes('dbt') || lower.includes('पैसा')) {
+          reply = lang === 'te'
+            ? `మీ 850 కిలోల గ్రేడ్-ఎ వరి సేకరణకు ₹19,550 DBT మొత్తం మీ స్టేట్ బ్యాంక్ ఆఫ్ ఇండియా ఖాతాకు చెల్లించబడుతుంది. ప్రస్తుత స్థితి: ${paymentStatus}.`
+            : lang === 'hi'
+            ? `आपके 850 किग्रा धान के लिए ₹19,550 डीबीटी राशि स्टेट बैंक खाते में क्रेडिट होगी। स्थिति: ${paymentStatus}.`
+            : `Your ₹19,550 DBT payment for 850 kg Paddy is linked to your State Bank of India account. Current status: ${paymentStatus}.`;
+        } else if (lower.includes('reach') || lower.includes('time') || lower.includes('ఎప్పుడు') || lower.includes('कब')) {
+          reply = lang === 'te'
+            ? `మీరు ఉదయం 10:45 గంటలకు గుంటూరు మార్కెట్ యార్డ్ గేట్ 1 వద్దకు చేరుకోవాలని సూచించడమైనది.`
+            : lang === 'hi'
+            ? `कृपया सुबह 10:45 बजे तक गुंटूर मुख्य मंडी गेट 1 पर पहुंचें।`
+            : `You should reach Guntur Market Yard Gate 1 by 10:45 AM (15 minutes before your time slot).`;
+        } else {
+          reply = lang === 'te'
+            ? `నేను మీ ధాన్యం స్లాట్, టోకెన్ #${activeBooking?.tokenNumber || '1059'}, నిరీక్షణ సమయం మరియు ₹19,550 DBT చెల్లింపు గురించి ప్రత్యక్ష సమాచారం ఇవ్వగలను.`
+            : lang === 'hi'
+            ? `मैं आपके स्लॉट, टोकन #${activeBooking?.tokenNumber || '1059'}, कतार समय और ₹19,550 डीबीटी भुगतान की लाइव जानकारी प्रदान कर सकता हूँ।`
+            : `I can help you with your slot booking, token #${activeBooking?.tokenNumber || '1059'}, live waiting queue, or DBT payment status.`;
+        }
+
+        setTimeout(() => {
+          setAiMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: reply }]);
+        }, 400);
+      };
+
+      // Render Active Component
+      return h('div', { className: 'min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900' },
+        
+        // 1. Top Government Accent Strip
+        h('div', { className: 'h-1.5 w-full bg-gradient-to-r from-amber-500 via-white to-emerald-600' }),
+
+        // 2. Aux Header
+        h('div', { className: 'bg-slate-950 text-slate-200 text-xs py-1.5 px-4 sm:px-8 flex justify-between items-center' },
+          h('div', { className: 'flex items-center gap-2 font-medium' },
+            h('span', { className: 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse' }),
+            h('span', null, 'Government of India • Ministry of Agriculture & Farmers Welfare')
+          ),
+          h('div', { className: 'flex items-center gap-4' },
+            h('a', { href: 'tel:18001801551', className: 'text-amber-400 font-bold hover:underline' }, '📞 1800-180-1551 (24x7 Helpline)'),
+            h('select', {
+              value: lang,
+              onChange: (e) => setLang(e.target.value),
+              className: 'bg-slate-900 text-white text-xs px-2 py-0.5 rounded border border-slate-800 font-bold cursor-pointer'
+            },
+              h('option', { value: 'en' }, 'English'),
+              h('option', { value: 'te' }, 'తెలుగు (Telugu)'),
+              h('option', { value: 'hi' }, 'हिन्दी (Hindi)')
+            )
+          )
+        ),
+
+        // 3. Main Navigation Header
+        h('header', { className: 'bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40 px-4 sm:px-8 py-3 flex items-center justify-between' },
+          h('div', { 
+            onClick: () => setView('landing'),
+            className: 'flex items-center gap-3 cursor-pointer'
+          },
+            h('div', { className: 'w-11 h-11 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-bold text-xl shadow' }, '🌾'),
+            h('div', null,
+              h('div', { className: 'font-black font-display text-slate-900 text-base tracking-tight' }, 'SMART PROCURE'),
+              h('div', { className: 'text-[10px] text-slate-500 font-medium' }, 'SIH 2026 Procurement & Live Queue Platform')
+            )
+          ),
+
+          // Nav Links
+          h('nav', { className: 'hidden md:flex items-center gap-1 text-xs font-bold' },
+            h('button', { onClick: () => setView('landing'), className: `px-3 py-2 rounded-xl transition ${view === 'landing' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}` }, t('home')),
+            role === 'farmer' && h('button', { onClick: () => setView('dashboard'), className: `px-3 py-2 rounded-xl transition ${view === 'dashboard' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}` }, t('dashboard')),
+            role === 'farmer' && h('button', { onClick: () => setView('book_slot'), className: `px-3 py-2 rounded-xl transition ${view === 'book_slot' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}` }, t('book_slot')),
+            role === 'farmer' && h('button', { onClick: () => setView('queue'), className: `px-3 py-2 rounded-xl transition ${view === 'queue' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}` }, t('live_queue')),
+            role === 'farmer' && h('button', { onClick: () => setView('procurement'), className: `px-3 py-2 rounded-xl transition ${view === 'procurement' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}` }, t('procurement')),
+            role === 'farmer' && h('button', { onClick: () => setView('payments'), className: `px-3 py-2 rounded-xl transition ${view === 'payments' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}` }, t('payment')),
+            role === 'farmer' && h('button', { onClick: () => setView('centres'), className: `px-3 py-2 rounded-xl transition ${view === 'centres' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'}` }, t('centres')),
+            role === 'officer' && h('button', { onClick: () => setView('officer_dashboard'), className: 'px-3 py-2 rounded-xl bg-indigo-50 text-indigo-900 font-bold' }, 'Officer Dashboard')
+          ),
+
+          // Role Switcher
+          h('div', { className: 'flex items-center gap-2' },
+            h('div', { className: 'flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold' },
+              h('button', {
+                onClick: () => handleRoleSwitch('farmer'),
+                className: `px-3 py-1.5 rounded-xl transition ${role === 'farmer' ? 'bg-emerald-700 text-white shadow' : 'text-slate-600 hover:text-slate-900'}`
+              }, t('role_farmer')),
+              h('button', {
+                onClick: () => handleRoleSwitch('officer'),
+                className: `px-3 py-1.5 rounded-xl transition ${role === 'officer' ? 'bg-indigo-900 text-white shadow' : 'text-slate-600 hover:text-slate-900'}`
+              }, t('role_officer'))
+            ),
+
+            // Profile / Logout
+            farmer ? h('button', {
+              onClick: () => { setFarmer(null); showNotification("Farmer Logged Out"); setView('landing'); },
+              className: 'px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold'
+            }, 'Logout') : null
+          )
+        ),
+
+        // 4. Main Body Content
+        h('main', { className: 'flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6' },
+          
+          // Toast Notification
+          toast && h('div', { className: 'p-3 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800 text-xs font-bold fixed top-20 right-6 z-50 animate-fade-in' },
+            toast.msg
+          ),
+
+          // VIEW 1: LANDING PAGE
+          view === 'landing' && h('div', { className: 'space-y-8' },
+            // Hero
+            h('div', { className: 'bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl border border-emerald-900/40 relative overflow-hidden' },
+              h('div', { className: 'max-w-2xl space-y-4 relative z-10' },
+                h('span', { className: 'px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold' }, '✨ Official MSP Procurement Platform'),
+                h('h1', { className: 'text-3xl sm:text-5xl font-black font-display tracking-tight leading-tight' },
+                  'Fair Price, Zero Wait. Direct Farmer Procurement.'
+                ),
+                h('p', { className: 'text-sm sm:text-base text-slate-300' }, t('app_sub')),
+                
+                h('div', { className: 'flex flex-wrap gap-3 pt-2' },
+                  h('button', {
+                    onClick: () => setView('auth'),
+                    className: 'px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm shadow-lg transition'
+                  }, '🌾 ' + t('register_btn')),
+
+                  h('button', {
+                    onClick: () => { setRole('officer'); setView('officer_login'); },
+                    className: 'px-6 py-3.5 bg-indigo-900 hover:bg-indigo-800 text-white font-bold rounded-xl text-sm border border-indigo-700 shadow-lg transition'
+                  }, '👨‍💼 Officer Login'),
+
+                  h('button', {
+                    onClick: () => setView('status'),
+                    className: 'px-4 py-3.5 text-slate-300 hover:text-white text-xs font-bold underline'
+                  }, t('check_status'))
+                )
+              )
+            ),
+
+            // 4 Step Journey
+            h('div', { className: 'bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-4' },
+              h('h2', { className: 'text-xl font-black text-slate-900 font-display' }, 'Simple 4-Step Procurement Flow'),
+              h('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3' },
+                h('div', { className: 'p-4 rounded-2xl bg-slate-50 border border-slate-200' },
+                  h('div', { className: 'w-8 h-8 rounded-xl bg-emerald-700 text-white font-black flex items-center justify-center text-sm mb-2' }, '1'),
+                  h('h4', { className: 'font-bold text-slate-900 text-sm' }, '1. Register Profile'),
+                  h('p', { className: 'text-xs text-slate-500 mt-1' }, 'Submit registration and await officer approval.')
+                ),
+                h('div', { className: 'p-4 rounded-2xl bg-slate-50 border border-slate-200' },
+                  h('div', { className: 'w-8 h-8 rounded-xl bg-blue-700 text-white font-black flex items-center justify-center text-sm mb-2' }, '2'),
+                  h('h4', { className: 'font-bold text-slate-900 text-sm' }, '2. Choose Centre on Map'),
+                  h('p', { className: 'text-xs text-slate-500 mt-1' }, 'Select Paddy and compare Mandis on interactive map.')
+                ),
+                h('div', { className: 'p-4 rounded-2xl bg-slate-50 border border-slate-200' },
+                  h('div', { className: 'w-8 h-8 rounded-xl bg-amber-600 text-white font-black flex items-center justify-center text-sm mb-2' }, '3'),
+                  h('h4', { className: 'font-bold text-slate-900 text-sm' }, '3. Track Live Queue'),
+                  h('p', { className: 'text-xs text-slate-500 mt-1' }, 'Get digital Token #1059 and monitor queue from home.')
+                ),
+                h('div', { className: 'p-4 rounded-2xl bg-slate-50 border border-slate-200' },
+                  h('div', { className: 'w-8 h-8 rounded-xl bg-purple-700 text-white font-black flex items-center justify-center text-sm mb-2' }, '4'),
+                  h('h4', { className: 'font-bold text-slate-900 text-sm' }, '4. Weigh & Direct DBT'),
+                  h('p', { className: 'text-xs text-slate-500 mt-1' }, 'NIR moisture check, electronic weighing & 100% DBT.')
+                )
+              )
+            )
+          ),
+
+          // VIEW 2: AUTH / REGISTRATION PAGE
+          view === 'auth' && h('div', { className: 'max-w-lg mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-5' },
+            h('div', { className: 'text-center space-y-1' },
+              h('div', { className: 'text-3xl' }, '🌾'),
+              h('h2', { className: 'text-xl font-black text-slate-900 font-display' }, 'Farmer Registration'),
+              h('p', { className: 'text-xs text-slate-500' }, 'All new registrations require officer approval before logging in.')
+            ),
+
+            h('form', {
+              onSubmit: (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const newReg = {
+                  registrationId: `REG-${Math.floor(10000 + Math.random() * 90000)}`,
+                  farmerId: form.farmerId.value || `FRM-${Math.floor(10000 + Math.random() * 90000)}`,
+                  name: form.name.value,
+                  mobile: form.mobile.value,
+                  village: form.village.value,
+                  district: form.district.value,
+                  state: form.state.value,
+                  status: 'Pending',
+                  password: form.password.value,
+                  preferredLanguage: lang,
+                  submittedAt: new Date().toISOString()
+                };
+                const updated = [newReg, ...registrations];
+                saveRegistrations(updated);
+                showNotification(`Registration ${newReg.registrationId} submitted for officer review.`, 'info');
+                setView('status');
+              },
+              className: 'space-y-3 text-xs'
+            },
+              h('div', null,
+                h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'Full Name *'),
+                h('input', { name: 'name', defaultValue: 'Venkata Subba Rao', required: true, className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+              ),
+              h('div', { className: 'grid grid-cols-2 gap-2' },
+                h('div', null,
+                  h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'Mobile Number *'),
+                  h('input', { name: 'mobile', defaultValue: '9848011223', required: true, className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+                ),
+                h('div', null,
+                  h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'Farmer ID (Auto)'),
+                  h('input', { name: 'farmerId', defaultValue: 'FRM-10248', className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+                )
+              ),
+              h('div', { className: 'grid grid-cols-2 gap-2' },
+                h('div', null,
+                  h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'Village *'),
+                  h('input', { name: 'village', defaultValue: 'Chebrolu', required: true, className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+                ),
+                h('div', null,
+                  h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'District *'),
+                  h('input', { name: 'district', defaultValue: 'Guntur', required: true, className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+                )
+              ),
+              h('div', { className: 'grid grid-cols-2 gap-2' },
+                h('div', null,
+                  h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'State'),
+                  h('input', { name: 'state', defaultValue: 'Andhra Pradesh', className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+                ),
+                h('div', null,
+                  h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'Password *'),
+                  h('input', { type: 'password', name: 'password', defaultValue: 'password123', required: true, className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+                )
+              ),
+
+              h('button', {
+                type: 'submit',
+                className: 'w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl shadow text-xs mt-2'
+              }, 'Submit Registration (Zero-Bypass)')
+            ),
+
+            h('div', { className: 'pt-2 border-t border-slate-100 text-center space-y-2' },
+              h('button', {
+                onClick: () => {
+                  const approved = registrations.find(r => r.status === 'Approved');
+                  if (approved) {
+                    setFarmer(approved);
+                    showNotification(`Logged in as approved farmer: ${approved.name}`, 'success');
+                    setView('dashboard');
+                  }
+                },
+                className: 'w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl text-xs border border-emerald-200'
+              }, '⚡ Fast Demo: Log in as Approved Farmer (Ramesh Kumar)')
+            )
+          ),
+
+          // VIEW 3: REGISTRATION STATUS CHECKER
+          view === 'status' && h('div', { className: 'max-w-md mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-5 text-center' },
+            h('div', { className: 'w-14 h-14 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto text-2xl' }, '🟡'),
+            h('h2', { className: 'text-xl font-black text-slate-900 font-display' }, 'REGISTRATION SUBMITTED'),
+            h('p', { className: 'text-xs text-slate-600' },
+              'Your registration is currently ',
+              h('strong', { className: 'text-amber-700' }, 'Pending Officer Approval'),
+              '. Once an officer approves your record, you can log in.'
+            ),
+            h('div', { className: 'p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-left space-y-1.5' },
+              h('div', { className: 'flex justify-between' }, h('span', { className: 'text-slate-500' }, 'Registration ID:'), h('strong', { className: 'font-mono text-slate-900' }, 'REG-10245')),
+              h('div', { className: 'flex justify-between' }, h('span', { className: 'text-slate-500' }, 'Status:'), h('span', { className: 'font-bold text-amber-700' }, '🟡 Pending Approval')),
+              h('div', { className: 'flex justify-between' }, h('span', { className: 'text-slate-500' }, 'District Officer:'), h('span', { className: 'text-slate-700' }, 'Guntur APMC Office'))
+            ),
+            h('div', { className: 'flex gap-2' },
+              h('button', {
+                onClick: () => { setRole('officer'); setView('officer_dashboard'); },
+                className: 'flex-1 py-2.5 bg-indigo-900 text-white font-bold rounded-xl text-xs shadow'
+              }, '👨‍💼 Switch to Officer & Approve'),
+              h('button', {
+                onClick: () => setView('landing'),
+                className: 'flex-1 py-2.5 bg-slate-100 text-slate-800 font-bold rounded-xl text-xs'
+              }, 'Back to Home')
+            )
+          ),
+
+          // VIEW 4: OFFICER LOGIN
+          view === 'officer_login' && h('div', { className: 'max-w-md mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-5' },
+            h('div', { className: 'text-center space-y-1' },
+              h('div', { className: 'text-3xl' }, '👨‍💼'),
+              h('h2', { className: 'text-xl font-black text-slate-900 font-display' }, 'Procurement Officer Login'),
+              h('p', { className: 'text-xs text-slate-500' }, 'Mandi Verification & Approval Portal')
+            ),
+            h('form', {
+              onSubmit: (e) => {
+                e.preventDefault();
+                setOfficer({ officerId: 'OFFICER-AP01', name: 'Dr. V. Krishna Murthy', designation: 'District Procurement Officer' });
+                showNotification('Officer session authorized', 'success');
+                setView('officer_dashboard');
+              },
+              className: 'space-y-3 text-xs'
+            },
+              h('div', null,
+                h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'Officer ID'),
+                h('input', { defaultValue: 'OFFICER-AP01', required: true, className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+              ),
+              h('div', null,
+                h('label', { className: 'block font-bold text-slate-700 mb-1' }, 'Password'),
+                h('input', { type: 'password', defaultValue: 'officer@123', required: true, className: 'w-full p-2.5 rounded-xl border border-slate-200 font-semibold' })
+              ),
+              h('button', {
+                type: 'submit',
+                className: 'w-full py-3 bg-indigo-900 hover:bg-indigo-800 text-white font-extrabold rounded-xl shadow text-xs'
+              }, 'Access Officer Console')
+            )
+          ),
+
+          // VIEW 5: OFFICER DASHBOARD (APPROVAL MANAGEMENT)
+          view === 'officer_dashboard' && h('div', { className: 'space-y-6' },
+            h('div', { className: 'bg-indigo-950 text-white p-6 rounded-3xl border border-indigo-800 shadow-xl flex justify-between items-center' },
+              h('div', null,
+                h('span', { className: 'text-xs text-indigo-300 font-bold uppercase' }, 'District Procurement Officer Console'),
+                h('h2', { className: 'text-2xl font-black font-display' }, 'Dr. V. Krishna Murthy (Guntur, AP)'),
+                h('p', { className: 'text-xs text-slate-300' }, 'Review farmer registrations, monitor Mandi counters, and verify DBT payouts.')
+              ),
+              h('button', {
+                onClick: () => { setOfficer(null); handleRoleSwitch('farmer'); },
+                className: 'px-4 py-2 bg-white/10 text-white rounded-xl text-xs font-bold hover:bg-white/20'
+              }, 'Logout')
+            ),
+
+            // Registrations Section
+            h('div', { className: 'bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4' },
+              h('div', { className: 'flex justify-between items-center border-b border-slate-100 pb-3' },
+                h('h3', { className: 'text-lg font-black text-slate-900 font-display' }, 'Farmer Registrations Approval Queue'),
+                h('span', { className: 'px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-xs' },
+                  `${registrations.filter(r => r.status === 'Pending').length} Pending Review`
+                )
+              ),
+
+              h('div', { className: 'space-y-3' },
+                registrations.map(reg => {
+                  const isPending = reg.status === 'Pending';
+                  return h('div', {
+                    key: reg.registrationId,
+                    className: `p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs ${
+                      isPending ? 'bg-amber-50/40 border-amber-300' : 'bg-slate-50 border-slate-200'
+                    }`
+                  },
+                    h('div', { className: 'space-y-1' },
+                      h('div', { className: 'flex items-center gap-2' },
+                        h('strong', { className: 'text-slate-900 text-sm font-bold' }, reg.name),
+                        h('span', { className: 'font-mono text-slate-500' }, reg.registrationId),
+                        h('span', { className: `px-2 py-0.2 rounded-full font-bold text-[10px] ${
+                          reg.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : reg.status === 'Pending' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                        }` }, reg.status)
+                      ),
+                      h('div', { className: 'text-slate-600' }, `Mobile: +91 ${reg.mobile} • Village: ${reg.village}, ${reg.district}`)
+                    ),
+
+                    isPending && h('div', { className: 'flex items-center gap-2' },
+                      h('button', {
+                        onClick: () => {
+                          const updated = registrations.map(r => r.registrationId === reg.registrationId ? { ...r, status: 'Approved' } : r);
+                          saveRegistrations(updated);
+                          showNotification(`Approved farmer ${reg.name} (${reg.registrationId})`, 'success');
+                        },
+                        className: 'px-3.5 py-1.5 bg-emerald-700 text-white font-bold rounded-xl shadow hover:bg-emerald-800'
+                      }, '✓ Accept / Approve'),
+                      h('button', {
+                        onClick: () => {
+                          const reason = prompt("Enter rejection reason:", "Land survey number does not match revenue record");
+                          if (reason) {
+                            const updated = registrations.map(r => r.registrationId === reg.registrationId ? { ...r, status: 'Rejected', rejectionReason: reason } : r);
+                            saveRegistrations(updated);
+                            showNotification(`Rejected registration ${reg.registrationId}`, 'info');
+                          }
+                        },
+                        className: 'px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 font-bold rounded-xl hover:bg-rose-100'
+                      }, '✕ Reject')
+                    )
+                  );
+                })
+              )
+            )
+          ),
+
+          // VIEW 6: FARMER DASHBOARD
+          view === 'dashboard' && h('div', { className: 'space-y-6' },
+            h('div', { className: 'bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4' },
+              h('div', null,
+                h('span', { className: 'text-xs text-emerald-700 font-bold uppercase' }, '🟢 Verified Farmer Account'),
+                h('h2', { className: 'text-2xl font-black font-display text-slate-900' }, `Welcome, ${farmer?.name || 'Ramesh Kumar'}! 🌾`),
+                h('p', { className: 'text-xs text-slate-500' }, 'Pedakakani, Guntur District • APMC ID: FRM-10245')
+              ),
+              h('button', {
+                onClick: () => setView('book_slot'),
+                className: 'px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl text-xs sm:text-sm shadow'
+              }, '+ Book New Slot')
+            ),
+
+            // Active Card
+            h('div', { className: 'bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl space-y-4' },
+              h('div', { className: 'flex justify-between items-center' },
+                h('div', null,
+                  h('span', { className: 'text-xs uppercase text-emerald-300 font-bold' }, 'Active Booking'),
+                  h('h3', { className: 'text-xl font-bold text-white' }, activeBooking.centreName),
+                  h('p', { className: 'text-xs text-slate-300' }, `${activeBooking.dateDisplay} • ${activeBooking.timeSlot}`)
+                ),
+                h('div', { className: 'text-center bg-white/10 px-4 py-2 rounded-2xl border border-white/20' },
+                  h('span', { className: 'text-[10px] text-emerald-300 font-bold block' }, 'Your Token'),
+                  h('span', { className: 'text-3xl font-black font-mono text-amber-300' }, activeBooking.tokenNumber)
+                )
+              ),
+
+              h('div', { className: 'grid grid-cols-3 gap-2 pt-2 border-t border-emerald-900 text-xs' },
+                h('div', null, h('span', { className: 'text-slate-400 block' }, 'Currently Serving:'), h('strong', { className: 'text-emerald-400 font-mono text-base' }, `#${currentTokenNum}`)),
+                h('div', null, h('span', { className: 'text-slate-400 block' }, 'People Ahead:'), h('strong', { className: 'text-amber-300 text-base' }, `${Math.max(0, 1059 - currentTokenNum)} farmers`)),
+                h('div', null, h('span', { className: 'text-slate-400 block' }, 'Est. Wait:'), h('strong', { className: 'text-white text-base' }, `${Math.max(0, (1059 - currentTokenNum) * 5)} mins`))
+              ),
+
+              h('div', { className: 'flex gap-2 pt-2' },
+                h('button', { onClick: () => setView('queue'), className: 'px-4 py-2.5 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl shadow' }, 'View Live Queue Board →'),
+                h('button', { onClick: () => setView('procurement'), className: 'px-4 py-2.5 bg-white/10 text-white font-bold text-xs rounded-xl' }, 'NIR Lab Specs'),
+                h('button', { onClick: () => setView('payments'), className: 'px-4 py-2.5 bg-white/10 text-white font-bold text-xs rounded-xl' }, 'DBT Payment')
+              )
+            )
+          ),
+
+          // VIEW 7: BOOK SLOT (CROP + MAP + SLOTS)
+          view === 'book_slot' && h('div', { className: 'space-y-6' },
+            h('div', { className: 'bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4' },
+              h('span', { className: 'text-xs text-emerald-700 font-bold uppercase' }, 'Step 1: Crop Selection'),
+              h('h2', { className: 'text-xl font-black text-slate-900 font-display' }, 'What crop are you bringing for procurement?'),
+              
+              // Crop Cards
+              h('div', { className: 'grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs' },
+                h('div', { className: 'p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-600 shadow-sm space-y-1' },
+                  h('div', { className: 'text-2xl' }, '🌾'),
+                  h('h4', { className: 'font-bold text-slate-900 text-sm' }, 'Paddy (Grade A)'),
+                  h('div', { className: 'text-emerald-800 font-bold font-mono' }, 'MSP ₹2,320 / Qtl'),
+                  h('p', { className: 'text-slate-500 text-[11px]' }, 'Certified BPT-5204 fine grain paddy.')
+                ),
+                h('div', { className: 'p-4 rounded-2xl bg-white border border-slate-200 space-y-1 opacity-70' },
+                  h('div', { className: 'text-2xl' }, '🌱'),
+                  h('h4', { className: 'font-bold text-slate-900 text-sm' }, 'Cotton (Medium)'),
+                  h('div', { className: 'text-slate-700 font-bold font-mono' }, 'MSP ₹7,121 / Qtl'),
+                  h('p', { className: 'text-slate-500 text-[11px]' }, 'CCI standard procurement.')
+                ),
+                h('div', { className: 'p-4 rounded-2xl bg-white border border-slate-200 space-y-1 opacity-70' },
+                  h('div', { className: 'text-2xl' }, '🌽'),
+                  h('h4', { className: 'font-bold text-slate-900 text-sm' }, 'Maize (Corn)'),
+                  h('div', { className: 'text-slate-700 font-bold font-mono' }, 'MSP ₹2,225 / Qtl'),
+                  h('p', { className: 'text-slate-500 text-[11px]' }, 'Kharif certified grain.')
+                )
+              )
+            ),
+
+            // Step 2: Interactive Map & Centres
+            h('div', { className: 'bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4' },
+              h('span', { className: 'text-xs text-emerald-700 font-bold uppercase' }, 'Step 2: City / Map-Based Centre Selection'),
+              h('h3', { className: 'text-lg font-black text-slate-900 font-display' }, 'Select Mandi Centre on Interactive Map'),
+              
+              h('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
+                // Map preview card
+                h('div', { className: 'bg-slate-950 text-white p-5 rounded-2xl border border-slate-800 relative min-h-[220px] flex flex-col justify-between' },
+                  h('div', { className: 'text-xs text-emerald-400 font-bold' }, '📍 Regional GIS Mandi Map (Andhra Pradesh Grid)'),
+                  h('div', { className: 'space-y-1 my-2 text-center text-xs' },
+                    h('div', { className: 'p-2 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-emerald-300 font-bold' },
+                      '📍 Guntur Main Mandi (4.2 km • ~35m wait)'
+                    ),
+                    h('div', { className: 'p-2 bg-slate-900 border border-slate-700 rounded-xl text-slate-300' },
+                      '📍 Tenali RBK (18.5 km • ~20m wait)'
+                    )
+                  ),
+                  h('div', { className: 'text-[10px] text-slate-400' }, 'Simulated GIS coordinates for SIH presentation')
+                ),
+
+                // Centre pick
+                h('div', { className: 'space-y-3' },
+                  INITIAL_CENTRES.slice(0, 2).map(c => h('div', {
+                    key: c.centreId,
+                    className: 'p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 bg-slate-50 space-y-2 text-xs'
+                  },
+                    h('div', { className: 'flex justify-between' },
+                      h('strong', { className: 'text-slate-900 text-sm' }, c.name),
+                      h('span', { className: 'text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]' }, '🟢 Open')
+                    ),
+                    h('div', { className: 'text-slate-600' }, `📍 ${c.distanceKm} km away • ⏱️ ~${c.currentWaitMinutes} mins wait • 🎟️ ${c.availableSlots} slots left`),
+                    h('button', {
+                      onClick: () => {
+                        showNotification(`Confirmed slot at ${c.name}! Assigned Token #1059`, 'success');
+                        setView('queue');
+                      },
+                      className: 'w-full py-2 bg-emerald-700 text-white font-bold rounded-xl shadow hover:bg-emerald-800 mt-1'
+                    }, 'Select & Confirm Token #1059 →')
+                  ))
+                )
+              )
+            )
+          ),
+
+          // VIEW 8: LIVE QUEUE PAGE
+          view === 'queue' && h('div', { className: 'space-y-6' },
+            h('div', { className: 'bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex justify-between items-center' },
+              h('div', null,
+                h('span', { className: 'text-xs text-emerald-700 font-bold uppercase' }, 'Digital APMC Board'),
+                h('h2', { className: 'text-2xl font-black font-display text-slate-900' }, 'Guntur Main Agricultural Market Yard'),
+                h('p', { className: 'text-xs text-slate-500' }, 'Real-time weighbridge paging & gate synchronization')
+              ),
+              h('button', {
+                onClick: () => {
+                  const nextToken = currentTokenNum + 1;
+                  setCurrentTokenNum(nextToken);
+                  showNotification(`Token #${nextToken} called at Weighbridge Station #3`, 'info');
+                },
+                className: 'px-4 py-2 bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow hover:bg-amber-300 active:scale-95'
+              }, '⚡ Advance Queue (+1)')
+            ),
+
+            h('div', { className: 'grid grid-cols-1 sm:grid-cols-2 gap-4' },
+              // Serving
+              h('div', { className: 'p-6 rounded-3xl bg-slate-950 text-white border border-slate-800 text-center space-y-2 shadow-2xl' },
+                h('span', { className: 'text-xs uppercase text-emerald-400 font-bold' }, 'Currently Serving Token'),
+                h('div', { className: 'text-7xl font-black font-mono text-emerald-400' }, `#${currentTokenNum}`),
+                h('div', { className: 'text-xs text-slate-400' }, 'Station: Counter 3 (Electronic Weighbridge)')
+              ),
+
+              // Farmer Token
+              h('div', { className: 'p-6 rounded-3xl bg-white border border-slate-200 text-center space-y-2 shadow-xl' },
+                h('span', { className: 'text-xs uppercase text-slate-400 font-bold' }, 'Your Token Position'),
+                h('div', { className: 'text-6xl font-black font-mono text-slate-900' }, '#1059'),
+                h('div', { className: 'text-xs font-bold text-amber-800' }, `${Math.max(0, 1059 - currentTokenNum)} farmers ahead (~${Math.max(0, (1059 - currentTokenNum) * 5)} mins wait)`)
+              )
+            )
+          ),
+
+          // VIEW 9: PROCUREMENT STATUS (NIR QUALITY SPECS)
+          view === 'procurement' && h('div', { className: 'space-y-6' },
+            h('div', { className: 'bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4' },
+              h('span', { className: 'text-xs text-emerald-700 font-bold uppercase' }, 'Quality & Weight Audit'),
+              h('h2', { className: 'text-2xl font-black font-display text-slate-900' }, 'Certified NIR Moisture & Quality Inspection'),
+              
+              h('div', { className: 'grid grid-cols-3 gap-3 text-center text-xs' },
+                h('div', { className: 'p-4 bg-slate-50 rounded-2xl border border-slate-200' },
+                  h('span', { className: 'text-slate-400 block' }, 'Moisture Level'),
+                  h('strong', { className: 'text-xl font-mono text-emerald-800' }, '14.2%'),
+                  h('span', { className: 'text-[10px] text-emerald-600 block' }, 'Pass (Max 17%)')
+                ),
+                h('div', { className: 'p-4 bg-slate-50 rounded-2xl border border-slate-200' },
+                  h('span', { className: 'text-slate-400 block' }, 'Foreign Matter'),
+                  h('strong', { className: 'text-xl font-mono text-emerald-800' }, '0.6%'),
+                  h('span', { className: 'text-[10px] text-emerald-600 block' }, 'Pass (Max 1%)')
+                ),
+                h('div', { className: 'p-4 bg-slate-50 rounded-2xl border border-slate-200' },
+                  h('span', { className: 'text-slate-400 block' }, 'Damaged Grain'),
+                  h('strong', { className: 'text-xl font-mono text-emerald-800' }, '1.2%'),
+                  h('span', { className: 'text-[10px] text-emerald-600 block' }, 'Pass (Max 2%)')
+                )
+              ),
+
+              h('div', { className: 'p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 flex justify-between' },
+                h('span', null, 'Certified Grade: Grade A Paddy • Net Crop Weight: 850 kg'),
+                h('span', { className: 'font-bold' }, 'Assayer: Dr. K. Srinivasa Rao')
+              )
+            )
+          ),
+
+          // VIEW 10: DEMO DBT PAYMENT FLOW
+          view === 'payments' && h('div', { className: 'max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6' },
+            h('div', { className: 'text-center space-y-1' },
+              h('span', { className: 'text-xs text-emerald-700 font-bold uppercase' }, 'Direct Benefit Transfer (DBT)'),
+              h('h2', { className: 'text-2xl font-black font-display text-slate-900' }, 'Government MSP Payment Payout'),
+              h('p', { className: 'text-xs text-slate-500' }, 'PFMS Aadhaar Payment Bridge (APB) Settlement')
+            ),
+
+            h('div', { className: 'p-6 rounded-3xl bg-slate-950 text-white text-center space-y-2' },
+              h('span', { className: 'text-xs uppercase text-emerald-300 font-bold' }, 'Total Certified MSP Amount'),
+              h('div', { className: 'text-5xl font-black font-mono text-white' }, '₹19,550'),
+              h('div', { className: 'text-xs text-slate-400' }, 'For 850 kg Paddy (Grade A) @ ₹2,300/Qtl + ₹20/Qtl Quality Incentive')
+            ),
+
+            h('div', { className: 'p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2' },
+              h('div', { className: 'flex justify-between' }, h('span', { className: 'text-slate-500' }, 'Beneficiary:'), h('strong', { className: 'text-slate-900' }, farmer?.name || 'Ramesh Kumar')),
+              h('div', { className: 'flex justify-between' }, h('span', { className: 'text-slate-500' }, 'Bank Account:'), h('strong', { className: 'text-slate-900' }, 'State Bank of India (••••••••4108)')),
+              h('div', { className: 'flex justify-between' }, h('span', { className: 'text-slate-500' }, 'Status:'), h('span', { className: `font-bold ${paymentStatus === 'Completed' ? 'text-emerald-700' : 'text-amber-700'}` }, paymentStatus === 'Completed' ? '🟢 Credited via DBT' : '🟡 Pending Settlement')),
+              paymentStatus === 'Completed' && h('div', { className: 'flex justify-between border-t border-slate-200 pt-1' }, h('span', { className: 'text-slate-500' }, 'Ref UTR:'), h('strong', { className: 'font-mono text-emerald-800' }, 'DBT2026082989124'))
+            ),
+
+            h('button', {
+              onClick: () => {
+                setPaymentStatus('Completed');
+                showNotification('₹19,550 credited via Direct Benefit Transfer! UTR: DBT2026082989124', 'success');
+              },
+              className: 'w-full py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl shadow text-sm'
+            }, '⚡ Authorize Demo DBT Payout (Instant Credit)')
+          ),
+
+          // VIEW 11: CENTRES DIRECTORY
+          view === 'centres' && h('div', { className: 'space-y-4' },
+            h('h2', { className: 'text-xl font-black text-slate-900 font-display' }, 'Procurement Centres Directory'),
+            h('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-3' },
+              INITIAL_CENTRES.map(c => h('div', {
+                key: c.centreId,
+                className: 'p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2 text-xs'
+              },
+                h('div', { className: 'flex justify-between' },
+                  h('strong', { className: 'text-slate-900 text-sm' }, c.name),
+                  h('span', { className: 'px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]' }, '🟢 Open')
+                ),
+                h('div', { className: 'text-slate-500' }, c.address),
+                h('div', { className: 'flex justify-between pt-2 border-t border-slate-100 text-slate-700' },
+                  h('span', null, `Distance: ${c.distanceKm} km`),
+                  h('span', null, `Wait: ~${c.currentWaitMinutes} mins`),
+                  h('span', { className: 'font-bold text-emerald-800' }, `${c.availableSlots} slots left`)
+                )
+              ))
+            )
+          )
+
+        ),
+
+        // 5. Floating AI Farmer Assistant Widget
+        h('div', { className: 'fixed bottom-4 right-4 z-50' },
+          !aiOpen ? h('button', {
+            onClick: () => setAiOpen(true),
+            className: 'flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-700 to-teal-800 text-white rounded-full shadow-2xl border-2 border-emerald-400/40 text-xs font-bold'
+          },
+            h('span', { className: 'text-base' }, '🤖'),
+            h('span', null, 'AI Farmer Assistant (Voice & Chat)')
+          ) : h('div', { className: 'w-80 sm:w-96 h-[480px] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden text-xs' },
+            h('div', { className: 'p-3.5 bg-gradient-to-r from-emerald-800 to-slate-950 text-white flex justify-between items-center' },
+              h('div', { className: 'flex items-center gap-2' },
+                h('span', { className: 'text-lg' }, '🤖'),
+                h('div', null,
+                  h('div', { className: 'font-bold' }, 'AI Farmer Assistant'),
+                  h('div', { className: 'text-[10px] text-emerald-200' }, 'Grounded multilingual assistance')
+                )
+              ),
+              h('button', { onClick: () => setAiOpen(false), className: 'p-1 hover:bg-white/10 rounded' }, '✕')
+            ),
+
+            // Messages
+            h('div', { className: 'flex-1 p-3 overflow-y-auto space-y-2 bg-slate-50' },
+              aiMessages.map(m => h('div', {
+                key: m.id,
+                className: `p-2.5 rounded-2xl max-w-[85%] ${
+                  m.sender === 'ai' ? 'bg-white text-slate-900 border border-slate-200 mr-auto' : 'bg-emerald-700 text-white ml-auto font-medium'
+                }`
+              }, m.text))
+            ),
+
+            // Suggested Chips
+            h('div', { className: 'p-2 bg-slate-100 border-t border-slate-200 flex gap-1 overflow-x-auto text-[10px]' },
+              h('button', { onClick: () => handleSendAiMessage("What is my token?"), className: 'px-2 py-1 bg-white border border-slate-200 rounded-full whitespace-nowrap' }, "What is my token?"),
+              h('button', { onClick: () => handleSendAiMessage("How many people ahead?"), className: 'px-2 py-1 bg-white border border-slate-200 rounded-full whitespace-nowrap' }, "How many ahead?"),
+              h('button', { onClick: () => handleSendAiMessage("When is my payment?"), className: 'px-2 py-1 bg-white border border-slate-200 rounded-full whitespace-nowrap' }, "Payment status?")
+            ),
+
+            // Input bar
+            h('form', {
+              onSubmit: (e) => { e.preventDefault(); handleSendAiMessage(); },
+              className: 'p-2 bg-white border-t border-slate-200 flex gap-1'
+            },
+              h('button', {
+                type: 'button',
+                onClick: toggleVoice,
+                className: `p-2 rounded-xl border text-xs ${isListening ? 'bg-rose-600 text-white animate-pulse' : 'bg-slate-100 text-slate-700'}`
+              }, '🎤'),
+              h('input', {
+                type: 'text',
+                value: aiInput,
+                onChange: (e) => setAiInput(e.target.value),
+                placeholder: 'Ask token, queue, payment...',
+                className: 'flex-1 p-2 rounded-xl border border-slate-200 text-xs focus:outline-none'
+              }),
+              h('button', {
+                type: 'submit',
+                className: 'px-3 py-2 bg-emerald-700 text-white font-bold rounded-xl'
+              }, 'Send')
+            )
+          )
+        ),
+
+        // 6. Footer
+        h('footer', { className: 'bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500' },
+          h('p', null, 'Smart Procurement Management System — Smart India Hackathon 2026'),
+          h('p', { className: 'text-[11px] text-slate-400 mt-0.5' }, 'National e-Procurement Grid • Ministry of Agriculture & Farmers Welfare')
+        )
+
+      );
+    }
+
+    const rootEl = document.getElementById('root');
+    if (rootEl) {
+      ReactDOM.createRoot(rootEl).render(h(SmartProcureApp));
+    }
+  }
+})();

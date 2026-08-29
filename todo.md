@@ -1,0 +1,76 @@
+# ProcureFlow Backend Integration Checklist
+
+- [x] Upgrade the existing static prototype to enable server, database, and environment-secret support.
+- [x] Define a MySQL/TiDB-backed data model covering farmers, registrations, officers, centres, slots, bookings, queues, procurement records, payments, and notifications.
+- [x] Implement authentication, authorization middleware, validation, and idempotent prototype seed records.
+- [x] Implement the requested REST endpoints and booking, token, queue, procurement, payment, notification, and mock-AI logic.
+- [x] Add one configurable frontend API base URL without rebuilding the existing user interface.
+- [x] Test the complete registration-to-payment journey and document installation, configuration, demo data, endpoints, and frontend connection.
+- [x] Wire the existing frontend demo flows to the REST API through the single configurable API base URL while preserving their interface design.
+- [x] Remove active scaffold TODO placeholders from backend entry points and clarify the completed API integration structure.
+- [x] Connect slot confirmation to the booking API and persist the returned booking and token identifiers in frontend state.
+- [x] Replace remaining hardcoded farmer booking, token, queue, procurement, payment summary, notification, and profile values with API-loaded records.
+- [x] Validate the connected prototype flow through REST endpoint lifecycle tests, browser rendering checks, unit tests, and TypeScript validation.
+- [x] Expose server-side prototype pricing with each booking and replace remaining payment-summary display constants with API-loaded values.
+- [x] Clarify that static values are unauthenticated presentation fallbacks only, with authenticated views using the persisted booking context.
+- [x] Re-run the complete connected flow validation after the final pricing data integration.
+- [x] Remove unauthenticated payment-price fallback values so the payment quote renders only from a persisted API booking.
+- [x] Execute and record a full post-pricing REST lifecycle validation through payment completion.
+- [x] Review payment-only persistence, APIs, farmer views, and officer views to preserve unrelated functionality.
+- [x] Extend payments with PENDING, PROCESSING, SUCCESS, and FAILED states, secure identifiers, references, receipt data, and gateway-ready metadata.
+- [x] Implement payment initiation, processing, success/failure completion, receipt retrieval, farmer payment history, and officer payment-status endpoints.
+- [x] Replace farmer-facing payment-demo wording with a realistic payment flow for UPI, Card, and Net Banking.
+- [x] Add payment receipt, farmer payment history, and officer payment-status presentation without changing unrelated screens.
+- [x] Test all payment methods and lifecycle states, authorization boundaries, notification creation, receipts, history, and officer visibility.
+- [x] Document the gateway adapter boundary and no-secret configuration policy.
+- [x] Add an explicit provider-result simulation control so the farmer flow can show both successful and failed completion states.
+- [x] Present the full API-backed farmer payment attempt history with method, status, payment ID, and transaction reference.
+- [x] Validate UPI, Card, and Net Banking payment behaviours across success and failure outcomes, receipt, notification, and officer status visibility.
+- [x] Review the existing farmer registration, login, officer approval, protected-navigation, dashboard identity, and logout integration points.
+- [x] Remove hard-coded farmer login credentials and unrestricted role switching from the existing frontend flow.
+- [x] Connect registration, pending approval, login error states, profile/dashboard data, protected farmer pages, and logout to the existing API base URL.
+- [x] Preserve separate farmer and officer authenticated sessions with officer-only approval controls.
+- [x] Validate the complete new-farmer registration-to-logout authentication journey and document the corrected behavior.
+- [x] Exercise the farmer logout control and verify that cleared sessions redirect protected farmer screens to the farmer login page.
+- [x] Review the existing registration and payment modules to preserve all unrelated UI and backend behavior.
+- [x] Add secure OTP challenge storage, expiry, resend cooldown, hashed codes, request/attempt rate limits, SMS configuration, and a development fallback.
+- [x] Implement API endpoints for OTP send, resend, verification, and creation of a PENDING registration only after a verified OTP.
+- [x] Integrate the existing registration interface with OTP confirmation and waiting-for-officer-approval states without changing its visual design.
+- [x] Preserve and validate existing UPI, Card, Net Banking, payment state, receipt, history, notification, and officer-status behavior.
+- [x] Test OTP registration through officer approval and farmer login, plus the existing payment success/failure lifecycle.
+- [x] Document the SMS provider environment variables, development fallback, OTP security properties, and payment integration boundary.
+- [x] Prevent creation of multiple active OTP challenges for the same phone so request limits cannot be bypassed.
+- [x] Re-run the preserved payment lifecycle across UPI, Card, and Net Banking, explicitly asserting payment notification, receipt, farmer history, and officer visibility.
+- [x] Enforce a database-backed single active OTP challenge per phone and validate repeated-send behavior against that guarantee.
+- [x] Record a final combined payment regression covering UPI, Card, and Net Banking with notification, receipt, history, and officer-status assertions for each method.
+- [x] Run one consolidated post-OTP payment regression covering Card failure and UPI and Net Banking success, with explicit notification, receipt, history, and officer-status assertions for every method.
+- [x] Read and scope the newly attached implementation brief against the existing ProcureFlow website.
+- [x] Define the minimum data, API, navigation, and UI changes required by the brief.
+- [x] Integrate the brief’s requested functionality without rebuilding or removing completed modules.
+- [x] Validate the new and existing flows, then document and checkpoint the integrated website.
+
+- [x] Expand the existing translation dictionary and apply it to prominent farmer-facing navigation, actions, status labels, and service messaging.
+- [x] Add selected-language voice-output fallback messaging and pass the selected language to the protected assistant API.
+- [x] Document the optional Google Maps and Razorpay environment configuration and the safe provider fallback boundary.
+- [x] Validate map fallback/selection, multilingual assistant, stats, existing OTP/payment flows, and then checkpoint the integration.
+
+- [x] Translate remaining farmer-facing UI strings and wire them through the translations object across registration, login, dashboard, booking, queue, status, payment, profile, notifications, and success/error messages. Core farmer journey headings, navigation, auth messaging, assistant replies, and status copy now switch with EN/HI/TE; backend-owned dynamic records remain language-neutral.
+- [x] Document the Google Maps proxy environment variables used by MapView and its fallback expectations.
+- [x] Run targeted browser/API validation for map selection/fallback, stats loading, OTP approval/login, and fallback payment behavior. Live checks confirmed four coordinate-bearing centres, authenticated farmer/officer stats, booking ownership, farmer payment history, and officer payment visibility.
+- [x] Save a new checkpoint after the expanded translation and validation work succeeds.
+- [x] Diagnose the reported OTP SMS delivery failure by checking provider configuration, service behavior, routes, phone formatting, expiry/resend logic, and backend logs. No SMS provider credentials are configured; backend logs confirmed the development fallback is active.
+- [x] Implement the minimal OTP delivery fix or development-mode behavior without changing registration UI or unrelated features. Development OTPs are securely persisted, expiry-bound, logged server-side, returned only as a development response field, and no longer rendered in the farmer UI.
+- [x] Validate OTP generation, secure storage, development response visibility, resend/expiry behavior, and verification-to-PENDING registration. Fresh send/verify created PENDING registration; immediate resend returned 429, resend after 30 seconds returned 200, invalid code returned 400 INVALID_OTP, expired challenge returned 410 OTP_EXPIRED, and the full check/test suite passed.
+- [x] Save an OTP-only checkpoint and document provider configuration requirements.
+- [x] Trace the repeated live OTP failure from registration UI request through API base, backend response, and server logs. Confirmed same-origin `/api` routing, no SMS provider credentials, and active development fallback logs.
+- [x] Fix the remaining OTP access or delivery issue without changing registration UI layout or unrelated modules. Provider detection now falls back whenever no complete provider credentials exist, supports explicit `OTP_MODE=DEVELOPMENT`, and the UI gives a non-OTP developer-log message instead of claiming an SMS arrived.
+- [x] Validate OTP behavior from the actual live registration flow, including developer-code access, cooldown, expiry, and PENDING continuation. Live response contained a six-digit development code, resend and expiry branches were exercised, no farmer UI code reference remains, and all 9 Vitest tests plus TypeScript passed.
+- [x] Save a follow-up OTP checkpoint after the live-flow fix.
+- [ ] Inspect the live/deployed OTP request, environment mode, response payload, and backend delivery logs for the reported phone number flow.
+- [ ] Ensure production has either a configured SMS provider adapter or an explicit development verification path without changing registration UI.
+- [ ] Validate the mobile submission timer, OTP availability, resend/expiry behavior, and verification on the live preview/deployment path.
+- [ ] Save a follow-up checkpoint documenting whether real SMS credentials are still required.
+- [ ] Inspect the existing OTP routes, challenge schema, delivery boundary, and MSG91 server-side API requirements for Widget ID 3668426a79363332343239333.
+- [ ] Request the MSG91 Auth Key securely and configure it only in backend environment variables.
+- [ ] Integrate MSG91 OTP send/verify behind the existing endpoints while preserving six-digit, expiry, resend cooldown, PENDING registration, and officer approval.
+- [ ] Add/update focused tests, validate MSG91 error handling and lifecycle behavior, and save a checkpoint.

@@ -1,0 +1,15 @@
+ALTER TABLE `payments` DROP INDEX `payments_bookingId_unique`;
+ALTER TABLE `payments` MODIFY COLUMN `status` enum('PENDING','COMPLETED','PROCESSING','SUCCESS','FAILED') NOT NULL DEFAULT 'PENDING';
+UPDATE `payments` SET `status` = 'SUCCESS' WHERE `status` = 'COMPLETED';
+ALTER TABLE `payments` MODIFY COLUMN `status` enum('PENDING','PROCESSING','SUCCESS','FAILED') NOT NULL DEFAULT 'PENDING';
+ALTER TABLE `payments` ADD `transactionReference` varchar(64);
+UPDATE `payments` SET `transactionReference` = CONCAT('LEGACY-TXN-', `id`) WHERE `transactionReference` IS NULL;
+ALTER TABLE `payments` MODIFY COLUMN `transactionReference` varchar(64) NOT NULL;
+ALTER TABLE `payments` ADD `receiptNumber` varchar(48);
+ALTER TABLE `payments` ADD `gateway` varchar(80) DEFAULT 'PROCUREFLOW_TEST_GATEWAY' NOT NULL;
+ALTER TABLE `payments` ADD `gatewayPaymentId` varchar(96);
+ALTER TABLE `payments` ADD `failureReason` varchar(240);
+ALTER TABLE `payments` ADD `initiatedAt` timestamp DEFAULT (now()) NOT NULL;
+ALTER TABLE `payments` ADD `processedAt` timestamp;
+ALTER TABLE `payments` ADD `updatedAt` timestamp DEFAULT (now()) NOT NULL ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `payments` ADD CONSTRAINT `payments_transactionReference_unique` UNIQUE(`transactionReference`);
