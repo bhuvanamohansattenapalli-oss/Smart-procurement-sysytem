@@ -886,6 +886,8 @@ export default function Home() {
   const [driverGps, setDriverGps] = useState<{ lat: number; lng: number; isLive: boolean }>({ lat: 16.3120, lng: 80.4410, isLive: false });
   const [showTransportModal, setShowTransportModal] = useState(false);
   const [transportUpdateStatus, setTransportUpdateStatus] = useState<"REQUESTED" | "ASSIGNED" | "IN_TRANSIT" | "DELIVERED_AT_CENTRE" | "CANCELLED">("IN_TRANSIT");
+  const [transportFilterStatus, setTransportFilterStatus] = useState<string>("ALL");
+  const [transportSearchQuery, setTransportSearchQuery] = useState<string>("");
   const [viewingQcFarmerProfile, setViewingQcFarmerProfile] = useState<{ id?: number; farmerCode?: string; name?: string; phone?: string; village?: string; district?: string; primaryCrop?: string; status?: string } | null>(null);
   const [payoutProcessingId, setPayoutProcessingId] = useState<number | null>(null);
 
@@ -4352,7 +4354,7 @@ export default function Home() {
       <SectionTitle
         eyebrow="FLEET & TRANSPORTATION MANAGEMENT"
         title="Logistics & Transportation"
-        body="Manage farmer transportation requests, vehicle assignments, driver dispatch, live route mapping, and crop movement to procurement centres."
+        body="Track and manage subsidized crop transportation from farmer pickup points to procurement centres, driver dispatch, live route mapping, and mandi arrivals."
         action={
           <ActionButton onClick={() => { if (officerToken) void loadOfficerTransport(officerToken); }} icon={LocateFixed}>
             Refresh Fleet
@@ -4360,7 +4362,8 @@ export default function Home() {
         }
       />
 
-      <section className="officer-metrics">
+      {/* Top Metrics Cards */}
+      <section className="officer-metrics grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
         <MetricCard
           icon={Truck}
           label="Total Fleet Trips"
@@ -4391,123 +4394,345 @@ export default function Home() {
         />
       </section>
 
-      <section className="officer-booking-list">
-        <div className="flex items-center justify-between">
-          <h2>Logistics & Transportation Requests ({officerLogisticsList.length})</h2>
-          <Pill kind="blue">30% GOVT SUBSIDY NETWORK</Pill>
+      {/* Filter and Search Bar */}
+      <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 mb-5">
+        {/* Status Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs font-semibold scrollbar-none">
+          {[
+            { id: "ALL", label: "All Trips", count: officerLogisticsList.length },
+            { id: "IN_TRANSIT", label: "In Transit", count: officerLogisticsList.filter(t => t.status === "IN_TRANSIT").length },
+            { id: "ASSIGNED", label: "Driver Assigned", count: officerLogisticsList.filter(t => t.status === "ASSIGNED").length },
+            { id: "REQUESTED", label: "Requested", count: officerLogisticsList.filter(t => t.status === "REQUESTED").length },
+            { id: "DELIVERED_AT_CENTRE", label: "Delivered", count: officerLogisticsList.filter(t => t.status === "DELIVERED_AT_CENTRE").length },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setTransportFilterStatus(tab.id)}
+              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                transportFilterStatus === tab.id
+                  ? "bg-emerald-700 text-white font-bold shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                transportFilterStatus === tab.id ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
 
-        {officerLogisticsList.length > 0 ? (
-          officerLogisticsList.map(t => (
-            <article key={t.id} className="p-5 border rounded-2xl bg-card shadow-xs hover:border-emerald-300 transition-all flex flex-col gap-4">
-              {/* Header: Booking ID, Status, Vehicle Type */}
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-border/60">
-                <div className="flex items-center gap-2.5">
-                  <span className="p-2 rounded-xl bg-blue-50 text-blue-800 border border-blue-200/60"><Truck size={18} /></span>
-                  <div>
-                    <h3 className="text-base font-extrabold text-[#153828] m-0">{t.transportCode}</h3>
-                    <small className="text-[11px] text-muted-foreground">Booked on {t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-IN") : "Today"}</small>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Pill kind="blue">{t.vehicleName}</Pill>
-                  <Pill kind={t.status === "DELIVERED_AT_CENTRE" ? "green" : t.status === "IN_TRANSIT" ? "yellow" : "blue"}>
-                    {(t.status || "REQUESTED").replaceAll("_", " ")}
-                  </Pill>
-                </div>
+        {/* Search Filter */}
+        <div className="relative min-w-[220px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search farmer, code, village, mandi..."
+            value={transportSearchQuery}
+            onChange={e => setTransportSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border bg-background text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:ring-2 focus:ring-emerald-600/30"
+          />
+          {transportSearchQuery && (
+            <button onClick={() => setTransportSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs">
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Request Cards List */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
+            <span>Transport Requests</span>
+            <span className="text-xs font-normal text-muted-foreground font-mono">
+              ({officerLogisticsList.filter(t => {
+                const matchesStatus = transportFilterStatus === "ALL" || t.status === transportFilterStatus;
+                const q = transportSearchQuery.trim().toLowerCase();
+                const matchesQuery = !q || (
+                  (t.transportCode || "").toLowerCase().includes(q) ||
+                  (t.farmerName || "").toLowerCase().includes(q) ||
+                  (t.farmerCode || "").toLowerCase().includes(q) ||
+                  (t.pickupVillage || "").toLowerCase().includes(q) ||
+                  (t.destinationCentreName || "").toLowerCase().includes(q) ||
+                  (t.vehicleNumber || "").toLowerCase().includes(q) ||
+                  (t.driverName || "").toLowerCase().includes(q)
+                );
+                return matchesStatus && matchesQuery;
+              }).length} of {officerLogisticsList.length})
+            </span>
+          </h2>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+            30% GOVT SUBSIDY NETWORK
+          </span>
+        </div>
+
+        {(() => {
+          const filteredList = officerLogisticsList.filter(t => {
+            const matchesStatus = transportFilterStatus === "ALL" || t.status === transportFilterStatus;
+            const q = transportSearchQuery.trim().toLowerCase();
+            const matchesQuery = !q || (
+              (t.transportCode || "").toLowerCase().includes(q) ||
+              (t.farmerName || "").toLowerCase().includes(q) ||
+              (t.farmerCode || "").toLowerCase().includes(q) ||
+              (t.pickupVillage || "").toLowerCase().includes(q) ||
+              (t.destinationCentreName || "").toLowerCase().includes(q) ||
+              (t.vehicleNumber || "").toLowerCase().includes(q) ||
+              (t.driverName || "").toLowerCase().includes(q)
+            );
+            return matchesStatus && matchesQuery;
+          });
+
+          if (filteredList.length === 0) {
+            return (
+              <div className="p-10 text-center text-muted-foreground bg-card rounded-2xl border border-dashed flex flex-col items-center justify-center gap-2">
+                <Truck size={36} className="text-muted-foreground/40" />
+                <p className="text-sm font-semibold">No transport requests match your filter.</p>
+                <small className="text-xs text-muted-foreground">Try clearing your search query or selecting "All Trips".</small>
               </div>
+            );
+          }
 
-              {/* Grid: 4 organized columns without text overlap */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
-                {/* 1. Farmer & Pickup */}
-                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Registered Farmer</span>
-                  <div className="font-bold text-slate-900 text-sm">{t.farmerName || "Farmer details unavailable"}</div>
-                  <div className="text-[11px] font-mono text-emerald-800 font-semibold">{t.farmerCode || "FMR-2026"}</div>
-                  <div className="text-[11px] text-muted-foreground">📞 +91 {t.farmerPhone || "9876543210"}</div>
-                  <div className="text-xs text-[#173e2d] font-semibold pt-1 border-t border-slate-200">
-                    📍 Pickup: <b>{t.pickupVillage}</b>
+          return filteredList.map(t => {
+            const stepIndex = t.status === "DELIVERED_AT_CENTRE" ? 3 : t.status === "IN_TRANSIT" ? 2 : t.status === "ASSIGNED" ? 1 : 0;
+            const statusConfig = {
+              DELIVERED_AT_CENTRE: { label: "Delivered at Mandi", tone: "green", bg: "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300" },
+              IN_TRANSIT: { label: "In Transit", tone: "yellow", bg: "bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300" },
+              ASSIGNED: { label: "Driver Assigned", tone: "blue", bg: "bg-indigo-50 text-indigo-900 border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300" },
+              REQUESTED: { label: "Booking Requested", tone: "blue", bg: "bg-blue-50 text-blue-900 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300" },
+              CANCELLED: { label: "Cancelled", tone: "gray", bg: "bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300" },
+            }[t.status] || { label: t.status, tone: "blue", bg: "bg-blue-50 text-blue-900 border-blue-300" };
+
+            return (
+              <article
+                key={t.id}
+                className="group rounded-2xl bg-card border border-border/80 hover:border-emerald-500/50 shadow-xs hover:shadow-md transition-all flex flex-col overflow-hidden"
+              >
+                {/* 1. Header Bar: Transport ID, Vehicle Pill, Date, and Status Badge */}
+                <div className="px-5 py-3.5 bg-slate-50/90 dark:bg-slate-900/50 border-b border-border/60 flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className="p-2 rounded-xl bg-blue-100/70 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/80">
+                      <Truck size={17} />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-extrabold text-[#153828] dark:text-emerald-400 font-mono m-0">
+                          {t.transportCode}
+                        </h3>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard?.writeText(t.transportCode);
+                            toast.success(`Copied ${t.transportCode}`);
+                          }}
+                          className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+                          title="Copy Request Code"
+                        >
+                          <Copy size={13} />
+                        </button>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        Booked on {t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Today"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-900 dark:bg-blue-950/60 dark:text-blue-200 border border-blue-200/60">
+                      🚜 {t.vehicleName}
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusConfig.bg}`}>
+                      <span className={`w-2 h-2 rounded-full ${t.status === "IN_TRANSIT" ? "bg-amber-500 animate-ping" : t.status === "DELIVERED_AT_CENTRE" ? "bg-emerald-600" : "bg-blue-600"}`} />
+                      {statusConfig.label}
+                    </span>
                   </div>
                 </div>
 
-                {/* 2. Destination & Route */}
-                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Destination Centre</span>
-                  <div className="font-bold text-slate-900 text-sm">{t.destinationCentreName}</div>
-                  <div className="text-xs text-muted-foreground">Distance: <b className="text-slate-800">{t.distanceKm} km</b></div>
-                  <div className="text-xs text-muted-foreground">Est. Trip Duration: <b className="text-slate-800">~{Math.round(t.distanceKm * 2.2)} mins</b></div>
-                  <div className="text-xs text-emerald-800 font-bold pt-1 border-t border-slate-200 flex items-center gap-1">
-                    <span>{t.pickupVillage}</span>
-                    <span className="text-muted-foreground">→</span>
-                    <span>{t.destinationCentreName}</span>
+                {/* 2. Compact Status Timeline Progress Tracker */}
+                <div className="px-5 py-3 bg-muted/20 border-b border-border/40">
+                  <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold relative">
+                    {[
+                      { key: "REQUESTED", label: "1. Booked" },
+                      { key: "ASSIGNED", label: "2. Driver Assigned" },
+                      { key: "IN_TRANSIT", label: "3. In Transit" },
+                      { key: "DELIVERED_AT_CENTRE", label: "4. Mandi Arrival" },
+                    ].map((step, idx) => {
+                      const isCurrent = stepIndex === idx;
+                      const isCompleted = stepIndex > idx;
+                      return (
+                        <div
+                          key={step.key}
+                          className={`py-1 px-1.5 rounded-lg flex items-center justify-center gap-1.5 text-[11px] transition-all ${
+                            isCurrent
+                              ? "bg-emerald-700 text-white font-extrabold shadow-2xs"
+                              : isCompleted
+                              ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-semibold"
+                              : "text-muted-foreground bg-transparent font-medium"
+                          }`}
+                        >
+                          {isCompleted ? <Check size={12} className="text-emerald-700 dark:text-emerald-400" /> : isCurrent ? <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> : null}
+                          <span className="truncate">{step.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* 3. Schedule & Cargo */}
-                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Schedule & Cargo Load</span>
-                  <div className="text-xs text-slate-900 font-semibold">📅 <b>{t.scheduledDate}</b></div>
-                  <div className="text-xs text-slate-800">⏰ {t.timeSlot}</div>
-                  <div className="text-xs text-emerald-950 font-bold pt-1 border-t border-slate-200">
-                    🌾 Estimated Load: <span className="text-sm text-emerald-900 font-extrabold">{t.estimatedLoadQuintals} Qtl</span>
+                {/* 3. Structured 3-Column Content Layout (Farmer, Prominent Route, Schedule/Cargo) */}
+                <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+                  {/* Column 1: Farmer & Pickup Location */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <UserCheck size={13} className="text-emerald-700" /> Registered Farmer
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-sm font-extrabold text-foreground">{t.farmerName || "Farmer details unavailable"}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60">
+                          {t.farmerCode || "FMR-2026"}
+                        </span>
+                        <a href={`tel:${t.farmerPhone || "9876543210"}`} className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                          📞 +91 {t.farmerPhone || "9876543210"}
+                        </a>
+                      </div>
+                    </div>
+                    <div className="mt-1 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-800 flex items-start gap-2">
+                      <MapPin size={15} className="text-emerald-700 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold block">Pickup Point</span>
+                        <span className="text-xs font-bold text-foreground">{t.pickupVillage}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 2: Visual Route & Mandi Destination */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Navigation size={13} className="text-blue-600" /> Transit Route & Mandi
+                    </div>
+                    <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 space-y-2 flex-1 flex flex-col justify-center">
+                      {/* Origin */}
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[9px] font-bold shadow-2xs">A</span>
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Origin Pickup</span>
+                          <span className="text-xs font-bold text-foreground truncate block">{t.pickupVillage}</span>
+                        </div>
+                      </div>
+                      {/* Route distance connector */}
+                      <div className="ml-2 pl-3.5 border-l-2 border-dashed border-blue-300 dark:border-blue-700 py-1 flex items-center gap-2 text-[11px] text-muted-foreground font-medium">
+                        <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-blue-200/80 font-bold text-blue-900 dark:text-blue-300 font-mono">
+                          {t.distanceKm} km
+                        </span>
+                        <span>·</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">~{Math.round(t.distanceKm * 2.2)} mins travel</span>
+                      </div>
+                      {/* Destination */}
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 text-[9px] font-bold shadow-2xs">B</span>
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Destination Mandi</span>
+                          <span className="text-xs font-bold text-foreground truncate block">{t.destinationCentreName}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 3: Schedule & Cargo Details */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <CalendarDays size={13} className="text-amber-600" /> Schedule & Cargo Load
+                    </div>
+                    <div className="space-y-2 flex-1 flex flex-col justify-between">
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">📅 Scheduled Date:</span>
+                          <b className="text-foreground">{t.scheduledDate}</b>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">⏰ Time Window:</span>
+                          <b className="text-foreground">{t.timeSlot}</b>
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/50 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-400 block">Crop Load (Paddy)</span>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Grain Cargo</span>
+                        </div>
+                        <span className="text-sm font-extrabold text-emerald-900 dark:text-emerald-300 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-300/80 shadow-2xs">
+                          {t.estimatedLoadQuintals} Quintals
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* 4. Driver & Subsidized Fare */}
-                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/70 space-y-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">Driver & Subsidized Fare</span>
-                  <div className="text-xs font-bold text-slate-900">
-                    👤 {t.driverName} <span className="text-slate-500 font-normal font-mono">({t.vehicleNumber})</span>
+                {/* 4. Driver Details & 30% Govt Subsidized Fare Breakdown */}
+                <div className="mx-5 mb-4 p-3.5 rounded-xl bg-gradient-to-r from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/40 dark:to-teal-950/40 border border-emerald-200/80 dark:border-emerald-900/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="w-7 h-7 rounded-full bg-emerald-200/80 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 flex items-center justify-center font-bold text-xs">
+                      👤
+                    </span>
+                    <div>
+                      <div className="font-bold text-foreground">
+                        {t.driverName} <span className="font-mono text-muted-foreground font-normal">({t.vehicleNumber})</span>
+                      </div>
+                      <a href={`tel:${t.driverPhone || "9876500000"}`} className="text-[11px] text-muted-foreground hover:text-foreground">
+                        📞 +91 {t.driverPhone || "9876500000"}
+                      </a>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">📞 +91 {t.driverPhone || "9876500000"}</div>
-                  <div className="text-[11px] text-slate-600 flex justify-between pt-1 border-t border-emerald-200/60">
-                    <span>Standard Fare:</span>
-                    <b>₹{t.baseFare.toFixed(2)}</b>
-                  </div>
-                  <div className="text-[11px] text-emerald-700 font-bold flex justify-between">
-                    <span>30% Govt Subsidy:</span>
-                    <span>-₹{t.subsidyAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="text-xs font-extrabold text-emerald-950 pt-1 border-t border-emerald-300 flex justify-between items-baseline">
-                    <span>Net Payable:</span>
-                    <span className="text-sm text-emerald-800 font-extrabold">₹{t.netPayable.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Action Button Row */}
-              <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-border/40">
-                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <LocateFixed size={14} className="text-emerald-700" />
-                  <span>Route: <b>{t.pickupVillage}</b> to <b>{t.destinationCentreName}</b> ({t.distanceKm} km)</span>
+                  <div className="flex items-center gap-3 flex-wrap text-xs">
+                    <span className="text-muted-foreground">
+                      Standard Fare: <b className="text-foreground">₹{t.baseFare.toFixed(2)}</b>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-bold">
+                      Govt 30% Subsidy: -₹{t.subsidyAmount.toFixed(2)}
+                    </span>
+                    <div className="flex items-baseline gap-1 pl-2 border-l border-emerald-300 dark:border-emerald-800">
+                      <span className="text-muted-foreground font-semibold">Farmer Net:</span>
+                      <span className="text-base font-extrabold text-emerald-900 dark:text-emerald-300 font-mono">
+                        ₹{t.netPayable.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs border-blue-600 text-blue-800 hover:bg-blue-50 font-bold"
-                    onClick={() => setViewingTransportRouteItem(t)}
-                  >
-                    <MapPin size={14} className="mr-1.5 text-blue-700" /> View Route Map
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
-                    onClick={() => {
-                      setSelectedTransportItem(t);
-                      setTransportUpdateStatus(t.status as typeof transportUpdateStatus);
-                      setShowTransportModal(true);
-                    }}
-                  >
-                    <Truck size={14} className="mr-1.5" /> Update Status
-                  </Button>
+
+                {/* 5. Card Footer Actions */}
+                <div className="px-5 py-3 bg-slate-50/60 dark:bg-slate-900/30 border-t border-border/60 flex items-center justify-between flex-wrap gap-2.5">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
+                    <LocateFixed size={14} className="text-emerald-700 shrink-0" />
+                    <span>Route: <b>{t.pickupVillage}</b> → <b>{t.destinationCentreName}</b> ({t.distanceKm} km)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs border-blue-600/80 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 font-bold shadow-2xs"
+                      onClick={() => setViewingTransportRouteItem(t)}
+                    >
+                      <MapPin size={14} className="mr-1.5 text-blue-700" /> View Route Map
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs"
+                      onClick={() => {
+                        setSelectedTransportItem(t);
+                        setTransportUpdateStatus(t.status as typeof transportUpdateStatus);
+                        setShowTransportModal(true);
+                      }}
+                    >
+                      <Truck size={14} className="mr-1.5" /> Update Status
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))
-        ) : (
-          <div className="p-8 text-center text-muted-foreground bg-slate-50/60 rounded-2xl border border-dashed">No active transportation bookings found.</div>
-        )}
+              </article>
+            );
+          });
+        })()}
       </section>
 
       {/* Interactive Logistics Route Map Modal */}
