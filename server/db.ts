@@ -15,6 +15,8 @@ import {
   notifications,
   cropPrices,
   transportBookings,
+  staffAuditLogs,
+  staffNotifications,
   type InsertUser,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -147,6 +149,8 @@ class LocalDatabaseStore {
       "notifications",
       "cropPrices",
       "transportBookings",
+      "staffAuditLogs",
+      "staffNotifications",
     ];
     for (const name of tableList) {
       if (!this.tables.has(name)) {

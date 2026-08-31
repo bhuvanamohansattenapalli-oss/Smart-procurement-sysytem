@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild netlify/functions/api.ts --platform=node --bundle --format=esm --outfile=netlify/functions/api.mjs && esbuild netlify/functions/api.ts --platform=node --bundle --format=esm --outfile=netlify/functions/api.js",
     "start": "node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
@@ -69,6 +72,7 @@
     "react-hook-form": "^7.64.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.2",
+    "serverless-http": "^4.0.0",
     "sonner": "^2.0.7",
     "streamdown": "^1.4.0",
     "superjson": "^1.13.3",
@@ -109,7 +113,7 @@
       "wouter@3.7.1": "patches/wouter@3.7.1.patch"
     },
     "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
+      "nanoid": "3.3.7"
     }
   }
 }

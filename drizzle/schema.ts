@@ -87,13 +87,66 @@ export const otpChallenges = mysqlTable("otpChallenges", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-/** Secure officer credentials for the prototype officer console. */
+export const staffRoleEnum = [
+  "HEAD_OFFICER",
+  "PROCUREMENT_OFFICER",
+  "QUALITY_CONTROL_INSPECTOR",
+  "LOGISTICS_OFFICER",
+  "PAYMENT_OFFICER",
+] as const;
+
+export const staffStatusEnum = [
+  "PENDING_VERIFICATION",
+  "ACTIVE",
+  "DISABLED",
+  "REJECTED",
+] as const;
+
+/** Secure officer and onboarded staff credentials with role-based branch access. */
 export const officers = mysqlTable("officers", {
   id: int("id").autoincrement().primaryKey(),
   officerCode: varchar("officerCode", { length: 40 }).notNull().unique(),
+  employeeId: varchar("employeeId", { length: 64 }),
   name: varchar("name", { length: 160 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 20 }),
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  role: varchar("role", { length: 64 }).default("HEAD_OFFICER").notNull(),
+  department: varchar("department", { length: 100 }).default("Administration").notNull(),
+  designation: varchar("designation", { length: 120 }),
+  branch: varchar("branch", { length: 160 }).default("Guntur").notNull(),
+  centreId: int("centreId"),
+  centreName: varchar("centreName", { length: 160 }),
   district: varchar("district", { length: 160 }).notNull(),
+  status: varchar("status", { length: 40 }).default("ACTIVE").notNull(),
+  mustChangePassword: int("mustChangePassword").default(0).notNull(),
+  approvedByOfficerId: int("approvedByOfficerId"),
+  approvedAt: timestamp("approvedAt"),
+  rejectionReason: text("rejectionReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/** Audit logs for administrative staff lifecycle actions. */
+export const staffAuditLogs = mysqlTable("staffAuditLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  performedByOfficerId: int("performedByOfficerId").notNull(),
+  performedByOfficerName: varchar("performedByOfficerName", { length: 160 }).notNull(),
+  targetOfficerId: int("targetOfficerId"),
+  targetOfficerName: varchar("targetOfficerName", { length: 160 }),
+  action: varchar("action", { length: 64 }).notNull(),
+  details: text("details"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+/** In-app notifications specifically for officer and staff accounts. */
+export const staffNotifications = mysqlTable("staffNotifications", {
+  id: int("id").autoincrement().primaryKey(),
+  officerId: int("officerId").notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  message: text("message").notNull(),
+  category: varchar("category", { length: 48 }).notNull().default("ONBOARDING"),
+  isRead: int("isRead").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -238,3 +291,5 @@ export type Farmer = typeof farmers.$inferSelect;
 export type Officer = typeof officers.$inferSelect;
 export type CropPrice = typeof cropPrices.$inferSelect;
 export type TransportBooking = typeof transportBookings.$inferSelect;
+export type StaffAuditLog = typeof staffAuditLogs.$inferSelect;
+export type StaffNotification = typeof staffNotifications.$inferSelect;

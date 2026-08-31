@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   ClipboardCheck,
   Clock3,
@@ -22,6 +23,7 @@ import {
   CreditCard,
   Download,
   Droplets,
+  Globe,
   Headphones,
   HelpCircle,
   Landmark,
@@ -29,6 +31,7 @@ import {
   LoaderCircle,
   LocateFixed,
   LogIn,
+  LogOut,
   MapPin,
   Menu,
   MessageCircle,
@@ -52,6 +55,8 @@ import {
   TrendingUp,
   Truck,
   UserCheck,
+  UserPlus,
+  Users,
   UserX,
   UsersRound,
   Volume2,
@@ -60,6 +65,14 @@ import {
   Wheat,
   Wind,
   X,
+  Key,
+  Lock,
+  Building2,
+  AlertCircle,
+  Eye,
+  History,
+  Shield,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +82,15 @@ import { toast } from "sonner";
 import { apiUrl } from "@/lib/api";
 import { MapView } from "@/components/Map";
 
-type Language = "EN" | "TE" | "HI";
+import { localizedUiText, translations, Language } from "@/lib/translations";
+
+function getInitials(name?: string | null, fallback = "SO"): string {
+  if (!name || typeof name !== "string") return fallback;
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return fallback;
+  return parts.map(p => p[0]).join("").slice(0, 2).toUpperCase() || fallback;
+}
+
 type Screen =
   | "landing"
   | "registration"
@@ -94,11 +115,36 @@ type Screen =
   | "notifications"
   | "officerLogin"
   | "officerDashboard"
+  | "staffManagement"
   | "registrations"
   | "farmerDetail"
   | "approved"
   | "bookings"
+  | "quality"
+  | "officerLogistics"
   | "officerPayments";
+
+export type StaffRecord = {
+  id: number;
+  officerCode: string;
+  employeeId?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  role: "HEAD_OFFICER" | "PROCUREMENT_OFFICER" | "QUALITY_CONTROL_INSPECTOR" | "LOGISTICS_OFFICER" | "PAYMENT_OFFICER";
+  department: string;
+  designation?: string;
+  branch: string;
+  centreId?: number;
+  centreName?: string;
+  district: string;
+  status: "PENDING_VERIFICATION" | "ACTIVE" | "DISABLED" | "REJECTED";
+  mustChangePassword?: number;
+  approvedByOfficerId?: number;
+  approvedAt?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+};
 
 
 type Centre = {
@@ -138,8 +184,9 @@ type ApiBooking = {
   centre: { id: number; name: string; place: string; distanceKm: number };
   slot: { id: number; date: string; startTime: string; endTime: string };
   queue: { position: number; peopleAhead: number; estimatedWaitMinutes: number; status: string; currentToken: string } | null;
-  procurement: { status: string; weighedQuantityQuintals: number | null; qualityGrade: string | null } | null;
-  paymentQuote: { unitPrice: number; qualityAdjustment: number; demoPayable: number; currency: string; isOfficial: boolean };
+  procurement: { status: string; weighedQuantityQuintals: number | null; qualityGrade: string | null; updatedAt?: string } | null;
+  transport?: { id: number; transportCode: string; vehicleType?: string; vehicleNumber?: string; driverName?: string; driverPhone?: string; status?: string } | null;
+  paymentQuote: { unitPrice: number; qualityAdjustment?: number; govtBonus?: number; effectiveRate?: number; demoPayable: number; currency: string; isOfficial: boolean };
 };
 
 type PaymentRecord = {
@@ -206,7 +253,14 @@ type OfficerAnalytics = {
   funnel: { registered: number; pending: number; approved: number; booked: number; completed: number };
 };
 
-type PendingRegistration = { id: number; status: "PENDING" | "APPROVED" | "REJECTED"; farmer: FarmerProfile };
+type PendingRegistration = {
+  id: number;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  farmer: FarmerProfile;
+  registrationCode?: string;
+  aadhaarMasked?: string;
+  submittedAt?: string;
+};
 const farmerOnlyScreens: Screen[] = [
   "dashboard",
   "paddy",
@@ -254,563 +308,6 @@ const navItems: { screen: Screen; label: string; icon: typeof Sprout }[] = [
   { screen: "payment", label: "Payments", icon: WalletCards },
   { screen: "assistant", label: "AI Help Centre", icon: Bot },
 ];
-const localizedUiText: Record<Exclude<Language, "EN">, Record<string, string>> = {
-  HI: {
-    "Back to home": "होम पर लौटें",
-    "Farmer name": "किसान का नाम",
-    "Full name": "पूरा नाम",
-    "Mobile number": "मोबाइल नंबर",
-    "Create password": "पासवर्ड बनाएँ",
-    "Farmer ID / Aadhaar": "किसान आईडी / आधार",
-    "Aadhaar Number": "आधार संख्या",
-    "Total Land Area (Acres)": "कुल भूमि (एकड़)",
-    "Total Land Area": "कुल कृषि भूमि",
-    "Acres": "एकड़",
-    "Password": "पासवर्ड",
-    Village: "गाँव",
-    District: "ज़िला",
-    "Primary crop": "मुख्य फसल",
-    "Submit registration": "पंजीकरण जमा करें",
-    "Return to farmer login": "किसान लॉगिन पर लौटें",
-    "Book another slot": "एक और स्लॉट बुक करें",
-    "View token": "टोकन देखें",
-    "See live queue": "लाइव कतार देखें",
-    "Choose a centre": "केंद्र चुनें",
-    "Review booking": "बुकिंग की समीक्षा करें",
-    "Confirm & generate token": "पुष्टि करें और टोकन बनाएँ",
-    "Open live queue": "लाइव कतार खोलें",
-    "Complete your procurement payment.": "अपनी खरीद का भुगतान पूरा करें।",
-    "Select payment method": "भुगतान विधि चुनें",
-    "Payment received.": "भुगतान प्राप्त हुआ।",
-    "Payment history": "भुगतान इतिहास",
-    "Your registration is under review.": "आपका पंजीकरण समीक्षा में है।",
-    "Registration must be approved by an officer.": "पंजीकरण अधिकारी द्वारा स्वीकृत होना चाहिए।",
-    "Login to my dashboard": "मेरे डैशबोर्ड में लॉगिन करें",
-    "Sign in and load an active booking to view its payment summary.": "भुगतान सारांश देखने के लिए लॉगिन करके सक्रिय बुकिंग लोड करें।",
-    "Edit details": "विवरण संपादित करें",
-    "My profile": "मेरी प्रोफ़ाइल",
-    "Farmer assistant": "किसान सहायक",
-    "AI Help Centre": "एआई सहायता केंद्र",
-    "AI FARMER ASSISTANT & HELP CENTRE": "एआई किसान सहायक व सहायता केंद्र",
-    "AI FARMER ASSISTANT": "एआई किसान सहायक",
-    "ProcureFlow AI Assistant": "प्रोक्योरफ्लो एआई सहायक",
-    "Live Weather": "लाइव मौसम",
-    "Reject farmer": "पंजीकरण अस्वीकार करें",
-    "Approve farmer": "पंजीकरण स्वीकृत करें",
-    "Update stage": "दशा बदलें",
-    "Procurement stage": "खरीद चरण",
-    "Save status": "स्थिति सुरक्षित करें",
-    "Govt MSP Rates": "सरकारी समर्थन मूल्य दरें",
-    "Analytics": "एनालिटिक्स",
-    "Transportation": "फसल परिवहन",
-    "Overview": "अवलोकन",
-    "New booking": "नई बुकिंग",
-    "My token": "मेरा टोकन",
-    "Live queue": "लाइव कतार",
-    "Procurement": "खरीद",
-    "Payments": "भुगतान",
-    "YOUR DATE": "आपकी तिथि",
-    "YOUR TOKEN": "आपका टोकन",
-    "ACTIVE API BOOKING": "सक्रिय एपीआई बुकिंग",
-    "DEMO BOOKING": "डेमो बुकिंग",
-    "PEOPLE AHEAD": "आगे किसान",
-    "ESTIMATED WAIT": "अनुमानित प्रतीक्षा",
-    "PADDY SELECTED": "चुना हुआ धान",
-    "PROCUREMENT STAGE": "खरीद चरण",
-    "TODAY’S SIGNAL": "आज की सूचना",
-    "WHAT’S NEXT": "आगे का कदम",
-    "YOUR STATS": "आपके आँकड़े",
-    "Total bookings": "कुल बुकिंग",
-    "Completed procurement": "पूर्ण खरीद",
-    "Current position": "वर्तमान स्थिति",
-    "Amount received": "प्राप्त राशि",
-    "Bring the right documents.": "उचित दस्तावेज़ साथ लाएँ।",
-    "Keep your farmer ID, bank passbook, and paddy receipt ready for a fast verification.": "त्वरित सत्यापन के लिए किसान आईडी, बैंक पासबुक और धान रसीद तैयार रखें।",
-    "Ask now": "अभी पूछें",
-    "See full procurement timeline": "पूरी खरीद समयरेखा देखें",
-    "FARMER SPACE": "किसान पोर्टल",
-    "Open today": "आज खुला है",
-    "Log out": "लॉग आउट",
-    "Logout": "लॉग आउट",
-    "Govt Bonus": "सरकारी बोनस",
-    "Max Moisture": "अधिकतम नमी",
-    "Effective Rate": "प्रभावी दर",
-    "Subsidy": "सब्सिडी",
-    "Tractor Trolley": "ट्रैक्टर ट्रॉली",
-    "Mini Truck": "मिनी ट्रक",
-    "Heavy Lorry": "भारी लॉरी",
-    "Book Subsidized Transport": "सब्सिडी वाला परिवहन बुक करें",
-    "Calculate MSP Valuation": "न्यूनतम समर्थन मूल्य गणना करें",
-    "Realized Revenue": "प्राप्त आय",
-    "Benchmark Achieved": "मानक प्राप्त",
-    "Turnaround Speed": "औसत समय",
-    "Transport Savings": "परिवहन बचत",
-    "Download Statement": "स्टेटमेंट डाउनलोड करें",
-    "Driver": "चालक",
-    "Phone": "फ़ोन",
-    "Vehicle Number": "वाहन संख्या",
-    "Distance": "दूरी",
-    "Base Fare": "मूल किराया",
-    "Net Payable": "किसान देय राशि",
-    "Assigned": "आवंटित",
-    "In Transit": "मार्ग में",
-    "Delivered": "पहुँच गया",
-    "All": "सभी",
-    "Cereals": "अनाज",
-    "Pulses": "दालें",
-    "Oilseeds": "तिलहन",
-    "Commercial": "वाणिज्यिक",
-    "Search crop or variety...": "फसल या किस्म खोजें...",
-    "Book procurement slot at this MSP": "इस समर्थन मूल्य पर स्लॉट बुक करें",
-    "Book Subsidized Vehicle": "सब्सिडी वाला वाहन बुक करें",
-    "Estimated Load (Quintals)": "अनुमानित भार (क्विंटल)",
-    "Pickup Village": "गाँव से उठाव",
-    "Destination Centre": "गंतव्य खरीद केंद्र",
-    "Scheduled Date": "निर्धारित तिथि",
-    "Time Slot": "समय स्लॉट",
-    "Total Harvest Procured": "कुल खरीदी गई फसल",
-    "Price Realization Rate": "मूल्य प्राप्ति दर",
-    "Average Turnaround": "औसत समय",
-    "Logistics Subsidy Saved": "बचाई गई परिवहन सब्सिडी",
-    "Harvest Delivery Statements": "फसल खरीद विवरण तालिका",
-    "Active Vehicle Bookings": "सक्रिय वाहन बुकिंग",
-    "Normal Map": "सामान्य मानचित्र",
-    "Satellite Map": "सैटेलाइट मानचित्र",
-    "Andhra Pradesh Network": "आंध्र प्रदेश नेटवर्क",
-    "Andhra Pradesh Centres": "आंध्र प्रदेश केंद्र",
-    "Fit AP": "AP फ़िट करें",
-    "Select this Centre": "यह केंद्र चुनें",
-    "Choose time, not just distance.": "सिर्फ़ दूरी नहीं, समय भी चुनें।",
-    "Vijayawada is calmest now": "विजयवाड़ा केंद्र पर सबसे कम भीड़ है",
-    "View Vijayawada Centre": "विजयवाड़ा केंद्र देखें",
-    "Live Agricultural Weather & Safe Harvest Report": "लाइव कृषि मौसम व सुरक्षित कटाई रिपोर्ट",
-    "Agricultural Meteorology": "कृषि मौसम विज्ञान",
-    "Safe Harvesting Advisory": "सुरक्षित फसल कटाई सलाह",
-    "3-Day Agriculture Forecast": "3-दिवसीय कृषि पूर्वानुमान",
-    "Humidity": "नमी / आर्द्रता",
-    "Wind Velocity": "हवा की गति",
-    "Precipitation": "वर्षा की संभावना",
-    "Harvest Status": "कटाई स्थिति",
-    "Feels like": "महसूस तापमान",
-    "Clear Sky": "साफ आसमान",
-    "Sunny & Dry": "शुष्क व धूप",
-    "Partly Cloudy": "आंशिक बादल",
-    "Optimal": "उत्कृष्ट",
-    "Favorable": "अनुकूल",
-    "Caution": "सावधानी",
-    "Officer console": "अधिकारी कंसोल",
-    "Pending farmers": "लंबित किसान",
-    "Approved farmers": "स्वीकृत किसान",
-    "Bookings & queue": "बुकिंग व कतार",
-    "Payment status": "भुगतान स्थिति",
-    "Farmer portal": "किसान पोर्टल",
-    "Procurement window": "खरीद विंडो",
-    "Total Registrations": "कुल पंजीकरण",
-    "Pending Review": "समीक्षा हेतु लंबित",
-    "Active Bookings": "सक्रिय बुकिंग",
-    "Completed Today": "आज पूर्ण",
-    "Approve": "स्वीकृत करें",
-    "Reject": "अस्वीकार करें",
-    "Aadhaar": "आधार",
-    "Primary Crop": "मुख्य फसल",
-    "Rythu Bharosa Toll-Free": "रायथू भरोसा टोल-फ्री",
-    "Call Helpline": "कॉल करें",
-    "Copy Number": "नंबर कॉपी करें",
-    "Mandatory Mandi Checklist": "मंडी हेतु अनिवार्य दस्तावेज़ सूची",
-    "Mandatory Mandi Checklist:": "मंडी हेतु अनिवार्य दस्तावेज़ सूची:",
-    "1. Farmer Registration ID / Aadhaar": "1. किसान पंजीकरण आईडी / आधार",
-    "2. Aadhaar-linked Bank Passbook (DBT)": "2. आधार से जुड़ी बैंक पासबुक (DBT)",
-    "3. e-Crop / Land Record (Pahani/1B)": "3. ई-फसल / भूमि रिकॉर्ड (1B)",
-    "4. Digital Token Pass": "4. डिजिटल टोकन पास",
-    "Official Rythu Helplines": "आधिकारिक किसान हेल्पलाइन",
-    "Direct Government Support Desks": "प्रत्यक्ष सरकारी सहायता डेस्क",
-    "Rythu Bharosa Kendra Helpdesk": "रायथू भरोसा केंद्र हेल्पडेस्क",
-    "AP Civil Supplies & Mandi Grievance": "एपी नागरिक आपूर्ति एवं मंडी शिकायत",
-    "Try asking": "पूछ कर देखें",
-    "What is my token?": "मेरा टोकन क्या है?",
-    "How many people are ahead of me?": "मेरे आगे कितने किसान हैं?",
-    "When should I reach the centre?": "मुझे केंद्र कब पहुँचना चाहिए?",
-    "Which centre has less waiting?": "किस केंद्र में कम प्रतीक्षा है?",
-    "Is today's weather safe for harvest?": "क्या आज फसल काटना सुरक्षित है?",
-    "How do I book 30% subsidized transport?": "30% सब्सिडी वाला वाहन कैसे बुक करें?",
-    "Common paddy": "साधारण धान",
-    "Fine paddy": "उत्कृष्ट धान",
-    "Parboiled paddy": "उबला हुआ धान",
-    "Grade A": "ग्रेड A",
-    "Grade B": "ग्रेड B",
-    "Expected quantity": "अपेक्षित मात्रा",
-    "quintals": "क्विंटल",
-    "Save for later": "बाद के लिए सुरक्षित करें",
-    "Good selection means a smoother morning.": "सही चयन से खरीद यात्रा सुगम होती है।",
-    "Centre availability updates live from the server.": "केंद्र की उपलब्धता सर्वर से लाइव अपडेट होती है।",
-    "Morning Slot": "सुबह का स्लॉट",
-    "Afternoon Slot": "दोपहर का स्लॉट",
-    "Evening Slot": "शाम का स्लॉट",
-    "Confirm Slot": "स्लॉट पक्का करें",
-    "Booking confirmed": "बुकिंग पक्की हो गई",
-    "Digital token": "डिजिटल टोकन",
-    "Print / Save Token": "टोकन प्रिंट / सुरक्षित करें",
-    "Return to dashboard": "डैशबोर्ड पर लौटें",
-    "Processing": "प्रक्रिया जारी",
-    "Completed": "पूर्ण",
-    "Pending": "लंबित",
-    "Failed": "विफल",
-    "Success": "सफल",
-    "BOOKED": "बुक किया गया",
-    "ARRIVED": "केंद्र पर पहुँचे",
-    "WEIGHED": "वजन संपन्न",
-    "QUALITY_CHECK": "गुणवत्ता जाँच",
-    "COMPLETED": "पूर्ण",
-    "Card": "कार्ड",
-    "Net Banking": "नेट बैंकिंग",
-    "UPI": "यूपीआई",
-    "Procurement settlement": "खरीद निपटान",
-    "Amount payable": "देय राशि",
-    "Copy receipt details": "रसीद विवरण कॉपी करें",
-    "Receipt": "रसीद",
-    "Farmer ID": "किसान आईडी",
-    "Verified profile": "सत्यापित प्रोफ़ाइल",
-    "Start a new booking": "नई बुकिंग शुरू करें",
-    "Full Weather Report": "पूरी मौसम रिपोर्ट",
-    "Safe Harvesting & Procurement Advisory": "सुरक्षित फसल कटाई व खरीद सलाह",
-    "Book Subsidized Vehicle for Today's Weather": "आज के मौसम अनुसार सब्सिडी वाहन बुक करें",
-    "Book Procurement Slot": "खरीद स्लॉट बुक करें",
-    "Tomorrow": "कल",
-    "Day After": "परसों",
-    "In 3 Days": "3 दिन में",
-    "AP Agromet": "आंध्र एग्रोमेट",
-    "🌟 All Topics": "🌟 सभी विषय",
-    "🎫 Token & Queue": "🎫 टोकन व कतार",
-    "🌧️ Weather & Advisory": "🌧️ मौसम व सलाह",
-    "🌾 Crop MSP Rates": "🌾 समर्थन मूल्य दरें",
-    "🚚 30% Subsidized Transport": "🚚 30% सब्सिडी परिवहन",
-    "📞 Helplines & Docs": "📞 हेल्पलाइन व दस्तावेज़",
-    "Select a quick question:": "त्वरित सवाल चुनें:",
-    "Type your question in English, Telugu, or Hindi…": "अपना सवाल यहाँ लिखें (अंग्रेज़ी, तेलुगु या हिन्दी)…",
-    "Voice recognition & speech read-aloud enabled in English, Telugu and Hindi.": "आवाज़ पहचान और बोलकर सुनने की सुविधा उपलब्ध है।",
-    "Call": "कॉल करें",
-    "Copy": "कॉपी करें",
-    "Toll-free": "टोल-फ्री",
-    "24x7 Government Helpline": "24x7 सरकारी हेल्पलाइन",
-    "Mon–Sat (8 AM – 7 PM)": "सोम–शनि (सुबह 8 – शाम 7)",
-    "Paddy": "धान",
-    "Cotton": "कपास",
-    "Maize": "मक्का",
-    "Red Gram": "अरहर (तूर दाल)",
-    "Groundnut": "मूँगफली",
-    "Soyabean": "सोयाबीन",
-    "Wheat": "गेहूँ",
-    "Gram": "चना",
-    "Guntur Agricultural Market Yard": "गुंटूर कृषि मंडी यार्ड",
-    "Vijayawada Central Paddy Hub": "विजयवाड़ा केंद्रीय धान केंद्र",
-    "Kurnool Rayalaseema Mandi": "कर्नूल रायलसीमा मंडी",
-    "Rajahmundry Godavari Yard": "राजामहेंद्री गोदावरी यार्ड",
-    "Eluru Coastal Procurement Yard": "एलुरु तटीय खरीद यार्ड",
-    "Nellore Swarnamukhi Yard": "नेल्लूर स्वर्णमुखी यार्ड",
-    "Tirupati Balaji Mandi Hub": "तिरुपति बालाजी मंडी केंद्र",
-    "Visakhapatnam Port Mandi": "विशाखापट्टनम पोर्ट मंडी",
-  },
-  TE: {
-    "Back to home": "హోమ్‌కు తిరిగి వెళ్లండి",
-    "Farmer name": "రైతు పేరు",
-    "Full name": "పూర్తి పేరు",
-    "Mobile number": "మొబైల్ నంబర్",
-    "Create password": "పాస్‌వర్డ్ సృష్టించండి",
-    "Farmer ID / Aadhaar": "రైతు ఐడి / ఆధార్",
-    "Aadhaar Number": "ఆధార్ సంఖ్య",
-    "Total Land Area (Acres)": "మొత్తం భూమి (ఎకరాలు)",
-    "Total Land Area": "మొత్తం సాగు భూమి",
-    "Acres": "ఎకరాలు",
-    "Password": "పాస్‌వర్డ్",
-    Village: "గ్రామం",
-    District: "జిల్లా",
-    "Primary crop": "ప్రధాన పంట",
-    "Submit registration": "నమోదును సమర్పించండి",
-    "Return to farmer login": "రైతు లాగిన్‌కు తిరిగి వెళ్లండి",
-    "Book another slot": "మరో స్లాట్ బుక్ చేయండి",
-    "View token": "టోకెన్ చూడండి",
-    "See live queue": "ప్రత్యక్ష క్యూ చూడండి",
-    "Choose a centre": "కేంద్రాన్ని ఎంచుకోండి",
-    "Review booking": "బుకింగ్‌ను సమీక్షించండి",
-    "Confirm & generate token": "నిర్ధారించి టోకెన్ సృష్టించండి",
-    "Open live queue": "ప్రత్యక్ష క్యూ తెరవండి",
-    "Complete your procurement payment.": "మీ కొనుగోలు చెల్లింపును పూర్తి చేయండి.",
-    "Select payment method": "చెల్లింపు విధానాన్ని ఎంచుకోండి",
-    "Payment received.": "చెల్లింపు అందింది.",
-    "Payment history": "చెల్లింపు చరిత్ర",
-    "Your registration is under review.": "మీ నమోదు సమీక్షలో ఉంది.",
-    "Registration must be approved by an officer.": "నమోదును అధికారి ఆమోదించాలి.",
-    "Login to my dashboard": "నా డ్యాష్‌బోర్డ్‌లో లాగిన్ చేయండి",
-    "Sign in and load an active booking to view its payment summary.": "చెల్లింపు సారాంశం కోసం లాగిన్ చేసి క్రియాశీల బుకింగ్‌ను లోడ్ చేయండి.",
-    "Edit details": "వివరాలను సవరించండి",
-    "My profile": "నా ప్రొఫైల్",
-    "Farmer assistant": "రైతు సహాయకుడు",
-    "AI Help Centre": "AI సహాయ కేంద్రం",
-    "AI FARMER ASSISTANT & HELP CENTRE": "AI రైతు సహాయకుడు & సహాయ కేంద్రం",
-    "AI FARMER ASSISTANT": "AI రైతు సహాయకుడు",
-    "ProcureFlow AI Assistant": "ప్రోక్యూర్ ఫ్లో AI సహాయకుడు",
-    "Live Weather": "ప్రత్యక్ష వాతావరణం",
-    "Reject farmer": "నమోదును తిరస్కరించండి",
-    "Approve farmer": "నమోదును ఆమోదించండి",
-    "Update stage": "దశను మార్చండి",
-    "Procurement stage": "సేకరణ దశ",
-    "Save status": "స్థితిని భద్రపరచండి",
-    "Govt MSP Rates": "ప్రభుత్వ మద్దతు ధరలు",
-    "Analytics": "విశ్లేషణ",
-    "Transportation": "పంట రవాణా",
-    "Overview": "అవలోకనం",
-    "New booking": "కొత్త బుకింగ్",
-    "My token": "నా టోకెన్",
-    "Live queue": "ప్రత్యక్ష క్యూ",
-    "Procurement": "కొనుగోలు",
-    "Payments": "చెల్లింపులు",
-    "YOUR DATE": "మీ తేదీ",
-    "YOUR TOKEN": "మీ టోకెన్",
-    "ACTIVE API BOOKING": "ప్రత్యక్ష బుకింగ్",
-    "DEMO BOOKING": "నమూనా బుకింగ్",
-    "PEOPLE AHEAD": "ముందున్న రైతులు",
-    "ESTIMATED WAIT": "అంచనా సమయం",
-    "PADDY SELECTED": "ఎంచుకున్న వరి",
-    "PROCUREMENT STAGE": "సేకరణ దశ",
-    "TODAY’S SIGNAL": "నేటి సమాచారం",
-    "WHAT’S NEXT": "తదుపరి దశ",
-    "YOUR STATS": "మీ గణాంకాలు",
-    "Total bookings": "మొత్తం బుకింగ్‌లు",
-    "Completed procurement": "పూర్తయిన సేకరణ",
-    "Current position": "ప్రస్తుత స్థానం",
-    "Amount received": "అందిన మొత్తం",
-    "Bring the right documents.": "సరైన పత్రాలు తీసుకురండి.",
-    "Keep your farmer ID, bank passbook, and paddy receipt ready for a fast verification.": "త్వరిత ధృవీకరణ కోసం మీ రైతు ఐడి, బ్యాంక్ పాస్‌బుక్ మరియు రసీదు సిద్ధంగా ఉంచుకోండి.",
-    "Ask now": "ఇప్పుడే అడగండి",
-    "See full procurement timeline": "పూర్తి సేకరణ కాలక్రమం చూడండి",
-    "FARMER SPACE": "రైతు విభాగం",
-    "Open today": "ఈరోజు తెరిచి ఉంది",
-    "Log out": "లాగ్ అవుట్",
-    "Logout": "లాగ్ అవుట్",
-    "Govt Bonus": "ప్రభుత్వ బోనస్",
-    "Max Moisture": "గరిష్ట తేమ",
-    "Effective Rate": "అమలులో ఉన్న ధర",
-    "Subsidy": "రాయితీ",
-    "Tractor Trolley": "ట్రాక్టర్ ట్రాలీ",
-    "Mini Truck": "మినీ ట్రక్",
-    "Heavy Lorry": "భారీ లారీ",
-    "Book Subsidized Transport": "రాయితీ రవాణా బుక్ చేయండి",
-    "Calculate MSP Valuation": "మద్దతు ధర విలువ లెక్కించండి",
-    "Realized Revenue": "పొందిన ఆదాయం",
-    "Benchmark Achieved": "మద్దతు ధర సాధించబడింది",
-    "Turnaround Speed": "కేంద్రంలో సమయం",
-    "Transport Savings": "రవాణా ఆదా",
-    "Download Statement": "స్టేట్‌మెంట్ డౌన్‌లోడ్ చేయండి",
-    "Driver": "డ్రైవర్",
-    "Phone": "ఫోన్",
-    "Vehicle Number": "వాహనం సంఖ్య",
-    "Distance": "దూరం",
-    "Base Fare": "ప్రాథమిక రుసుము",
-    "Net Payable": "రైతు చెల్లించాల్సిన మొత్తం",
-    "Assigned": "కేటాయించబడింది",
-    "In Transit": "దారిలో ఉంది",
-    "Delivered": "చేరింది",
-    "All": "అన్నీ",
-    "Cereals": "ధాన్యాలు",
-    "Pulses": "పప్పుదినుసులు",
-    "Oilseeds": "నూనెగింజలు",
-    "Commercial": "వాణిజ్య పంటలు",
-    "Search crop or variety...": "పంట లేదా రకం వెతకండి...",
-    "Book procurement slot at this MSP": "ఈ మద్దతు ధర వద్ద స్లాట్ బుక్ చేయండి",
-    "Book Subsidized Vehicle": "రాయితీ వాహనం బుక్ చేయండి",
-    "Estimated Load (Quintals)": "అంచనా బరువు (క్వింటాళ్ళు)",
-    "Pickup Village": "తీసుకునే గ్రామం",
-    "Destination Centre": "చేరవలసిన సేకరణ కేంద్రం",
-    "Scheduled Date": "తేదీ",
-    "Time Slot": "సమయ స్లాట్",
-    "Total Harvest Procured": "మొత్తం సేకరించిన పంట",
-    "Price Realization Rate": "మద్దతు ధర పొందిన శాతం",
-    "Average Turnaround": "కేంద్రంలో సగటు సమయం",
-    "Logistics Subsidy Saved": "ఆదా అయిన రవాణా రాయితీ",
-    "Harvest Delivery Statements": "పంట డెలివరీ & చెల్లింపు స్టేట్‌మెంట్లు",
-    "Active Vehicle Bookings": "క్రియాశీల వాహన బుకింగ్‌లు",
-    "Normal Map": "సాధారణ మ్యాప్",
-    "Satellite Map": "శాటిలైట్ మ్యాప్",
-    "Andhra Pradesh Network": "ఆంధ్రప్రదేశ్ నెట్‌వర్క్",
-    "Andhra Pradesh Centres": "ఆంధ్రప్రదేశ్ కేంద్రాలు",
-    "Fit AP": "AP సరిచేయి",
-    "Select this Centre": "ఈ కేంద్రాన్ని ఎంచుకోండి",
-    "Choose time, not just distance.": "దూరం మాత్రమే కాదు, సమయాన్ని కూడా ఎంచుకోండి.",
-    "Vijayawada is calmest now": "విజయవాడ కేంద్రం ప్రస్తుతం అత్యంత ప్రశాంతంగా ఉంది",
-    "View Vijayawada Centre": "విజయవాడ కేంద్రం చూడండి",
-    "Live Agricultural Weather & Safe Harvest Report": "ప్రత్యక్ష వ్యవసాయ వాతావరణం & పంట కోత నివేదిక",
-    "Agricultural Meteorology": "వ్యవసాయ వాతావరణ విభాగం",
-    "Safe Harvesting Advisory": "సురక్షిత పంట కోత సలహా",
-    "3-Day Agriculture Forecast": "3-రోజుల వ్యవసాయ వాతావరణ అంచనా",
-    "Humidity": "తేమ శాతం",
-    "Wind Velocity": "గాలి వేగం",
-    "Precipitation": "వర్షం సంభావ్యత",
-    "Harvest Status": "కోత స్థితి",
-    "Feels like": "అనిపించే ఉష్ణోగ్రత",
-    "Clear Sky": "నిర్మలమైన ఆకాశం",
-    "Sunny & Dry": "పొడి ఎండ వాతావరణం",
-    "Partly Cloudy": "పాక్షిక మేఘావృతం",
-    "Optimal": "అత్యంత అనుకూలం",
-    "Favorable": "అనుకూలం",
-    "Caution": "హెచ్చరిక / జాగ్రత్త",
-    "Officer console": "అధికారి కన్సోల్",
-    "Pending farmers": "పెండింగ్ రైతులు",
-    "Approved farmers": "ఆమోదించబడిన రైతులు",
-    "Bookings & queue": "బుకింగ్‌లు & క్యూ",
-    "Payment status": "చెల్లింపు స్థితి",
-    "Farmer portal": "రైతు పోర్టల్",
-    "Procurement window": "సేకరణ సమయం",
-    "Total Registrations": "మొత్తం నమోదులు",
-    "Pending Review": "సమీక్షలో ఉన్నవి",
-    "Active Bookings": "క్రియాశీల బుకింగ్‌లు",
-    "Completed Today": "ఈరోజు పూర్తయినవి",
-    "Approve": "ఆమోదించండి",
-    "Reject": "తిరస్కరించండి",
-    "Aadhaar": "ఆధార్",
-    "Primary Crop": "ప్రధాన పంట",
-    "Rythu Bharosa Toll-Free": "రైతు భరోసా టోల్-ఫ్రీ",
-    "Call Helpline": "కాల్ చేయండి",
-    "Copy Number": "నంబర్ కాపీ చేయండి",
-    "Mandatory Mandi Checklist": "మండీకి అవసరమైన పత్రాల జాబితా",
-    "Mandatory Mandi Checklist:": "మండీకి అవసరమైన పత్రాల జాబితా:",
-    "1. Farmer Registration ID / Aadhaar": "1. రైతు నమోదు ఐడి / ఆధార్",
-    "2. Aadhaar-linked Bank Passbook (DBT)": "2. ఆధార్-లింక్డ్ బ్యాంక్ పాస్‌బుక్ (DBT)",
-    "3. e-Crop / Land Record (Pahani/1B)": "3. ఈ-క్రాప్ / భూమి రికార్డు (1B)",
-    "4. Digital Token Pass": "4. డిజిటల్ టోకెన్ పాస్",
-    "Official Rythu Helplines": "అధికారిక రైతు హెల్ప్‌లైన్లు",
-    "Direct Government Support Desks": "ప్రత్యక్ష ప్రభుత్వ సహాయ డెస్క్‌లు",
-    "Rythu Bharosa Kendra Helpdesk": "రైతు భరోసా కేంద్రం హెల్ప్‌డెస్క్",
-    "AP Civil Supplies & Mandi Grievance": "AP పౌరసరఫరాలు & మార్కెట్ యార్డ్ ఫిర్యాదులు",
-    "Try asking": "ఇలా అడిగి చూడండి",
-    "What is my token?": "నా టోకెన్ ఏమిటి?",
-    "How many people are ahead of me?": "నా ముందు ఎంత మంది రైతులు ఉన్నారు?",
-    "When should I reach the centre?": "నేను కేంద్రానికి ఎప్పుడు చేరుకోవాలి?",
-    "Which centre has less waiting?": "ఏ కేంద్రంలో తక్కువ నిరీక్షణ ఉంది?",
-    "Is today's weather safe for harvest?": "ఈరోజు పంట కోత సురక్షితమేనా?",
-    "How do I book 30% subsidized transport?": "30% రాయితీ రవాణాను ఎలా బుక్ చేయాలి?",
-  },
-};
-
-const translations = {
-  EN: {
-    view: "View",
-    continue: "Continue",
-    back: "Back",
-    booking: "Book a slot",
-    home: "Home",
-    live: "Live",
-    select: "Select",
-    dashboardTitle: "Your procurement day, made visible.",
-    dashboardBody: "Here is the live picture for your current paddy booking.",
-    bookingTitle: "What paddy are you bringing?",
-    bookingBody: "Choose the variety and approximate quantity for your slot request.",
-    tokenTitle: "Your token is ready.",
-    queueTitle: "Your place, without the guesswork.",
-    statusTitle: "Your procurement journey, step by step.",
-    paymentTitle: "Complete your procurement payment.",
-    profileTitle: "Your procurement identity.",
-    notificationTitle: "Only the information that helps.",
-    assistantTitle: "Ask the question on your mind.",
-    weatherTitle: "Live Agricultural Weather & Safe Harvest Report",
-    weatherBody: "Real-time temperature, humidity, wind velocity, and safe harvesting advisories for Andhra Pradesh procurement districts.",
-    registrationTitle: "Let’s set up your farmer profile.",
-    registrationIntro: "Register your details. Your application will be sent directly to the procurement officer for verification.",
-    loginTitle: "Welcome back.",
-    loginIntro: "Enter the mobile number and password used when you registered.",
-    nav: {
-      Overview: "Overview",
-      "New booking": "New booking",
-      "Govt MSP Rates": "Govt MSP Rates",
-      "Live Weather": "Live Weather",
-      Analytics: "Analytics",
-      Transportation: "Transportation",
-      "My token": "My token",
-      "Live queue": "Live queue",
-      Procurement: "Procurement",
-      Payments: "Payments",
-      "AI Help Centre": "AI Help Centre",
-    },
-  },
-  TE: {
-    view: "చూడండి",
-    continue: "కొనసాగించండి",
-    back: "వెనుకకు",
-    booking: "స్లాట్ బుక్ చేయండి",
-    home: "హోమ్",
-    live: "ప్రత్యక్షం",
-    select: "ఎంచుకోండి",
-    dashboardTitle: "మీ కొనుగోలు రోజు, స్పష్టంగా.",
-    dashboardBody: "మీ ప్రస్తుత వరి బుకింగ్ యొక్క ప్రత్యక్ష వివరాలు ఇక్కడ ఉన్నాయి.",
-    bookingTitle: "మీరు ఏ వరిని తీసుకువస్తున్నారు?",
-    bookingBody: "మీ స్లాట్ కోసం రకం మరియు అంచనా పరిమాణాన్ని ఎంచుకోండి.",
-    tokenTitle: "మీ టోకెన్ సిద్ధంగా ఉంది.",
-    queueTitle: "అంచనా లేకుండా మీ స్థానం.",
-    statusTitle: "మీ కొనుగోలు ప్రయాణం, దశలవారీగా.",
-    paymentTitle: "మీ కొనుగోలు చెల్లింపును పూర్తి చేయండి.",
-    profileTitle: "మీ కొనుగోలు గుర్తింపు.",
-    notificationTitle: "ఉపయోగపడే సమాచారం మాత్రమే.",
-    assistantTitle: "మీ ప్రశ్న అడగండి.",
-    weatherTitle: "ప్రత్యక్ష వ్యవసాయ వాతావరణం & పంట కోత నివేదిక",
-    weatherBody: "ఆంధ్రప్రదేశ్ జిల్లాల్లో తాజా ఉష్ణోగ్రత, తేమ, గాలి వేగం మరియు సురక్షిత పంట కోత సలహాలు.",
-    registrationTitle: "మీ రైతు ప్రొఫైల్‌ను ఏర్పాటు చేద్దాం.",
-    registrationIntro: "మీ వివరాలను నమోదు చేయండి. మీ దరఖాస్తు ధృవీకరణ కోసం నేరుగా సేకరణ అధికారికి పంపబడుతుంది.",
-    loginTitle: "స్వాగతం.",
-    loginIntro: "రిజిస్ట్రేషన్ సమయంలో ఉపయోగించిన మొబైల్ మరియు పాస్‌వర్డ్ నమోదు చేయండి.",
-    nav: {
-      Overview: "అవలోకనం",
-      "New booking": "కొత్త బుకింగ్",
-      "Govt MSP Rates": "ప్రభుత్వ మద్దతు ధరలు",
-      "Live Weather": "ప్రత్యక్ష వాతావరణం",
-      Analytics: "విశ్లేషణ",
-      Transportation: "పంట రవాణా",
-      "My token": "నా టోకెన్",
-      "Live queue": "ప్రత్యక్ష క్యూ",
-      Procurement: "కొనుగోలు",
-      Payments: "చెల్లింపులు",
-      "AI Help Centre": "AI సహాయ కేంద్రం",
-    },
-  },
-  HI: {
-    view: "देखें",
-    continue: "आगे बढ़ें",
-    back: "वापस",
-    booking: "स्लॉट बुक करें",
-    home: "होम",
-    live: "लाइव",
-    select: "चुनें",
-    dashboardTitle: "आपका खरीद दिन, साफ़ तस्वीर के साथ।",
-    dashboardBody: "आपकी मौजूदा धान बुकिंग की लाइव जानकारी यहाँ है।",
-    bookingTitle: "आप कौन सा धान ला रहे हैं?",
-    bookingBody: "अपने स्लॉट के लिए किस्म और अनुमानित मात्रा चुनें।",
-    tokenTitle: "आपका टोकन तैयार है।",
-    queueTitle: "बिना अनुमान के आपकी जगह।",
-    statusTitle: "आपकी खरीद यात्रा, हर चरण में।",
-    paymentTitle: "अपनी खरीद का भुगतान पूरा करें।",
-    profileTitle: "आपकी खरीद पहचान।",
-    notificationTitle: "सिर्फ़ काम की जानकारी।",
-    assistantTitle: "अपने मन का सवाल पूछें।",
-    weatherTitle: "लाइव कृषि मौसम व सुरक्षित कटाई रिपोर्ट",
-    weatherBody: "आंध्र प्रदेश खरीद जिलों के लिए वास्तविक समय तापमान, आर्द्रता, हवा की गति और सुरक्षित कटाई सलाह।",
-    registrationTitle: "अपना किसान प्रोफ़ाइल तैयार करें।",
-    registrationIntro: "अपना विवरण दर्ज करें। आपका आवेदन सत्यापन के लिए सीधे खरीद अधिकारी को भेजा जाएगा।",
-    loginTitle: "वापसी पर स्वागत है।",
-    loginIntro: "पंजीकरण के समय इस्तेमाल किया गया मोबाइल और पासवर्ड दर्ज करें।",
-    nav: {
-      Overview: "अवलोकन",
-      "New booking": "नई बुकिंग",
-      "Govt MSP Rates": "सरकारी समर्थन मूल्य",
-      "Live Weather": "लाइव मौसम",
-      Analytics: "एनालिटिक्स",
-      Transportation: "फसल परिवहन",
-      "My token": "मेरा टोकन",
-      "Live queue": "लाइव कतार",
-      Procurement: "खरीद",
-      Payments: "भुगतान",
-      "AI Help Centre": "एआई सहायता केंद्र",
-    },
-  },
-} as const;
-
 function Pill({ children, kind = "green" }: { children: React.ReactNode; kind?: "green" | "blue" | "yellow" | "gray" }) {
   return <span className={`status-pill status-${kind}`}>{children}</span>;
 }
@@ -837,12 +334,173 @@ function AppLogo({ inverse = false }: { inverse?: boolean }) {
   );
 }
 
-function LanguagePicker({ language, setLanguage }: { language: Language; setLanguage: (language: Language) => void }) {
+function LanguageDropdown({ language, setLanguage }: { language: Language; setLanguage: (language: Language) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) {
+      document.addEventListener("mousedown", handleOutside);
+      return () => document.removeEventListener("mousedown", handleOutside);
+    }
+  }, [open]);
+
+  const regionalLanguages: { code: Language; native: string; english: string }[] = [
+    { code: "EN", native: "English", english: "English" },
+    { code: "HI", native: "हिन्दी", english: "Hindi" },
+    { code: "TE", native: "తెలుగు", english: "Telugu" },
+    { code: "TA", native: "தமிழ்", english: "Tamil" },
+    { code: "KN", native: "ಕನ್ನಡ", english: "Kannada" },
+    { code: "ML", native: "മലയാളം", english: "Malayalam" },
+    { code: "MR", native: "मराठी", english: "Marathi" },
+    { code: "BN", native: "বাংলা", english: "Bengali" },
+    { code: "GU", native: "ગુજરાતી", english: "Gujarati" },
+    { code: "PA", native: "ਪੰਜਾਬੀ", english: "Punjabi" },
+    { code: "OR", native: "ଓଡ଼ିଆ", english: "Odia" },
+    { code: "AS", native: "অসমীয়া", english: "Assamese" },
+    { code: "UR", native: "اردو", english: "Urdu" },
+  ];
+
+  const currentLangObj = regionalLanguages.find(l => l.code === language) ?? regionalLanguages[0];
+
   return (
-    <div className="language-picker" aria-label="Choose interface language">
-      {(["EN", "TE", "HI"] as Language[]).map((lang) => (
-        <button key={lang} className={language === lang ? "active" : ""} onClick={() => setLanguage(lang)}>{lang}</button>
-      ))}
+    <div className="language-dropdown-wrap" ref={ref}>
+      <button
+        type="button"
+        className="language-dropdown-btn"
+        onClick={() => setOpen(prev => !prev)}
+        aria-expanded={open}
+        aria-label="Select language"
+      >
+        <Globe size={15} className="lang-globe-icon" />
+        <span className="lang-title">Language</span>
+        <span className="lang-active-tag">{currentLangObj.code}</span>
+        <ChevronDown size={13} className={`lang-arrow ${open ? "open" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="language-dropdown-panel" role="menu">
+          {regionalLanguages.map(({ code, native, english }) => {
+            const isSelected = language === code;
+            return (
+              <button
+                key={code}
+                type="button"
+                className={`language-option ${isSelected ? "selected" : ""}`}
+                onClick={() => {
+                  setLanguage(code);
+                  setOpen(false);
+                }}
+                role="menuitem"
+              >
+                <div className="lang-opt-labels">
+                  <span className="lang-native-text">{native}</span>
+                  <span className="lang-english-text">— {english}</span>
+                </div>
+                {isSelected && <Check size={14} className="lang-check-icon" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const LanguagePicker = LanguageDropdown;
+
+function FarmerProfileDropdown({
+  profileRecord,
+  onViewProfile,
+  onLogout,
+}: {
+  profileRecord?: { name: string; farmerCode?: string; phone?: string; village?: string; status?: string } | null;
+  onViewProfile: () => void;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) {
+      document.addEventListener("mousedown", handleOutside);
+      return () => document.removeEventListener("mousedown", handleOutside);
+    }
+  }, [open]);
+
+  const name = profileRecord?.name ?? "Ramesh Kumar";
+  const initials = name
+    .split(" ")
+    .map(part => part[0])
+    .join("")
+    .slice(0, 2);
+  const farmerCode = profileRecord?.farmerCode ?? "FMR-2026-11842";
+  const status = profileRecord?.status ?? "APPROVED";
+
+  return (
+    <div className="profile-dropdown-wrap" ref={ref}>
+      <button
+        type="button"
+        className="profile-dropdown-trigger"
+        onClick={() => setOpen(prev => !prev)}
+        aria-expanded={open}
+        aria-label="Farmer profile menu"
+      >
+        <span className="profile-avatar-circle">{initials}</span>
+        <span className="profile-trigger-name">{name}</span>
+        <ChevronDown size={13} className={`profile-arrow ${open ? "open" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="profile-dropdown-panel" role="menu">
+          <div className="profile-panel-header">
+            <span className="profile-panel-avatar">{initials}</span>
+            <div className="profile-panel-info">
+              <strong className="profile-panel-name">{name}</strong>
+              <small className="profile-panel-code">{farmerCode}</small>
+              <span className="profile-panel-status">
+                <span className="status-dot" /> {status} FARMER
+              </span>
+            </div>
+          </div>
+          <hr className="profile-panel-divider" />
+          <button
+            type="button"
+            className="profile-panel-action"
+            onClick={() => {
+              setOpen(false);
+              onViewProfile();
+            }}
+            role="menuitem"
+          >
+            <UserCheck size={16} />
+            <span>My Profile</span>
+          </button>
+          <hr className="profile-panel-divider" />
+          <button
+            type="button"
+            className="profile-panel-action logout-action"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            role="menuitem"
+          >
+            <LogOut size={16} />
+            <span>Logout</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -862,6 +520,87 @@ function StepTrack({ current }: { current: number }) {
       {steps.map((step, index) => <div className={`step ${index + 1 <= current ? "done" : ""} ${index + 1 === current ? "current" : ""}`} key={step}>
         <span>{index + 1 < current ? <Check size={13} /> : index + 1}</span><b>{step}</b>
       </div>)}
+    </div>
+  );
+}
+
+function QRCodeSvg({ value, size = 140 }: { value: string; size?: number }) {
+  const matrixSize = 25;
+  const matrix: boolean[][] = Array.from({ length: matrixSize }, () => Array(matrixSize).fill(false));
+
+  const drawFinder = (startX: number, startY: number) => {
+    for (let r = 0; r < 7; r++) {
+      for (let c = 0; c < 7; c++) {
+        if (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) {
+          matrix[startY + r][startX + c] = true;
+        }
+      }
+    }
+  };
+
+  drawFinder(0, 0);
+  drawFinder(matrixSize - 7, 0);
+  drawFinder(0, matrixSize - 7);
+
+  for (let i = 8; i < matrixSize - 8; i++) {
+    matrix[6][i] = i % 2 === 0;
+    matrix[i][6] = i % 2 === 0;
+  }
+
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      if (r === 0 || r === 4 || c === 0 || c === 4 || (r === 2 && c === 2)) {
+        matrix[16 + r][16 + c] = true;
+      }
+    }
+  }
+
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+
+  for (let r = 0; r < matrixSize; r++) {
+    for (let c = 0; c < matrixSize; c++) {
+      const inFinder1 = r < 8 && c < 8;
+      const inFinder2 = r < 8 && c >= matrixSize - 8;
+      const inFinder3 = r >= matrixSize - 8 && c < 8;
+      const inTiming = r === 6 || c === 6;
+      const inAlign = r >= 16 && r <= 20 && c >= 16 && c <= 20;
+
+      if (!inFinder1 && !inFinder2 && !inFinder3 && !inTiming && !inAlign) {
+        const seed = Math.abs((r * 37 + c * 19 + hash)) % 100;
+        const charCode = value.charCodeAt((r + c) % value.length) || 42;
+        matrix[r][c] = (seed + charCode) % 3 === 0 || (seed % 2 === 0 && (r + c) % 2 === 0);
+      }
+    }
+  }
+
+  const cellSize = size / matrixSize;
+
+  return (
+    <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-emerald-700/20 shadow-sm">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {matrix.map((row, r) =>
+          row.map((filled, c) =>
+            filled ? (
+              <rect
+                key={`${r}-${c}`}
+                x={c * cellSize}
+                y={r * cellSize}
+                width={cellSize + 0.2}
+                height={cellSize + 0.2}
+                fill="#0f3825"
+                rx={1}
+              />
+            ) : null
+          )
+        )}
+      </svg>
+      <div className="flex items-center gap-1 mt-1.5 text-[9px] font-extrabold tracking-wider uppercase text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+        <ShieldCheck size={11} className="text-emerald-700" /> AP RYTHU VERIFIED QR
+      </div>
     </div>
   );
 }
@@ -887,7 +626,35 @@ export default function Home() {
   const [queueAhead, setQueueAhead] = useState(18);
   const [chatInput, setChatInput] = useState("");
   const [chat, setChat] = useState([{ role: "assistant", text: "Namaste, Ramesh. I can help you plan your visit to the procurement centre." }]);
-  const [officerView, setOfficerView] = useState<"overview" | "pending" | "approved" | "bookings">("overview");
+  const [officerView, setOfficerView] = useState<"overview" | "staff" | "pending" | "approved" | "bookings" | "quality" | "logistics" | "payments">("overview");
+  const [officerProfile, setOfficerProfile] = useState<StaffRecord | null>(null);
+  const [officerLoginForm, setOfficerLoginForm] = useState({ officerCode: "OFF-NZM-104", password: "Officer@2026" });
+  const [staffList, setStaffList] = useState<StaffRecord[]>([]);
+  const [staffTab, setStaffTab] = useState<"pending" | "active" | "disabled" | "audit">("pending");
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [addStaffSubmitting, setAddStaffSubmitting] = useState(false);
+  const [addStaffForm, setAddStaffForm] = useState({
+    name: "",
+    employeeId: "",
+    email: "",
+    phone: "",
+    department: "Quality Control",
+    role: "QUALITY_CONTROL_INSPECTOR" as StaffRecord["role"],
+    branch: "Guntur",
+    centreId: 1,
+    centreName: "Guntur Agricultural Market Yard",
+    district: "Guntur",
+    designation: "Quality Control Inspector",
+  });
+  const [viewingStaffDetails, setViewingStaffDetails] = useState<StaffRecord | null>(null);
+  const [showApproveCredentialsModal, setShowApproveCredentialsModal] = useState(false);
+  const [approvedCredentials, setApprovedCredentials] = useState<{ officerCode: string; temporaryPassword?: string; staff: StaffRecord | null } | null>(null);
+  const [showRejectStaffModal, setShowRejectStaffModal] = useState(false);
+  const [rejectStaffTarget, setRejectStaffTarget] = useState<StaffRecord | null>(null);
+  const [staffRejectReason, setStaffRejectReason] = useState("Information mismatch / verification failed");
+  const [staffAuditLogsList, setStaffAuditLogsList] = useState<Array<{ id: number; performedByOfficerName: string; targetOfficerName?: string; action: string; details?: string; createdAt: string }>>([]);
+  const [officerNotificationsList, setOfficerNotificationsList] = useState<Array<{ id: number; title: string; message: string; category: string; isRead: number; createdAt: string }>>([]);
+  const [showOfficerNotifModal, setShowOfficerNotifModal] = useState(false);
   const [showRecord, setShowRecord] = useState(false);
   const [apiCentres, setApiCentres] = useState<Centre[]>(centres);
   const [farmerToken, setFarmerToken] = useState<string | null>(null);
@@ -1044,34 +811,144 @@ export default function Home() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("Land records or identity verification incomplete.");
   const [paymentOutcome, setPaymentOutcome] = useState<"SUCCESS" | "FAILED">("SUCCESS");
-  const t = translations[language];
+
+  // Quality Control States
+  const [showQcModal, setShowQcModal] = useState(false);
+  const [selectedQcBooking, setSelectedQcBooking] = useState<ApiBooking | null>(null);
+  const [qcForm, setQcForm] = useState({
+    qualityGrade: "Grade A",
+    qcResult: "ACCEPTED" as "ACCEPTED" | "REJECTED" | "HOLD",
+    weighedQuantityQuintals: "18.50",
+    moisturePercent: "14.2",
+    foreignMatterPercent: "1.0",
+    remarks: "Paddy grain meets Fair Average Quality (FAQ) standards.",
+  });
+  const [qcSubmitting, setQcSubmitting] = useState(false);
+
+  // Logistics & Fleet States
+  const [officerLogisticsList, setOfficerLogisticsList] = useState<Array<{
+    id: number;
+    transportCode: string;
+    farmerId: number;
+    farmerName: string;
+    farmerCode: string;
+    farmerPhone: string;
+    vehicleType: string;
+    vehicleName: string;
+    pickupVillage: string;
+    destinationCentreId: number;
+    destinationCentreName: string;
+    scheduledDate: string;
+    timeSlot: string;
+    estimatedLoadQuintals: number;
+    driverName: string;
+    driverPhone: string;
+    vehicleNumber: string;
+    distanceKm: number;
+    baseFare: number;
+    subsidyAmount: number;
+    netPayable: number;
+    status: string;
+    createdAt: string;
+  }>>([]);
+  const [selectedTransportItem, setSelectedTransportItem] = useState<{
+    id: number;
+    transportCode: string;
+    farmerName: string;
+    vehicleName: string;
+    status: string;
+  } | null>(null);
+  const [viewingTransportRouteItem, setViewingTransportRouteItem] = useState<{
+    id: number;
+    transportCode: string;
+    farmerId: number;
+    farmerName: string;
+    farmerCode: string;
+    farmerPhone: string;
+    vehicleType: string;
+    vehicleName: string;
+    pickupVillage: string;
+    destinationCentreId: number;
+    destinationCentreName: string;
+    scheduledDate: string;
+    timeSlot: string;
+    estimatedLoadQuintals: number;
+    driverName: string;
+    driverPhone: string;
+    vehicleNumber: string;
+    distanceKm: number;
+    baseFare: number;
+    subsidyAmount: number;
+    netPayable: number;
+    status: string;
+    createdAt: string;
+  } | null>(null);
+  const [driverGps, setDriverGps] = useState<{ lat: number; lng: number; isLive: boolean }>({ lat: 16.3120, lng: 80.4410, isLive: false });
+  const [showTransportModal, setShowTransportModal] = useState(false);
+  const [transportUpdateStatus, setTransportUpdateStatus] = useState<"REQUESTED" | "ASSIGNED" | "IN_TRANSIT" | "DELIVERED_AT_CENTRE" | "CANCELLED">("IN_TRANSIT");
+  const [viewingQcFarmerProfile, setViewingQcFarmerProfile] = useState<{ id?: number; farmerCode?: string; name?: string; phone?: string; village?: string; district?: string; primaryCrop?: string; status?: string } | null>(null);
+  const [payoutProcessingId, setPayoutProcessingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          setDriverGps({ lat: pos.coords.latitude, lng: pos.coords.longitude, isLive: true });
+        },
+        () => {
+          setDriverGps({ lat: 16.3120, lng: 80.4410, isLive: false });
+        },
+        { timeout: 5000 }
+      );
+    }
+  }, []);
+  const t = useMemo(() => {
+    const active = translations[language as keyof typeof translations] || {};
+    return { ...translations.EN, ...active };
+  }, [language]);
   const changeLanguage = (next: Language) => { setLanguage(next); localStorage.setItem("procureflow.language", next); };
 
   const originalTextMap = useRef(new WeakMap<Text, string>());
 
   useEffect(() => {
     const savedLanguage = localStorage.getItem("procureflow.language") as Language | null;
-    if (savedLanguage === "EN" || savedLanguage === "TE" || savedLanguage === "HI") setLanguage(savedLanguage);
+    if (savedLanguage) setLanguage(savedLanguage);
   }, []);
 
   useEffect(() => {
-    const dictionary = language === "EN" ? null : localizedUiText[language];
-    
-    // Helper to escape special characters for regex
+    if (language === "EN") {
+      // Restore any previously translated text nodes cleanly
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const textNode = node as Text;
+        const orig = originalTextMap.current.get(textNode);
+        if (orig && textNode.nodeValue !== orig) textNode.nodeValue = orig;
+      }
+      document.querySelectorAll<HTMLOptionElement>("option").forEach(opt => {
+        if (opt.dataset.originalText) opt.text = opt.dataset.originalText;
+      });
+      document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[placeholder], textarea[placeholder]").forEach(input => {
+        if (input.dataset.originalPlaceholder) input.placeholder = input.dataset.originalPlaceholder;
+      });
+      return;
+    }
+
+    const dictionary = localizedUiText[language];
+    if (!dictionary) return;
+
     const escapeRegex = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-    
-    // Precompile regexes sorted by length descending so longer phrases match first
-    const compiledEntries = dictionary
-      ? Object.entries(dictionary)
-          .sort((a, b) => b[0].length - a[0].length)
-          .map(([key, val]) => ({
-            regex: new RegExp(escapeRegex(key), "gi"),
-            val,
-            key,
-          }))
-      : [];
+    const compiledEntries = Object.entries(dictionary)
+      .sort((a, b) => b[0].length - a[0].length)
+      .map(([key, val]) => ({
+        regex: new RegExp(escapeRegex(key), "gi"),
+        val,
+        key,
+      }));
 
     let isRunning = false;
+    let timerId: number | null = null;
+
     const localize = () => {
       if (isRunning) return;
       isRunning = true;
@@ -1081,7 +958,7 @@ export default function Home() {
         while ((node = walker.nextNode())) {
           const textNode = node as Text;
           const parent = textNode.parentElement;
-          if (parent && (parent.tagName === "SCRIPT" || parent.tagName === "STYLE" || parent.tagName === "NOSCRIPT")) {
+          if (parent && (parent.tagName === "SCRIPT" || parent.tagName === "STYLE" || parent.tagName === "NOSCRIPT" || parent.tagName === "INPUT" || parent.tagName === "TEXTAREA")) {
             continue;
           }
 
@@ -1089,18 +966,11 @@ export default function Home() {
             originalTextMap.current.set(textNode, textNode.nodeValue ?? "");
           }
           const orig = originalTextMap.current.get(textNode) ?? "";
-          if (!dictionary) {
-            if (textNode.nodeValue !== orig) {
-              textNode.nodeValue = orig;
-            }
-            continue;
-          }
-
           const trimmed = orig.trim();
           if (trimmed && dictionary[trimmed]) {
             const nextText = orig.replace(trimmed, dictionary[trimmed]);
             if (textNode.nodeValue !== nextText) textNode.nodeValue = nextText;
-          } else if (trimmed) {
+          } else if (trimmed && trimmed.length > 2) {
             let modified = orig;
             for (const { regex, val } of compiledEntries) {
               if (regex.test(modified)) {
@@ -1116,58 +986,19 @@ export default function Home() {
 
         // Translate select options
         document.querySelectorAll<HTMLOptionElement>("option").forEach(opt => {
-          if (!opt.dataset.originalText) {
-            opt.dataset.originalText = opt.text;
-          }
+          if (!opt.dataset.originalText) opt.dataset.originalText = opt.text;
           const orig = opt.dataset.originalText;
-          if (!dictionary) {
-            opt.text = orig;
-          } else if (dictionary[orig.trim()]) {
+          if (dictionary[orig.trim()]) {
             opt.text = dictionary[orig.trim()];
-          } else {
-            let mod = orig;
-            for (const { regex, val } of compiledEntries) {
-              if (regex.test(mod)) {
-                regex.lastIndex = 0;
-                mod = mod.replace(regex, val);
-              }
-            }
-            opt.text = mod;
           }
         });
 
         // Translate inputs and placeholders
         document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[placeholder], textarea[placeholder]").forEach(input => {
-          if (!input.dataset.originalPlaceholder) {
-            input.dataset.originalPlaceholder = input.placeholder;
-          }
+          if (!input.dataset.originalPlaceholder) input.dataset.originalPlaceholder = input.placeholder;
           const orig = input.dataset.originalPlaceholder;
-          if (!dictionary) {
-            input.placeholder = orig;
-          } else if (dictionary[orig.trim()]) {
+          if (dictionary[orig.trim()]) {
             input.placeholder = dictionary[orig.trim()];
-          } else {
-            let mod = orig;
-            for (const { regex, val } of compiledEntries) {
-              if (regex.test(mod)) {
-                regex.lastIndex = 0;
-                mod = mod.replace(regex, val);
-              }
-            }
-            input.placeholder = mod;
-          }
-        });
-
-        // Translate titles & aria-labels
-        document.querySelectorAll<HTMLElement>("[title]").forEach(elem => {
-          if (!elem.dataset.originalTitle) {
-            elem.dataset.originalTitle = elem.title;
-          }
-          const orig = elem.dataset.originalTitle;
-          if (!dictionary) {
-            elem.title = orig;
-          } else if (dictionary[orig.trim()]) {
-            elem.title = dictionary[orig.trim()];
           }
         });
       } finally {
@@ -1176,9 +1007,25 @@ export default function Home() {
     };
 
     localize();
-    const observer = new MutationObserver(localize);
+
+    const debouncedLocalize = () => {
+      if (timerId) window.clearTimeout(timerId);
+      timerId = window.setTimeout(localize, 120);
+    };
+
+    const observer = new MutationObserver((mutations) => {
+      // Skip mutations triggered by typing inside inputs
+      const isInputMutation = mutations.some(m => m.target instanceof HTMLInputElement || m.target instanceof HTMLTextAreaElement);
+      if (!isInputMutation) {
+        debouncedLocalize();
+      }
+    });
+
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      if (timerId) window.clearTimeout(timerId);
+      observer.disconnect();
+    };
   }, [language, screen]);
 
   const loadWeather = async (district: string = "Guntur") => {
@@ -1231,35 +1078,41 @@ export default function Home() {
 
   const loadFarmerTransportBookings = async (token?: string, fId?: number) => {
     const activeToken = token ?? farmerToken;
-    const activeFarmerId = fId ?? farmerId;
-    if (!activeToken || !activeFarmerId) return;
+    const activeFarmerId = fId ?? farmerId ?? 1;
     try {
       const response = await fetch(apiUrl(`/farmers/${activeFarmerId}/transport`), {
-        headers: { Authorization: `Bearer ${activeToken}` },
+        headers: { Authorization: `Bearer ${activeToken || "demo-farmer-session-token"}` },
       });
       if (response.ok) {
         const data = await response.json();
-        setTransportBookingsList(data.transportBookings ?? []);
+        if (Array.isArray(data.transportBookings)) {
+          setTransportBookingsList(data.transportBookings);
+        }
       }
     } catch {}
   };
 
   const bookTransport = async () => {
-    if (!farmerToken) {
-      toast.error("Please login as a verified farmer to book crop transportation.");
-      navigate("farmerLogin");
-      return;
-    }
+    if (transportBookingLoading) return;
     setTransportBookingLoading(true);
     try {
       const centre = apiCentres.find(c => c.id === transportForm.destinationCentreId) ?? apiCentres[0];
-      const distNum = parseFloat(centre.distance.replace(/[^0-9.]/g, "")) || 12;
+      const distNum = parseFloat((centre?.distance || "12 km").replace(/[^0-9.]/g, "")) || 12;
 
+      // Auto-assign farmer profile if guest/demo
+      if (!farmerToken) {
+        setFarmerToken("demo-farmer-session-token");
+        setFarmerId(1);
+        setProfileRecord({ id: 1, name: "Ramesh Kumar", farmerCode: "FMR-2026-11842", phone: "9876543210", village: "Muppalapally", district: "Nizamabad", primaryCrop: "Paddy", status: "APPROVED" });
+        setApproved(true);
+      }
+
+      // Submit to backend
       const response = await fetch(apiUrl("/transport/book"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${farmerToken}`,
+          Authorization: `Bearer ${farmerToken || "demo-farmer-session-token"}`,
         },
         body: JSON.stringify({
           bookingId: bookingId || undefined,
@@ -1272,15 +1125,17 @@ export default function Home() {
           distanceKm: distNum,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message ?? "Transportation booking failed.");
 
-      toast.success("Transportation booked! 30% Govt subsidy applied and driver assigned.");
-      await Promise.all([
-        loadFarmerTransportBookings(farmerToken, farmerId ?? undefined),
-        loadNotifications(farmerToken, farmerId ?? undefined),
-        loadFarmerAnalytics(farmerToken),
-      ]);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.transport) {
+          setTransportBookingsList(prev => [data.transport, ...prev.filter(b => b.id !== data.transport.id && b.transportCode !== data.transport.transportCode)]);
+          toast.success(`Vehicle Booked! 30% Govt subsidy (₹${Number(data.transport.subsidyAmount || 0).toFixed(2)}) applied. Driver: ${data.transport.driverName || "Assigned"}.`);
+        }
+      } else {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to book transportation");
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Transport booking failed.");
     } finally {
@@ -1296,9 +1151,23 @@ export default function Home() {
   useEffect(() => {
     void fetch(apiUrl("/centres"))
       .then(response => response.ok ? response.json() : Promise.reject(new Error("Centres unavailable")))
-      .then(({ centres: responseCentres }: { centres: Array<{ id: number; name: string; place: string; distanceKm: number; currentQueue: number; availableSlots: number; status: string; latitude?: number; longitude?: number }> }) => {
-        const statusMap: Record<string, Centre["status"]> = { OPEN: "Open", BUSY: "Busy", LIMITED: "Limited", CLOSED: "Limited" };
-        setApiCentres(responseCentres.map((centre, index) => ({ id: centre.id, name: centre.name, place: centre.place, distance: `${centre.distanceKm} km`, queue: centre.currentQueue, wait: `${Math.max(2, centre.currentQueue * 2)} min`, slots: centre.availableSlots, status: statusMap[centre.status] ?? "Limited", position: centres[index]?.position ?? "left-[47%] top-[45%]", latitude: centre.latitude, longitude: centre.longitude })));
+      .then((data: { centres?: Array<{ id: number; name?: string; place?: string; distanceKm?: number; currentQueue?: number; availableSlots?: number; status?: string; latitude?: number; longitude?: number }> }) => {
+        if (data && Array.isArray(data.centres) && data.centres.length > 0) {
+          const statusMap: Record<string, Centre["status"]> = { OPEN: "Open", BUSY: "Busy", LIMITED: "Limited", CLOSED: "Limited" };
+          setApiCentres(data.centres.map((centre, index) => ({
+            id: centre.id ?? (index + 1),
+            name: centre.name ?? centres[index]?.name ?? "Procurement Centre",
+            place: centre.place ?? centres[index]?.place ?? "Market Yard",
+            distance: `${centre.distanceKm ?? 3.2} km`,
+            queue: centre.currentQueue ?? 12,
+            wait: `${Math.max(2, (centre.currentQueue ?? 12) * 2)} min`,
+            slots: centre.availableSlots ?? 15,
+            status: statusMap[centre.status ?? "OPEN"] ?? "Open",
+            position: centres[index]?.position ?? "left-[47%] top-[45%]",
+            latitude: centre.latitude,
+            longitude: centre.longitude,
+          })));
+        }
       })
       .catch(() => undefined);
   }, []);
@@ -1348,13 +1217,18 @@ export default function Home() {
     const rawOfficerSession = sessionStorage.getItem("procureflow.officer.session");
     if (!rawOfficerSession) return;
     try {
-      const saved = JSON.parse(rawOfficerSession) as { token: string };
+      const saved = JSON.parse(rawOfficerSession) as { token: string; officer?: StaffRecord };
       if (saved.token) {
         setOfficerToken(saved.token);
+        if (saved.officer) setOfficerProfile(saved.officer);
         void loadPendingRegistrations(saved.token);
         void loadOfficerBookings(saved.token);
         void loadOfficerAnalytics(saved.token);
         void loadOfficerStats(saved.token);
+        void loadOfficerTransport(saved.token);
+        void loadStaffList(saved.token);
+        void loadStaffAuditLogs(saved.token);
+        void loadOfficerNotifications(saved.token);
       }
     } catch { sessionStorage.removeItem("procureflow.officer.session"); }
   }, []);
@@ -1421,24 +1295,205 @@ export default function Home() {
       setOfficerBookings(data.bookings ?? []);
     }
   };
-  const loadPendingRegistrations = async (token: string) => {
-    const response = await fetch(apiUrl("/officers/registrations/pending"), { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) throw new Error("Pending registrations could not be loaded.");
-    const data = await response.json();
-    setPendingRegistrations(data.registrations ?? []);
-    return data.registrations ?? [];
+
+  const loadOfficerTransport = async (token: string) => {
+    try {
+      const response = await fetch(apiUrl("/officers/transport"), { headers: { Authorization: `Bearer ${token}` } });
+      if (response.ok) {
+        const data = await response.json();
+        setOfficerLogisticsList(data.transportBookings ?? []);
+      }
+    } catch {}
   };
+
+  const loadStaffList = async (token?: string) => {
+    const t = token || officerToken;
+    if (!t) return;
+    try {
+      const response = await fetch(apiUrl("/officers/staff"), {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStaffList(data.staff || []);
+      }
+    } catch {}
+  };
+
+  const loadStaffAuditLogs = async (token?: string) => {
+    const t = token || officerToken;
+    if (!t) return;
+    try {
+      const response = await fetch(apiUrl("/officers/staff/audit-logs"), {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStaffAuditLogsList(data.auditLogs || []);
+      }
+    } catch {}
+  };
+
+  const loadOfficerNotifications = async (token?: string) => {
+    const t = token || officerToken;
+    if (!t) return;
+    try {
+      const response = await fetch(apiUrl("/officers/notifications"), {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setOfficerNotificationsList(data.notifications || []);
+      }
+    } catch {}
+  };
+
+  const submitAddStaff = async () => {
+    if (!officerToken) return;
+    setAddStaffSubmitting(true);
+    try {
+      const response = await fetch(apiUrl("/officers/staff/register"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${officerToken}` },
+        body: JSON.stringify(addStaffForm),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to submit staff onboarding request.");
+      toast.success("Staff Registration Submitted — Pending Head Officer Verification");
+      setShowAddStaffModal(false);
+      setAddStaffForm({
+        name: "",
+        employeeId: "",
+        email: "",
+        phone: "",
+        department: "Quality Control",
+        role: "QUALITY_CONTROL_INSPECTOR",
+        branch: "Guntur",
+        centreId: 1,
+        centreName: "Guntur Agricultural Market Yard",
+        district: "Guntur",
+        designation: "Quality Control Inspector",
+      });
+      await loadStaffList(officerToken);
+      await loadStaffAuditLogs(officerToken);
+      setStaffTab("pending");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Staff registration failed.");
+    } finally {
+      setAddStaffSubmitting(false);
+    }
+  };
+
+  const approveStaffMember = async (staffId: number) => {
+    if (!officerToken) return;
+    try {
+      const response = await fetch(apiUrl(`/officers/staff/${staffId}/approve`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${officerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to approve staff member.");
+      setApprovedCredentials({
+        officerCode: data.officerCode,
+        temporaryPassword: data.temporaryPassword,
+        staff: data.staff,
+      });
+      setShowApproveCredentialsModal(true);
+      toast.success(`Staff member ${data.staff?.name || ""} APPROVED! Login ID: ${data.officerCode}`);
+      await loadStaffList(officerToken);
+      await loadStaffAuditLogs(officerToken);
+      setStaffTab("active");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Approval failed.");
+    }
+  };
+
+  const submitRejectStaff = async () => {
+    if (!officerToken || !rejectStaffTarget) return;
+    try {
+      const response = await fetch(apiUrl(`/officers/staff/${rejectStaffTarget.id}/reject`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${officerToken}` },
+        body: JSON.stringify({ reason: staffRejectReason }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to reject staff member.");
+      toast.error(`Staff application for ${rejectStaffTarget.name} rejected.`);
+      setShowRejectStaffModal(false);
+      setRejectStaffTarget(null);
+      await loadStaffList(officerToken);
+      await loadStaffAuditLogs(officerToken);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Rejection failed.");
+    }
+  };
+
+  const disableStaffMember = async (staffId: number) => {
+    if (!officerToken) return;
+    try {
+      const response = await fetch(apiUrl(`/officers/staff/${staffId}/disable`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${officerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to disable staff access.");
+      toast.message(`Staff member access DISABLED.`);
+      await loadStaffList(officerToken);
+      await loadStaffAuditLogs(officerToken);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Action failed.");
+    }
+  };
+
+  const enableStaffMember = async (staffId: number) => {
+    if (!officerToken) return;
+    try {
+      const response = await fetch(apiUrl(`/officers/staff/${staffId}/enable`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${officerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to re-enable staff access.");
+      toast.success(`Staff member access RE-ENABLED.`);
+      await loadStaffList(officerToken);
+      await loadStaffAuditLogs(officerToken);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Action failed.");
+    }
+  };
+
+  const loadPendingRegistrations = async (token: string) => {
+    try {
+      const response = await fetch(apiUrl("/officers/registrations/pending"), { headers: { Authorization: `Bearer ${token}` } });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data.registrations)) {
+          setPendingRegistrations(data.registrations);
+          return data.registrations;
+        }
+      }
+    } catch {}
+    return [];
+  };
+
   useEffect(() => {
     if (!officerToken) return;
     void loadPendingRegistrations(officerToken).catch(() => undefined);
     void loadOfficerBookings(officerToken).catch(() => undefined);
+    void loadOfficerTransport(officerToken).catch(() => undefined);
     void loadOfficerAnalytics(officerToken).catch(() => undefined);
-    if (officerView !== "pending" && officerView !== "bookings") return;
+    void loadStaffList(officerToken).catch(() => undefined);
+    void loadStaffAuditLogs(officerToken).catch(() => undefined);
+    void loadOfficerNotifications(officerToken).catch(() => undefined);
     const intervalId = window.setInterval(() => {
       void loadPendingRegistrations(officerToken).catch(() => undefined);
       void loadOfficerBookings(officerToken).catch(() => undefined);
+      void loadOfficerTransport(officerToken).catch(() => undefined);
       void loadOfficerAnalytics(officerToken).catch(() => undefined);
-    }, 10000);
+      void loadStaffList(officerToken).catch(() => undefined);
+      void loadStaffAuditLogs(officerToken).catch(() => undefined);
+      void loadOfficerNotifications(officerToken).catch(() => undefined);
+    }, 8000);
     return () => window.clearInterval(intervalId);
   }, [officerToken, officerView]);
 
@@ -1447,12 +1502,30 @@ export default function Home() {
     try {
       const targetId = selectedRegistrationId ?? pendingRegistrations[0]?.id;
       if (!targetId) throw new Error("No pending registration found.");
-      const response = await fetch(apiUrl(`/officers/registrations/${targetId}/approve`), { method: "PUT", headers: { Authorization: `Bearer ${officerToken}` } });
-      if (!response.ok) throw new Error("Approval failed.");
-      setApproved(true); setRegistrationStatus("APPROVED"); setPendingRegistrations(items => items.filter(item => item.id !== targetId)); setShowRecord(false); toast.success("Registration approved through the API. The farmer can now login."); setOfficerView("approved");
+      const targetItem = pendingRegistrations.find(item => item.id === targetId) ?? pendingRegistrations[0];
+
+      const response = await fetch(apiUrl(`/officers/registrations/${targetId}/approve`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${officerToken}` },
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Approval could not be completed on server.");
+      }
+
+      setApproved(true);
+      setRegistrationStatus("APPROVED");
+      setPendingRegistrations(items => items.filter(item => item.id !== targetId));
+      setShowRecord(false);
+
+      toast.success(`Farmer ${targetItem?.farmer?.name ?? ""} APPROVED! The farmer can now sign in.`);
+      setOfficerView("approved");
+      await loadPendingRegistrations(officerToken);
       await loadOfficerAnalytics(officerToken);
       await loadOfficerStats(officerToken);
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Approval could not be completed."); }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Approval could not be completed.");
+    }
   };
 
   const rejectFarmer = async () => {
@@ -1460,21 +1533,114 @@ export default function Home() {
     try {
       const targetId = selectedRegistrationId ?? pendingRegistrations[0]?.id;
       if (!targetId) throw new Error("No pending registration selected.");
+      const targetItem = pendingRegistrations.find(item => item.id === targetId) ?? pendingRegistrations[0];
+
       const response = await fetch(apiUrl(`/officers/registrations/${targetId}/reject`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${officerToken}` },
         body: JSON.stringify({ reason: rejectReason }),
       });
-      if (!response.ok) throw new Error("Rejection failed.");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Rejection failed on server.");
+      }
+
       setRegistrationStatus("REJECTED");
       setPendingRegistrations(items => items.filter(item => item.id !== targetId));
       setShowRecord(false);
       setShowRejectModal(false);
-      toast.success("Farmer registration rejected with recorded notes.");
+
+      toast.error(`Registration for ${targetItem?.farmer?.name ?? "farmer"} rejected.`);
+      await loadPendingRegistrations(officerToken);
       await loadOfficerAnalytics(officerToken);
       await loadOfficerStats(officerToken);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Rejection failed.");
+    }
+  };
+
+  const submitQcInspection = async () => {
+    if (!officerToken || !selectedQcBooking) return;
+    setQcSubmitting(true);
+    try {
+      const response = await fetch(apiUrl(`/officers/procurement/${selectedQcBooking.id}/qc-inspection`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${officerToken}` },
+        body: JSON.stringify({
+          qualityGrade: qcForm.qualityGrade,
+          qcResult: qcForm.qcResult,
+          weighedQuantityQuintals: Number(qcForm.weighedQuantityQuintals) || Number(selectedQcBooking.expectedQuantityQuintals),
+          moisturePercent: Number(qcForm.moisturePercent) || 14.0,
+          foreignMatterPercent: Number(qcForm.foreignMatterPercent) || 1.0,
+          remarks: qcForm.remarks,
+        }),
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Could not submit quality inspection.");
+      }
+      toast.success(`Quality inspection submitted: ${qcForm.qcResult} (${qcForm.qualityGrade}).`);
+      setShowQcModal(false);
+      await loadOfficerBookings(officerToken);
+      await loadOfficerAnalytics(officerToken);
+      await loadOfficerStats(officerToken);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "QC inspection submission failed.");
+    } finally {
+      setQcSubmitting(false);
+    }
+  };
+
+  const updateLogisticsStatus = async () => {
+    if (!officerToken || !selectedTransportItem) return;
+    try {
+      const targetId = selectedTransportItem.id || selectedTransportItem.transportCode;
+      const response = await fetch(apiUrl(`/officers/transport/${targetId}/status`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${officerToken}` },
+        body: JSON.stringify({ status: transportUpdateStatus }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Could not update logistics status.");
+      }
+      toast.success(data.message || `Logistics status updated to ${(transportUpdateStatus || "").replaceAll("_", " ")}.`);
+      setShowTransportModal(false);
+      setOfficerLogisticsList(prev => prev.map(item => {
+        if (item.id === selectedTransportItem.id || item.transportCode === selectedTransportItem.transportCode) {
+          return { ...item, status: transportUpdateStatus };
+        }
+        return item;
+      }));
+      await loadOfficerTransport(officerToken);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Logistics update failed.");
+    }
+  };
+
+  const disburseFarmerPayout = async (bookingId: number) => {
+    if (!officerToken) return;
+    setPayoutProcessingId(bookingId);
+    try {
+      const response = await fetch(apiUrl(`/officers/procurement/${bookingId}/payout`), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${officerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to disburse payment.");
+      toast.success(`Procurement DBT Payment of ₹${(data.amount ?? 41400).toLocaleString("en-IN")} credited directly to farmer!`);
+      await loadOfficerBookings(officerToken);
+      await loadOfficerAnalytics(officerToken);
+      await loadOfficerStats(officerToken);
+      const payRes = await fetch(apiUrl("/officers/payments"), { headers: { Authorization: `Bearer ${officerToken}` } });
+      if (payRes.ok) {
+        const pData = await payRes.json();
+        setOfficerPayments(pData.payments ?? []);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Payout initiation failed.");
+    } finally {
+      setPayoutProcessingId(null);
     }
   };
 
@@ -1491,7 +1657,7 @@ export default function Home() {
         }),
       });
       if (!response.ok) throw new Error("Could not update procurement stage.");
-      toast.success(`Procurement stage updated to ${procurementForm.status.replaceAll("_", " ")}.`);
+      toast.success(`Procurement stage updated to ${(procurementForm.status || "").replaceAll("_", " ")}.`);
       setShowProcurementModal(false);
       await loadOfficerBookings(officerToken);
       await loadOfficerAnalytics(officerToken);
@@ -1505,32 +1671,59 @@ export default function Home() {
     setAuthError(null);
     setAuthLoading(true);
     try {
+      const cleanPhone = registrationForm.phone.replace(/\s/g, "");
       const response = await fetch(apiUrl("/registration"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...registrationForm,
-          phone: registrationForm.phone.replace(/\s/g, ""),
+          phone: cleanPhone,
           declarationAccepted: true,
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message ?? "Registration could not be submitted.");
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Registration could not be submitted.");
+      }
+
+      const registeredFarmer: FarmerProfile = data.farmer || {
+        id: Date.now(),
+        farmerCode: `FMR-2026-${Math.floor(10000 + Math.random() * 90000)}`,
+        name: registrationForm.name,
+        phone: cleanPhone,
+        village: registrationForm.village,
+        district: registrationForm.district,
+        primaryCrop: registrationForm.primaryCrop,
+        status: "PENDING",
+      };
+
+      const newRegistrationId = data.registration?.id || registeredFarmer.id;
+      const newPendingItem: PendingRegistration = {
+        id: newRegistrationId,
+        registrationCode: data.registration?.registrationCode || `REG-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        aadhaarMasked: registrationForm.aadhaarMasked || "XXXX XXXX 1234",
+        status: "PENDING",
+        submittedAt: new Date().toISOString(),
+        farmer: registeredFarmer,
+      };
+
+      setPendingRegistrations(prev => [newPendingItem, ...prev.filter(p => p.farmer.phone !== cleanPhone && p.id !== newRegistrationId)]);
+
       setRegistered(true);
-      setRegistrationId(data.registrationId ?? null);
+      setRegistrationId(newRegistrationId);
       setRegistrationStatus("PENDING");
-      setPendingFarmer(data.farmer);
+      setPendingFarmer(registeredFarmer);
       setFarmerCredentials({
-        phone: registrationForm.phone.replace(/\s/g, ""),
+        phone: cleanPhone,
         password: registrationForm.password,
       });
       navigate("pending");
       toast.success(
         language === "TE"
-          ? "నమోదు సమర్పించబడింది — అధికారి ధృవీకరణ కోసం వేచి ఉంది."
+          ? "నమోదు సమర్పించబడింది — అధికారి సమీక్ష మరియు ఆమోదం కోసం వేచి ఉంది."
           : language === "HI"
-          ? "पंजीकरण जमा किया गया — अधिकारी सत्यापन की प्रतीक्षा है।"
-          : "Registration submitted — awaiting officer verification."
+          ? "पंजीकरण जमा किया गया — अधिकारी सत्यापन एवं स्वीकृति की प्रतीक्षा है।"
+          : "Registration submitted! Your account is PENDING officer review."
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Registration could not be submitted.";
@@ -1540,13 +1733,37 @@ export default function Home() {
       setAuthLoading(false);
     }
   };
+
   const loginFarmer = async () => {
     setAuthError(null); setAuthLoading(true);
     try {
-      const response = await fetch(apiUrl("/farmers/login"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(farmerCredentials) });
+      const cleanPhone = farmerCredentials.phone.replace(/\s/g, "");
+
+      const response = await fetch(apiUrl("/farmers/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          password: farmerCredentials.password,
+        }),
+      });
       const data = await response.json();
-      if (!response.ok) { if (data.error === "REGISTRATION_NOT_APPROVED") { setRegistrationStatus(data.status ?? "PENDING"); navigate("pending"); } throw new Error(data.message ?? "Login failed."); }
-      setFarmerToken(data.accessToken); setFarmerId(data.farmer.id); setProfileRecord(data.farmer); setApproved(true); sessionStorage.setItem("procureflow.farmer.session", JSON.stringify({ token: data.accessToken, farmer: data.farmer }));
+
+      if (!response.ok || data.status === "PENDING" || data.error === "REGISTRATION_NOT_APPROVED") {
+        if (data.status === "PENDING" || data.error === "REGISTRATION_NOT_APPROVED") {
+          setRegistrationStatus(data.status ?? "PENDING");
+          if (data.farmer) setPendingFarmer(data.farmer);
+          navigate("pending");
+        }
+        throw new Error(data.message ?? "Your registration requires officer approval before login.");
+      }
+
+      setFarmerToken(data.accessToken);
+      setFarmerId(data.farmer.id);
+      setProfileRecord(data.farmer);
+      setApproved(true);
+      sessionStorage.setItem("procureflow.farmer.session", JSON.stringify({ token: data.accessToken, farmer: data.farmer }));
+      
       const bookingResponse = await fetch(apiUrl(`/farmers/${data.farmer.id}/bookings`), { headers: { Authorization: `Bearer ${data.accessToken}` } });
       const bookingData = await bookingResponse.json();
       const activeBooking = bookingData.bookings?.[0];
@@ -1554,29 +1771,87 @@ export default function Home() {
       await loadNotifications(data.accessToken, data.farmer.id);
       await loadPaymentData(data.accessToken, data.farmer.id, activeBooking?.id);
       await loadFarmerStats(data.accessToken);
-      setScreen("dashboard"); window.scrollTo({ top: 0, behavior: "smooth" }); toast.success(`Welcome back, ${data.farmer.name}.`);
-    } catch (error) { const message = error instanceof Error ? error.message : "Login could not be completed."; setAuthError(message); toast.error(message); }
-    finally { setAuthLoading(false); }
+      setScreen("dashboard");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast.success(`Welcome back, ${data.farmer.name}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Login could not be completed.";
+      setAuthError(message);
+      toast.error(message);
+    } finally {
+      setAuthLoading(false);
+    }
   };
-  const loginOfficer = async () => {
+
+  const loginOfficer = async (overrideCreds?: { officerCode: string; password?: string }) => {
     try {
-      const response = await fetch(apiUrl("/officers/login"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ officerCode: "OFF-NZM-104", password: "Officer@2026" }) });
+      const creds = overrideCreds || officerLoginForm;
+      const response = await fetch(apiUrl("/officers/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          officerCode: creds.officerCode,
+          password: creds.password || "Officer@2026",
+        }),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message ?? "Officer login failed.");
-      setOfficerToken(data.accessToken); sessionStorage.setItem("procureflow.officer.session", JSON.stringify({ token: data.accessToken, officer: data.officer })); setOfficerView("overview");
-      const paymentResponse = await fetch(apiUrl("/officers/payments"), { headers: { Authorization: `Bearer ${data.accessToken}` } });
-      if (paymentResponse.ok) setOfficerPayments((await paymentResponse.json()).payments);
-      await loadPendingRegistrations(data.accessToken);
-      await loadOfficerBookings(data.accessToken);
-      await loadOfficerAnalytics(data.accessToken);
-      await loadOfficerStats(data.accessToken);
-      navigate("officerDashboard"); toast.success(`Officer session opened for ${data.officer.name}.`);
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Officer login could not be completed."); }
+      
+      setOfficerToken(data.accessToken);
+      setOfficerProfile(data.officer);
+      sessionStorage.setItem("procureflow.officer.session", JSON.stringify({ token: data.accessToken, officer: data.officer }));
+
+      const role = data.officer?.role || "HEAD_OFFICER";
+      
+      if (role === "HEAD_OFFICER") {
+        await loadStaffList(data.accessToken);
+        await loadStaffAuditLogs(data.accessToken);
+        await loadPendingRegistrations(data.accessToken);
+        await loadOfficerBookings(data.accessToken);
+        await loadOfficerAnalytics(data.accessToken);
+        await loadOfficerStats(data.accessToken);
+        await loadOfficerTransport(data.accessToken);
+        setOfficerView("staff");
+        navigate("staffManagement");
+      } else if (role === "QUALITY_CONTROL_INSPECTOR") {
+        await loadOfficerBookings(data.accessToken);
+        setOfficerView("quality");
+        navigate("quality");
+      } else if (role === "LOGISTICS_OFFICER") {
+        await loadOfficerTransport(data.accessToken);
+        setOfficerView("logistics");
+        navigate("officerLogistics");
+      } else if (role === "PAYMENT_OFFICER") {
+        const pRes = await fetch(apiUrl("/officers/payments"), { headers: { Authorization: `Bearer ${data.accessToken}` } });
+        if (pRes.ok) setOfficerPayments((await pRes.json()).payments);
+        setOfficerView("payments");
+        navigate("officerPayments");
+      } else { // PROCUREMENT_OFFICER
+        await loadPendingRegistrations(data.accessToken);
+        await loadOfficerBookings(data.accessToken);
+        setOfficerView("pending");
+        navigate("registrations");
+      }
+
+      await loadOfficerNotifications(data.accessToken);
+      toast.success(`Welcome ${data.officer?.name || "Officer"} (${(data.officer?.role || "Officer").replaceAll("_", " ")})!`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Officer login could not be completed.");
+    }
   };
+
   const logoutFarmer = () => {
     sessionStorage.removeItem("procureflow.farmer.session");
     setFarmerToken(null); setFarmerId(null); setBookingId(null); setBookingRecord(null); setProfileRecord(null); setApiNotifications([]); setPaymentRecord(null); setPaymentHistory([]); setReceipt(null); setPaymentDone(false); setApproved(false); setAuthError(null);
-    navigate("landing"); toast.success("You have been logged out.");
+    navigate("landing");
+    toast.success("You have been logged out from Farmer Portal.");
+  };
+
+  const logoutOfficer = () => {
+    sessionStorage.removeItem("procureflow.officer.session");
+    setOfficerToken(null);
+    navigate("landing");
+    toast.success("Officer console session closed.");
   };
   const processPayment = async () => {
     if (!farmerToken || !bookingId || !farmerId) { toast.error("Login as an approved farmer with an active booking before paying."); return; }
@@ -1830,8 +2105,51 @@ export default function Home() {
         <div className="rail-bottom"><button onClick={() => navigate("assistant")}><Bot size={19} /><span>Farmer assistant</span></button><button onClick={() => navigate("profile")}><UserCheck size={19} /><span>My profile</span></button></div>
       </aside>
       <div className="screen-area">
-        <header className="mobile-header"><button onClick={() => setMobileMenu(true)} aria-label="Open navigation"><Menu size={22} /></button><button onClick={() => navigate("dashboard")}><AppLogo /></button><LanguagePicker language={language} setLanguage={changeLanguage} /></header>
-        <div className="desktop-status-bar"><div className="status-item"><span className="today-dot" /> Procurement window <b>Open today</b></div><div className="bar-actions"><LanguagePicker language={language} setLanguage={changeLanguage} /><button className="notification-button" onClick={() => navigate("notifications")}><Bell size={19} />{apiNotifications.some(item => !item.isRead) && <i />}</button><button className="avatar-chip" onClick={() => navigate("profile")}><span>{profileRecord?.name.split(" ").map(part => part[0]).join("").slice(0, 2) ?? "RK"}</span><b>{profileRecord?.name ?? "Ramesh Kumar"}</b></button><button className="logout-button" onClick={logoutFarmer} title="Log out"><LogIn size={16} /></button></div></div>
+        <header className="mobile-header">
+          <div className="header-left">
+            <button onClick={() => setMobileMenu(true)} aria-label="Open navigation" className="mobile-nav-toggle">
+              <Menu size={22} />
+            </button>
+            <LanguageDropdown language={language} setLanguage={changeLanguage} />
+          </div>
+          <div className="header-right">
+            <button
+              className="notification-button"
+              onClick={() => navigate("notifications")}
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={18} />
+              {apiNotifications.some(item => !item.isRead) && <i />}
+            </button>
+            <FarmerProfileDropdown
+              profileRecord={profileRecord}
+              onViewProfile={() => navigate("profile")}
+              onLogout={logoutFarmer}
+            />
+          </div>
+        </header>
+        <div className="desktop-status-bar">
+          <div className="header-left">
+            <LanguageDropdown language={language} setLanguage={changeLanguage} />
+          </div>
+          <div className="header-right">
+            <button
+              className="notification-button"
+              onClick={() => navigate("notifications")}
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={18} />
+              {apiNotifications.some(item => !item.isRead) && <i />}
+            </button>
+            <FarmerProfileDropdown
+              profileRecord={profileRecord}
+              onViewProfile={() => navigate("profile")}
+              onLogout={logoutFarmer}
+            />
+          </div>
+        </div>
         <main className="content-pad">{content}</main>
       </div>
       {mobileMenu && <div className="mobile-drawer-backdrop" onClick={() => setMobileMenu(false)}><nav className="mobile-drawer" onClick={e => e.stopPropagation()}><div className="drawer-top"><AppLogo /><button onClick={() => setMobileMenu(false)}><X size={20} /></button></div><div className="drawer-links">{navItems.map(({ screen: target, label, icon: Icon }) => <button key={target} onClick={() => navigate(target)} className={screen === target ? "active" : ""}><Icon size={20} />{t.nav[label as keyof typeof t.nav] ?? label}</button>)}<hr /><button onClick={() => navigate("assistant")}><Bot size={20} /> Farmer assistant</button><button onClick={() => navigate("profile")}><UserCheck size={20} /> My profile</button></div><div className="drawer-bottom"><button onClick={logoutFarmer} className="drawer-logout"><LogIn size={18} /> Logout</button></div></nav></div>}
@@ -1840,7 +2158,7 @@ export default function Home() {
 
   const landing = (
     <div className="landing-page">
-      <header className="landing-nav"><AppLogo /><div className="nav-links"><a href="#how">How it works</a><a href="#services">Features</a><button onClick={() => navigate("farmerLogin")}>Farmer login</button><button className="officer-link" onClick={() => navigate("officerLogin")}>Officer console</button></div><div className="nav-end"><LanguagePicker language={language} setLanguage={changeLanguage} /><ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Register now</ActionButton></div></header>
+      <header className="landing-nav"><AppLogo /><div className="nav-links"><a href="#how">How it works</a><a href="#services">Features</a><button onClick={() => navigate("farmerLogin")}>Farmer login</button><button className="officer-link" onClick={() => navigate("officerLogin")}>Officer console</button></div><div className="nav-end"><LanguageDropdown language={language} setLanguage={changeLanguage} /><ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Register now</ActionButton></div></header>
       <main>
         <section className="hero-section">
           <img src={queueUrl} alt="Lush green paddy crop field" className="hero-image" />
@@ -2003,10 +2321,10 @@ export default function Home() {
         {pendingFarmer && (
           <article className="pending-record">
             <div>
-              <span className="avatar">{pendingFarmer.name.split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
+              <span className="avatar">{(pendingFarmer.name ?? "Farmer").split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
               <div>
-                <b>{pendingFarmer.name}</b>
-                <small>{pendingFarmer.farmerCode} · {pendingFarmer.village}</small>
+                <b>{pendingFarmer.name ?? "Farmer"}</b>
+                <small>{pendingFarmer.farmerCode ?? "FMR-2026"} · {pendingFarmer.village ?? "Village"}</small>
               </div>
             </div>
             <Pill kind={registrationStatus === "APPROVED" ? "green" : registrationStatus === "REJECTED" ? "yellow" : "yellow"}>
@@ -2022,6 +2340,21 @@ export default function Home() {
             {language === "TE" ? "రైతు లాగిన్ పేజీకి వెళ్లండి" : language === "HI" ? "किसान लॉगिन पर जाएँ" : "Return to farmer login"}
           </ActionButton>
         </div>
+
+        {registrationStatus === "PENDING" && (
+          <div className="mt-5 p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-left max-w-md w-full shadow-sm">
+            <div className="flex items-center gap-1.5 text-emerald-900 font-bold text-xs mb-1">
+              <ShieldCheck size={15} className="text-emerald-700" /> Officer Verification Workflow
+            </div>
+            <p className="text-xs text-emerald-800 mb-3 leading-relaxed">
+              New farmer registrations strictly remain <b>PENDING</b> until verified by the Mandal Procurement Officer. You can switch to the Officer Console to review and approve this farmer.
+            </p>
+            <ActionButton onClick={() => { void loginOfficer(); }} icon={ArrowRight}>
+              Open Officer Console (Approve Farmer)
+            </ActionButton>
+          </div>
+        )}
+
         {authError && <p className="demo-hint">{authError}</p>}
       </main>
     </div>
@@ -2093,7 +2426,7 @@ export default function Home() {
             <i />
             <span className="route-node"><WalletCards /></span>
             <div>
-              <b>{bookingRecord?.procurement?.status.replaceAll("_", " ") ?? "Ready for your arrival"}</b>
+              <b>{(bookingRecord?.procurement?.status || "Ready for your arrival").replaceAll("_", " ")}</b>
               <p>Live record loaded from your connected booking when available.</p>
             </div>
           </div>
@@ -2113,7 +2446,7 @@ export default function Home() {
         <MetricCard icon={UsersRound} label="People ahead" value={`${bookingRecord?.queue?.peopleAhead ?? queueAhead}`} hint="From the connected queue" tone="green"/>
         <MetricCard icon={Clock3} label="Estimated wait" value={`${bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min`} hint="Based on current centre flow" tone="yellow"/>
         <MetricCard icon={Wheat} label="Paddy selected" value={bookingRecord?.paddyGrade ?? "Grade A"} hint={`${bookingRecord?.paddyVariety ?? "Common paddy"} · ${bookingRecord?.expectedQuantityQuintals ?? 18} quintals`} tone="blue"/>
-        <MetricCard icon={ClipboardCheck} label="Procurement stage" value={bookingRecord?.procurement?.status.replaceAll("_", " ") ?? "Booked"} hint="Live prototype record" tone="green"/>
+        <MetricCard icon={ClipboardCheck} label="Procurement stage" value={(bookingRecord?.procurement?.status || "Booked").replaceAll("_", " ")} hint="Live prototype record" tone="green"/>
       </section>
       <section className="stats-section">
         <div className="stats-heading">
@@ -2217,7 +2550,7 @@ export default function Home() {
                   navigate("centre");
                 }}
               >
-                <span className={`centre-status ${centre.status.toLowerCase()}`}>
+                <span className={`centre-status ${(centre.status || "active").toLowerCase()}`}>
                   <MapPin size={17}/>
                 </span>
                 <div>
@@ -2277,17 +2610,377 @@ export default function Home() {
     );
   }) : <div className="col-span-full py-4 text-muted-foreground text-center">Loading slots from server...</div>}</div><div className="page-actions"><ActionButton onClick={() => navigate("centre")} secondary icon={ArrowLeft}>Change centre</ActionButton><ActionButton onClick={() => navigate("confirmation")} icon={ArrowRight}>Review booking</ActionButton></div></div><aside className="booking-aside slot-summary"><Pill kind="green">YOUR BOOKING</Pill><h3>{selectedCentre.name}</h3><p>{selectedCentre.distance} from Muppalapally</p><hr/><span><Wheat/> {selectedPaddy}</span><span><CalendarDays/> {selectedDate}</span><span><Clock3/> {selectedSlot}</span><p className="tip-line"><Clock3/> Arrive 10 minutes early for document verification.</p></aside></div></>);
 
-  const confirmation = farmerShell(<><SectionTitle eyebrow="REVIEW AND CONFIRM" title="Your procurement slot is ready." body="Check these details once. Generating a token will confirm your place in the connected database queue."/><div className="confirmation-layout"><div><StepTrack current={4}/><article className="booking-ticket"><div className="ticket-top"><AppLogo/><Pill kind="green">READY TO CONFIRM</Pill></div><div className="ticket-grid"><div><small>CENTRE</small><b>{selectedCentre.name}</b><p><MapPin/> {selectedCentre.place}</p></div><div><small>DATE & TIME</small><b>{selectedDate}</b><p><Clock3/> {selectedSlot}</p></div><div><small>PADDY</small><b>{selectedPaddy}</b><p><Wheat/> Approx. 18 quintals</p></div><div><small>BOOKING ID</small><b>{bookingRecord?.bookingCode ?? "Generated on confirmation"}</b><p><ShieldCheck/> Database synced record</p></div></div><div className="ticket-bottom"><span>Expected queue <b>{selectedCentre.queue} farmers</b></span><span>Estimated wait <b>{selectedCentre.wait}</b></span></div></article><div className="consent-box"><input type="checkbox" defaultChecked/><p>I confirm my visit to the procurement centre with the stated paddy load and documents.</p></div><div className="page-actions"><ActionButton onClick={() => navigate("slot")} secondary icon={ArrowLeft}>Change time</ActionButton><ActionButton onClick={() => { void confirmBooking(); }} icon={Ticket}>Confirm & generate token</ActionButton></div></div><aside className="booking-aside confirmation-help"><span className="token-disc"><Phone/></span><h3>Need a hand?</h3><p>The centre help desk is available from 9:00 AM to 5:00 PM.</p><button onClick={() => toast.message("Helpline: 1800-000-2026")}>Call support <Phone size={15}/></button></aside></div></>);
+  const confirmation = farmerShell(
+    <>
+      <SectionTitle
+        eyebrow="REVIEW AND CONFIRM"
+        title="Your procurement slot is ready."
+        body="Check these details once. Generating a token will confirm your place in the connected database queue."
+      />
+      <div className="confirmation-layout">
+        <div>
+          <StepTrack current={4} />
+          <article className="booking-ticket">
+            <div className="ticket-top">
+              <AppLogo />
+              <Pill kind="green">READY TO CONFIRM</Pill>
+            </div>
+            <div className="ticket-grid">
+              <div>
+                <small>CENTRE</small>
+                <b>{selectedCentre.name}</b>
+                <p><MapPin /> {selectedCentre.place}</p>
+              </div>
+              <div>
+                <small>DATE & TIME</small>
+                <b>{selectedDate}</b>
+                <p><Clock3 /> {selectedSlot}</p>
+              </div>
+              <div>
+                <small>PADDY</small>
+                <b>{selectedPaddy}</b>
+                <p><Wheat /> Approx. 18 quintals</p>
+              </div>
+              <div>
+                <small>BOOKING ID</small>
+                <b>{bookingRecord?.bookingCode ?? "Generated on confirmation"}</b>
+                <p><ShieldCheck /> Database synced record</p>
+              </div>
+            </div>
 
-  const token = farmerShell(<><SectionTitle eyebrow="BOOKING CONFIRMED" title={t.tokenTitle} body={language === "TE" ? "ఈ స్క్రీన్‌ను సేవ్ చేసి కేంద్రంలో చూపండి." : language === "HI" ? "इस स्क्रीन को सेव करें और केंद्र पर दिखाएँ।" : "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open."}/><div className="token-layout"><section className="token-card"><div className="token-card-head"><AppLogo inverse/><span>PROCUREMENT TOKEN</span></div><div className="token-number"><small>YOUR TOKEN NUMBER</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>{bookingRecord?.slot.date ?? "Wednesday, 18 March"} · {bookingRecord ? `${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : selectedSlot}</span></div><div className="token-card-details"><div><small>CENTRE</small><b>{bookingRecord?.centre.name ?? selectedCentre.name}</b></div><div><small>BOOKING ID</small><b>{bookingRecord?.bookingCode ?? "BK-2026-7294"}</b></div><div><small>FARMER</small><b>{bookingRecord?.farmer.name ?? "Ramesh Kumar"}</b></div><div><small>PADDY</small><b>{bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}</b></div></div><div className="token-qr"><div className="fake-qr">▦<br/>▥</div><p>Verified token<br/><b>Show at verification</b></p></div><div className="ticket-corner"/></section><aside className="token-status-card"><Pill kind="yellow"><span className="pulse-dot"/> LIVE ESTIMATE</Pill><h2>{bookingRecord?.queue?.peopleAhead ?? queueAhead} farmers ahead</h2><p>Your connected booking has an estimated <b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} minute</b> wait.</p><div className="token-progress"><span><b>Now</b><small>{bookingRecord?.queue?.currentToken ?? "P-024"}</small></span><Progress value={queueProgress}/><span><b>You</b><small>{bookingRecord?.tokenNumber ?? "P-042"}</small></span></div><ActionButton onClick={() => navigate("queue")} icon={ArrowRight}>Open live queue</ActionButton><button onClick={() => { const copy = `ProcureFlow token ${bookingRecord?.tokenNumber ?? "P-042"}, ${bookingRecord?.bookingCode ?? "BK-2026-7294"}`; navigator.clipboard?.writeText(copy); toast.success("Token details copied."); }}>Copy token details</button></aside></div><section className="token-next"><div><span><CheckCircle2/></span><p><b>Booking saved</b> Your token was generated by the API.</p></div><div><span><Bell/></span><p><b>Notifications on</b> Real-time updates appear in your notification feed.</p></div><div><span><MapPin/></span><p><b>Arrive 10 minutes early</b> Keep your entry smooth.</p></div></section></>);
+            <div className="slot-fee-banner">
+              <div className="fee-line">
+                <span className="fee-text">Procurement Slot Booking Fee:</span>
+                <b className="fee-free-text">₹0 (Free Govt Service)</b>
+              </div>
+              <div className="fee-line fee-total-line">
+                <span className="fee-text">Amount Payable:</span>
+                <b className="fee-zero-text">₹0</b>
+              </div>
+            </div>
+
+            <div className="ticket-bottom">
+              <span>Expected queue <b>{selectedCentre.queue} farmers</b></span>
+              <span>Estimated wait <b>{selectedCentre.wait}</b></span>
+            </div>
+          </article>
+          <div className="consent-box">
+            <input type="checkbox" defaultChecked />
+            <p>I confirm my visit to the procurement centre with the stated paddy load and documents. (Slot reservation is 100% free of charge).</p>
+          </div>
+          <div className="page-actions">
+            <ActionButton onClick={() => navigate("slot")} secondary icon={ArrowLeft}>Change time</ActionButton>
+            <ActionButton onClick={() => { void confirmBooking(); }} icon={Ticket}>Confirm & generate token</ActionButton>
+          </div>
+        </div>
+        <aside className="booking-aside confirmation-help">
+          <span className="token-disc"><Phone /></span>
+          <h3>Need a hand?</h3>
+          <p>The centre help desk is available from 9:00 AM to 5:00 PM.</p>
+          <button onClick={() => toast.message("Helpline: 1800-000-2026")}>Call support <Phone size={15} /></button>
+        </aside>
+      </div>
+    </>
+  );
+
+  const token = farmerShell(<><SectionTitle eyebrow="BOOKING CONFIRMED" title={t.tokenTitle} body={language === "TE" ? "ఈ స్క్రీన్‌ను సేవ్ చేసి కేంద్రంలో చూపండి." : language === "HI" ? "इस स्क्रीन को सेव करें और केंद्र पर दिखाएँ।" : "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open."}/><div className="token-layout"><section className="token-card"><div className="token-card-head"><AppLogo inverse/><span>PROCUREMENT TOKEN</span></div><div className="token-number"><small>YOUR TOKEN NUMBER</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>{bookingRecord?.slot.date ?? "Wednesday, 18 March"} · {bookingRecord ? `${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : selectedSlot}</span></div><div className="token-card-details"><div><small>CENTRE</small><b>{bookingRecord?.centre.name ?? selectedCentre.name}</b></div><div><small>BOOKING ID</small><b>{bookingRecord?.bookingCode ?? "BK-2026-7294"}</b></div><div><small>FARMER</small><b>{bookingRecord?.farmer.name ?? "Ramesh Kumar"}</b></div><div><small>PADDY</small><b>{bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}</b></div></div><div className="token-qr" style={{ display: "flex", alignItems: "center", gap: 14 }}><QRCodeSvg value={`PROCUREFLOW:${bookingRecord?.tokenNumber ?? "P-042"}|BOOKING:${bookingRecord?.bookingCode ?? "BK-2026-7294"}|FARMER:${profileRecord?.farmerCode ?? "FMR-2026-11842"}|CENTRE:${bookingRecord?.centre?.name ?? selectedCentre.name}`} size={120} /><p>Verified QR pass<br/><b>Scan at verification gate</b></p></div><div className="ticket-corner"/></section><aside className="token-status-card"><Pill kind="yellow"><span className="pulse-dot"/> LIVE ESTIMATE</Pill><h2>{bookingRecord?.queue?.peopleAhead ?? queueAhead} farmers ahead</h2><p>Your connected booking has an estimated <b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} minute</b> wait.</p><div className="token-progress"><span><b>Now</b><small>{bookingRecord?.queue?.currentToken ?? "P-024"}</small></span><Progress value={queueProgress}/><span><b>You</b><small>{bookingRecord?.tokenNumber ?? "P-042"}</small></span></div><ActionButton onClick={() => navigate("queue")} icon={ArrowRight}>Open live queue</ActionButton><button onClick={() => { const copy = `ProcureFlow token ${bookingRecord?.tokenNumber ?? "P-042"}, ${bookingRecord?.bookingCode ?? "BK-2026-7294"}`; navigator.clipboard?.writeText(copy); toast.success("Token details copied."); }}>Copy token details</button></aside></div><section className="token-next"><div><span><CheckCircle2/></span><p><b>Booking saved</b> Your token was generated by the API.</p></div><div><span><Bell/></span><p><b>Notifications on</b> Real-time updates appear in your notification feed.</p></div><div><span><MapPin/></span><p><b>Arrive 10 minutes early</b> Keep your entry smooth.</p></div></section></>);
 
   const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={language === "TE" ? "ఈ స్క్రీన్ తెరిచి ఉన్నంత వరకు క్యూ ప్రతి పదిహేను సెకన్లకు నవీకరించబడుతుంది." : language === "HI" ? "यह स्क्रीन खुली रहने पर आपकी कतार हर पंद्रह सेकंड में अपडेट होती है।" : "Your connected queue refreshes every fifteen seconds while this screen is open."} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
 
-  const status = farmerShell(<><SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={language === "TE" ? "మీ వరి బుకింగ్ నుండి చెల్లింపు నిర్ధారణ వరకు ప్రయాణాన్ని అనుసరించండి." : language === "HI" ? "अपनी धान बुकिंग से भुगतान पुष्टि तक की यात्रा देखें।" : "Follow the journey of your paddy from booked slot to payment confirmation."}/><div className="status-layout"><section className="timeline-card"><div className="timeline-head"><div><Pill kind="green">{bookingRecord?.bookingCode ?? "BK-2026-7294"}</Pill><h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2><p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p></div><button onClick={() => navigate("token")}><Ticket size={18}/> Token {bookingRecord?.tokenNumber ?? "P-042"}</button></div><div className="timeline">{[{ title: "Slot Booked", desc: bookingRecord ? `${bookingRecord.slot.date} · ${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM", state: "done", icon: CalendarDays }, { title: "Current Stage", desc: bookingRecord?.procurement?.status.replaceAll("_", " ") ?? "BOOKED", state: "current", icon: LoaderCircle }, { title: "Weighed quantity", desc: bookingRecord?.procurement?.weighedQuantityQuintals ? `${bookingRecord.procurement.weighedQuantityQuintals} quintals · ${bookingRecord.procurement.qualityGrade ?? "Grade pending"}` : "Weight slip updated by officer upon arrival", state: bookingRecord?.procurement?.weighedQuantityQuintals ? "done" : "upcoming", icon: Tractor }, { title: "Completed", desc: bookingRecord?.procurement?.status === "COMPLETED" ? "Procurement verified and recorded" : "Final procurement record pending", state: bookingRecord?.procurement?.status === "COMPLETED" ? "done" : "upcoming", icon: CheckCircle2 }, { title: "Payment", desc: "Complete your payment from the next screen", state: paymentDone ? "done" : "upcoming", icon: WalletCards }].map(({ title, desc, state, icon: Icon }) => <article className={`timeline-row ${state}`} key={title}><span><Icon size={18}/></span><div><h3>{title}</h3><p>{desc}</p></div><i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i></article>)}</div></section><aside className="status-aside"><img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/><div><Pill kind="yellow">QUALITY SIGNAL</Pill><h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3><p>The displayed signal is pulled from the live procurement record in the database.</p></div></aside></div><section className="status-summary"><div><span className="token-disc small"><ClipboardCheck/></span><p><b>{bookingRecord?.procurement?.status.replaceAll("_", " ") ?? "BOOKED"}</b><br/>The current stage is synchronized in real-time with officer actions.</p></div><div><span className="token-disc small blue"><WalletCards/></span><p><b>Payment follows completion</b><br/>Explore payment details anytime.</p></div><ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton></section></>);
+  const status = farmerShell(<><SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={language === "TE" ? "మీ వరి బుకింగ్ నుండి చెల్లింపు నిర్ధారణ వరకు ప్రయాణాన్ని అనుసరించండి." : language === "HI" ? "अपनी धान बुकिंग से भुगतान पुष्टि तक की यात्रा देखें।" : "Follow the journey of your paddy from booked slot to payment confirmation."}/><div className="status-layout"><section className="timeline-card"><div className="timeline-head"><div><Pill kind="green">{bookingRecord?.bookingCode ?? "BK-2026-7294"}</Pill><h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2><p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p></div><button onClick={() => navigate("token")}><Ticket size={18}/> Token {bookingRecord?.tokenNumber ?? "P-042"}</button></div><div className="timeline">{[{ title: "Slot Booked", desc: bookingRecord ? `${bookingRecord.slot.date} · ${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM", state: "done", icon: CalendarDays }, { title: "Current Stage", desc: (bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " "), state: "current", icon: LoaderCircle }, { title: "Weighed quantity", desc: bookingRecord?.procurement?.weighedQuantityQuintals ? `${bookingRecord.procurement.weighedQuantityQuintals} quintals · ${bookingRecord.procurement.qualityGrade ?? "Grade pending"}` : "Weight slip updated by officer upon arrival", state: bookingRecord?.procurement?.weighedQuantityQuintals ? "done" : "upcoming", icon: Tractor }, { title: "Completed", desc: bookingRecord?.procurement?.status === "COMPLETED" ? "Procurement verified and recorded" : "Final procurement record pending", state: bookingRecord?.procurement?.status === "COMPLETED" ? "done" : "upcoming", icon: CheckCircle2 }, { title: "Payment", desc: "Complete your payment from the next screen", state: paymentDone ? "done" : "upcoming", icon: WalletCards }].map(({ title, desc, state, icon: Icon }) => <article className={`timeline-row ${state}`} key={title}><span><Icon size={18}/></span><div><h3>{title}</h3><p>{desc}</p></div><i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i></article>)}</div></section><aside className="status-aside"><img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/><div><Pill kind="yellow">QUALITY SIGNAL</Pill><h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3><p>The displayed signal is pulled from the live procurement record in the database.</p></div></aside></div><section className="status-summary"><div><span className="token-disc small"><ClipboardCheck/></span><p><b>{(bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " ")}</b><br/>The current stage is synchronized in real-time with officer actions.</p></div><div><span className="token-disc small blue"><WalletCards/></span><p><b>Payment follows completion</b><br/>Explore payment details anytime.</p></div><ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton></section></>);
 
-  const payment = farmerShell(<><SectionTitle eyebrow="PAYMENT" title={paymentRecord?.status === "SUCCESS" ? "Payment successful." : paymentRecord?.status === "FAILED" ? "Payment needs attention." : "Complete your procurement payment."} body="Choose a method. Card, UPI, and banking details stay with the payment provider when a production gateway is connected."/><div className="payment-layout"><section className="payment-panel">{paymentRecord?.status === "SUCCESS" ? <div className="payment-success"><span><Check/></span><Pill kind="green">SUCCESS</Pill><h2>Payment received.</h2><p>Your payment has been recorded and a receipt is available below.</p><div><b>Payment ID</b><span>{paymentRecord.paymentId}</span></div><div><b>Transaction reference</b><span>{paymentRecord.transactionReference}</span></div><ActionButton onClick={() => navigate("dashboard")} icon={ArrowRight}>Return to dashboard</ActionButton></div> : <><div className="demo-warning"><ShieldCheck/><p><b>Secure payment flow</b><br/>Protected transaction processing with test gateway integration.</p></div><h2>Select payment method</h2><div className="payment-methods">{[["UPI", WalletCards, "Pay using your preferred UPI app"], ["Card", CreditCard, "Continue through a secure card gateway"], ["Net Banking", Landmark, "Continue through your bank’s secure page"]].map(([name, Icon, copy]) => <button className={paymentMode === name ? "selected" : ""} onClick={() => setPaymentMode(name as string)} key={name as string}><span><Icon size={20}/></span><div><b>{name as string}</b><p>{copy as string}</p></div>{paymentMode === name && <CheckCircle2/>}</button>)}</div><div className="demo-payment-form">{paymentRecord?.status === "PROCESSING" ? <div><Pill kind="yellow">PROCESSING</Pill><p>Your payment provider is confirming the transaction. Do not close this screen.</p></div> : paymentRecord?.status === "FAILED" ? <div><Pill kind="yellow">FAILED</Pill><p>{paymentRecord.failureReason ?? "This payment could not be completed. Please try another method."}</p></div> : <div><Pill kind="blue">PENDING</Pill><p>You will proceed to the gateway test checkout. Credentials remain secure.</p></div>}</div><div className="payment-methods"><button className={paymentOutcome === "SUCCESS" ? "selected" : ""} onClick={() => setPaymentOutcome("SUCCESS")}><span><CheckCircle2 size={20}/></span><div><b>Provider response: success</b><p>Simulate a completed provider callback.</p></div></button><button className={paymentOutcome === "FAILED" ? "selected" : ""} onClick={() => setPaymentOutcome("FAILED")}><span><X size={20}/></span><div><b>Provider response: failed</b><p>Simulate an authorisation failure and retry.</p></div></button></div><ActionButton disabled={paymentProcessing || !bookingRecord} onClick={() => { void processPayment(); }} icon={ShieldCheck}>{paymentProcessing ? "Processing payment…" : paymentRecord?.status === "FAILED" ? "Try payment again" : "Continue to secure payment"}</ActionButton></>}</section><aside className="payment-summary"><Pill kind="blue">PAYMENT SUMMARY</Pill><h3>Procurement settlement</h3>{bookingRecord ? <><div><span>Paddy quantity</span><b>{bookingRecord.expectedQuantityQuintals} quintals</b></div><div><span>Base price</span><b>₹{bookingRecord.paymentQuote.unitPrice} / quintal</b></div><div><span>Quality adjustment</span><b className="positive">₹{bookingRecord.paymentQuote.qualityAdjustment}</b></div><hr/><div className="payment-total"><span>Amount payable</span><b>₹{bookingRecord.paymentQuote.demoPayable.toLocaleString("en-IN")}</b></div><p><MapPin/> {bookingRecord.centre.name}</p><p><Ticket/> {bookingRecord.bookingCode}</p><small>Calculated settlement; stored securely in database.</small></> : <p className="section-body">Sign in and load an active booking to view its payment summary.</p>}</aside></div>{receipt && <section className="status-summary"><div><span className="token-disc small blue"><CheckCircle2/></span><p><b>Payment receipt {receipt.receiptNumber}</b><br/>Payment ID: {receipt.payment.paymentId} · Transaction: {receipt.payment.transactionReference}</p></div><ActionButton onClick={() => navigator.clipboard?.writeText(`Receipt ${receipt.receiptNumber} | ${receipt.payment.paymentId} | ${receipt.payment.transactionReference}`)} secondary icon={Check}>Copy receipt details</ActionButton></section>}<section className="status-summary"><div><span className="token-disc small"><WalletCards/></span><p><b>Payment history</b><br/>{paymentHistory.length ? `${paymentHistory.length} payment attempt${paymentHistory.length === 1 ? "" : "s"} recorded securely.` : "No payment attempts recorded yet."}</p></div></section>{paymentHistory.map(history => <section className="status-summary" key={history.paymentId}><div><span className="token-disc small blue"><WalletCards/></span><p><b>{history.status} · {history.method}</b><br/>Payment ID: {history.paymentId} · Transaction: {history.transactionReference}<br/>Booking: {history.bookingCode} · ₹{history.amount.toLocaleString("en-IN")}</p></div><Pill kind={history.status === "SUCCESS" ? "green" : history.status === "FAILED" ? "yellow" : "blue"}>{history.status}</Pill></section>)}</>);
+  const payment = farmerShell(
+    <>
+      <SectionTitle
+        eyebrow="DIRECT BENEFIT TRANSFER (DBT) · CROP SETTLEMENT"
+        title="Procurement Payment & Farmer Settlement"
+        body="Official government DBT payout for your procured harvest credited directly to your bank account."
+      />
 
-  const profile = farmerShell(<><SectionTitle eyebrow="FARMER PROFILE" title={t.profileTitle} body="Your current profile is loaded from the authenticated backend session."/><div className="profile-layout"><section className="profile-card"><div className="profile-main"><span className="profile-avatar">{profileRecord?.name.split(" ").map(part => part[0]).join("").slice(0, 2) ?? "RK"}</span><div><Pill kind="green"><Check/> {profileRecord?.status ?? "APPROVED"} FARMER</Pill><h2>{profileRecord?.name ?? "Ramesh Kumar"}</h2><p>Farmer ID · {profileRecord?.farmerCode ?? "FMR-2026-11842"}</p></div><button onClick={() => toast.message("Profile details verified by officer.")}>Verified profile</button></div><div className="profile-details"><div><small>MOBILE NUMBER</small><b>+91 {profileRecord?.phone ?? "98765 43210"}</b></div><div><small>VILLAGE</small><b>{profileRecord?.village ?? "Muppalapally"}</b></div><div><small>DISTRICT</small><b>{profileRecord?.district ?? "Nizamabad"}, Telangana</b></div><div><small>PRIMARY CROP</small><b>{profileRecord?.primaryCrop ?? "Paddy"}</b></div></div><div className="profile-data-note"><ShieldCheck/><p>This profile is delivered from the protected database API after login.</p></div></section><aside className="profile-aside"><Pill kind="yellow">PROCUREMENT READY</Pill><h3>Profile status: {profileRecord?.status ?? "APPROVED"}</h3><p>Your authenticated profile is eligible to make bookings.</p><button onClick={() => navigate("paddy")}>Start a new booking <ArrowRight size={15}/></button></aside></div></>);
+      <div className="payment-credit-highlight-card">
+        <div className="credit-highlight-main">
+          <div className="credit-badge-row">
+            <span className="payout-type-tag">Government DBT Payout</span>
+            <Pill kind="green">
+              <Check size={13} /> Payment Status: Credited
+            </Pill>
+          </div>
+          <small className="credit-label">Payment Received / Amount Credited</small>
+          <strong className="credit-amount">
+            ₹{((bookingRecord?.paymentQuote?.demoPayable ?? (paymentRecord?.amount ? Number(paymentRecord.amount) : 41400))).toLocaleString("en-IN")}
+          </strong>
+          <p className="credit-bank-note">
+            Credited to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Linked Bank A/C (DBT/Aadhaar Enabled)
+          </p>
+        </div>
+
+        <div className="credit-details-strip">
+          <div>
+            <small>PROCUREMENT ID</small>
+            <b>{bookingRecord?.bookingCode ? `PR-${bookingRecord.bookingCode.replace("BK-", "")}` : "PR-2026-7294"}</b>
+          </div>
+          <div>
+            <small>SETTLEMENT STATUS</small>
+            <b className="text-emerald-700">Credited (Bank Transfer)</b>
+          </div>
+          <div>
+            <small>CROP & VARIETY</small>
+            <b>{bookingRecord?.paddyVariety ?? "Common paddy"} ({bookingRecord?.expectedQuantityQuintals ?? 18} Quintals)</b>
+          </div>
+          <div>
+            <small>SETTLEMENT DATE</small>
+            <b>{paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}</b>
+          </div>
+        </div>
+      </div>
+
+      <div className="payment-layout">
+        <section className="payment-panel">
+          {paymentRecord?.status === "SUCCESS" ? (
+            <div className="payment-success">
+              <span><Check /></span>
+              <Pill kind="green">PAYMENT RECEIVED</Pill>
+              <h2>Amount Credited to Farmer Account</h2>
+              <p>Government DBT procurement payout has been credited to your verified bank account.</p>
+              <div>
+                <b>Amount Credited</b>
+                <span>₹{Number(paymentRecord.amount).toLocaleString("en-IN")}</span>
+              </div>
+              <div>
+                <b>Payment ID</b>
+                <span>{paymentRecord.paymentId}</span>
+              </div>
+              <div>
+                <b>Transaction Reference</b>
+                <span>{paymentRecord.transactionReference}</span>
+              </div>
+              <ActionButton onClick={() => navigate("dashboard")} icon={ArrowRight}>
+                Return to dashboard
+              </ActionButton>
+            </div>
+          ) : (
+            <>
+              <div className="demo-warning">
+                <ShieldCheck />
+                <p>
+                  <b>Direct Benefit Transfer (DBT) Payout Settlement</b>
+                  <br />
+                  Govt procurement payment verification with bank gateway.
+                </p>
+              </div>
+
+              <h2>Procurement Payment Payout Method</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Select your linked bank account or preferred payout gateway to receive procurement proceeds:
+              </p>
+
+              <div className="payment-methods">
+                {[
+                  ["Bank Direct Transfer (DBT)", Landmark, "Direct credit to Aadhaar-linked Bank A/C ****4821 (Recommended)"],
+                  ["UPI Direct Payout", WalletCards, "Instant disbursement to registered farmer UPI VPA"],
+                  ["Kisan Credit Card / RuPay", CreditCard, "Disbursement to Kisan Credit Card account"],
+                ].map(([name, Icon, copy]) => (
+                  <button
+                    className={paymentMode === name ? "selected" : ""}
+                    onClick={() => setPaymentMode(name as string)}
+                    key={name as string}
+                    type="button"
+                  >
+                    <span><Icon size={20} /></span>
+                    <div>
+                      <b>{name as string}</b>
+                      <p>{copy as string}</p>
+                    </div>
+                    {paymentMode === name && <CheckCircle2 />}
+                  </button>
+                ))}
+              </div>
+
+              <div className="demo-payment-form">
+                {paymentRecord?.status === "PROCESSING" ? (
+                  <div>
+                    <Pill kind="yellow">PROCESSING</Pill>
+                    <p>Bank network is confirming the DBT transfer. Do not close this screen.</p>
+                  </div>
+                ) : paymentRecord?.status === "FAILED" ? (
+                  <div>
+                    <Pill kind="yellow">NEEDS ATTENTION</Pill>
+                    <p>{paymentRecord.failureReason ?? "This disbursement could not be processed. Please retry."}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <Pill kind="blue">PAYOUT READY</Pill>
+                    <p>Proceed to verify payout credentials and receive payment receipt.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="payment-methods">
+                <button
+                  type="button"
+                  className={paymentOutcome === "SUCCESS" ? "selected" : ""}
+                  onClick={() => setPaymentOutcome("SUCCESS")}
+                >
+                  <span><CheckCircle2 size={20} /></span>
+                  <div>
+                    <b>Provider response: Payout Success</b>
+                    <p>Simulate successful bank DBT credit to farmer.</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className={paymentOutcome === "FAILED" ? "selected" : ""}
+                  onClick={() => setPaymentOutcome("FAILED")}
+                >
+                  <span><X size={20} /></span>
+                  <div>
+                    <b>Provider response: Payout Error</b>
+                    <p>Simulate bank network delay or authorization retry.</p>
+                  </div>
+                </button>
+              </div>
+
+              <ActionButton
+                disabled={paymentProcessing || !bookingRecord}
+                onClick={() => { void processPayment(); }}
+                icon={ShieldCheck}
+              >
+                {paymentProcessing
+                  ? "Processing DBT Settlement Payout…"
+                  : paymentRecord?.status === "FAILED"
+                  ? "Retry DBT Settlement Payout"
+                  : "Verify & Receive Procurement Payment"}
+              </ActionButton>
+            </>
+          )}
+        </section>
+
+        <aside className="payment-summary">
+          <Pill kind="blue">PROCUREMENT SETTLEMENT</Pill>
+          <h3>Amount Credited to Farmer</h3>
+          {bookingRecord ? (
+            <>
+              <div>
+                <span>Paddy quantity weighed</span>
+                <b>{bookingRecord.expectedQuantityQuintals} quintals</b>
+              </div>
+              <div>
+                <span>Govt MSP Rate</span>
+                <b>₹{bookingRecord.paymentQuote.unitPrice} / quintal</b>
+              </div>
+              <div>
+                <span>Quality grade incentive</span>
+                <b className="positive">+₹{bookingRecord.paymentQuote.qualityAdjustment}</b>
+              </div>
+              <hr />
+              <div className="payment-total">
+                <span>Total Amount Credited</span>
+                <b className="text-emerald-800">₹{bookingRecord.paymentQuote.demoPayable.toLocaleString("en-IN")}</b>
+              </div>
+              <p><MapPin /> {bookingRecord.centre?.name ?? "Guntur Market Yard"}</p>
+              <p><Ticket /> {bookingRecord.bookingCode}</p>
+              <small className="text-emerald-700 font-semibold block mt-2">
+                ✓ Credited to farmer via Direct Benefit Transfer (DBT).
+              </small>
+            </>
+          ) : (
+            <p className="section-body">Sign in and load an active booking to view its procurement settlement.</p>
+          )}
+        </aside>
+      </div>
+
+      {receipt && (
+        <section className="status-summary">
+          <div>
+            <span className="token-disc small blue"><CheckCircle2 /></span>
+            <p>
+              <b>Procurement Payment Receipt {receipt.receiptNumber}</b>
+              <br />
+              Payment ID: {receipt.payment.paymentId} · Transaction: {receipt.payment.transactionReference}
+              <br />
+              Amount Credited to Farmer: ₹{Number(receipt.payment.amount).toLocaleString("en-IN")}
+            </p>
+          </div>
+          <ActionButton
+            onClick={() => navigator.clipboard?.writeText(`Receipt ${receipt.receiptNumber} | Credited: ₹${receipt.payment.amount} | ID: ${receipt.payment.paymentId}`)}
+            secondary
+            icon={Check}
+          >
+            Copy receipt details
+          </ActionButton>
+        </section>
+      )}
+
+      <section className="status-summary">
+        <div>
+          <span className="token-disc small"><WalletCards /></span>
+          <div>
+            <b>Farmer Transaction & Payment Ledger</b>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Clear distinction between ₹0 slot reservations and harvest procurement payouts.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 1. Slot Booking Fee Record: Always ₹0 */}
+      <section className="status-summary">
+        <div>
+          <span className="token-disc small green"><Ticket /></span>
+          <div>
+            <b>1. Procurement Slot Booking Fee: ₹0</b>
+            <p>
+              Official Government Procurement Service · 100% Free Slot Reservation
+              <br />
+              Booking: {bookingRecord?.bookingCode ?? "BK-2026-7294"} · Status: <b>FREE / NO CHARGE (₹0)</b>
+            </p>
+          </div>
+        </div>
+        <Pill kind="green">₹0 FREE</Pill>
+      </section>
+
+      {/* 2. Procurement Payments: Amount Credited TO Farmer */}
+      {paymentHistory.length ? (
+        paymentHistory.map(history => (
+          <section className="status-summary" key={history.paymentId}>
+            <div>
+              <span className="token-disc small blue"><WalletCards /></span>
+              <div>
+                <b>2. Procurement Payment: ₹{history.amount.toLocaleString("en-IN")} Credited TO Farmer</b>
+                <p>
+                  Payment Status: <b>{history.status === "SUCCESS" ? "Credited (DBT Bank Transfer)" : history.status}</b> · Method: {history.method}
+                  <br />
+                  Payment ID: {history.paymentId} · Transaction: {history.transactionReference}
+                  <br />
+                  Procurement Booking: {history.bookingCode} · Date: {new Date(history.initiatedAt ?? Date.now()).toLocaleDateString("en-IN")}
+                </p>
+              </div>
+            </div>
+            <Pill kind={history.status === "SUCCESS" ? "green" : history.status === "FAILED" ? "yellow" : "blue"}>
+              {history.status === "SUCCESS" ? "CREDITED" : history.status}
+            </Pill>
+          </section>
+        ))
+      ) : (
+        <section className="status-summary">
+          <div>
+            <span className="token-disc small blue"><WalletCards /></span>
+            <div>
+              <b>2. Procurement Payment: ₹{((bookingRecord?.paymentQuote?.demoPayable ?? 41400)).toLocaleString("en-IN")} Credited TO Farmer</b>
+              <p>
+                Payment Status: <b>Credited (DBT Direct Bank Transfer)</b> · Linked Bank A/C ****4821
+                <br />
+                Procurement ID: {bookingRecord?.bookingCode ? `PR-${bookingRecord.bookingCode.replace("BK-", "")}` : "PR-2026-7294"} · Booking: {bookingRecord?.bookingCode ?? "BK-2026-7294"}
+              </p>
+            </div>
+          </div>
+          <Pill kind="green">CREDITED</Pill>
+        </section>
+      )}
+    </>
+  );
+
+  const profile = farmerShell(<><SectionTitle eyebrow="FARMER PROFILE" title={t.profileTitle} body="Your current profile is loaded from the authenticated backend session."/><div className="profile-layout"><section className="profile-card"><div className="profile-main"><span className="profile-avatar">{getInitials(profileRecord?.name, "RK")}</span><div><Pill kind="green"><Check/> {profileRecord?.status ?? "APPROVED"} FARMER</Pill><h2>{profileRecord?.name ?? "Ramesh Kumar"}</h2><p>Farmer ID · {profileRecord?.farmerCode ?? "FMR-2026-11842"}</p></div><button onClick={() => toast.message("Profile details verified by officer.")}>Verified profile</button></div><div className="profile-details"><div><small>MOBILE NUMBER</small><b>+91 {profileRecord?.phone ?? "98765 43210"}</b></div><div><small>VILLAGE</small><b>{profileRecord?.village ?? "Muppalapally"}</b></div><div><small>DISTRICT</small><b>{profileRecord?.district ?? "Nizamabad"}, Telangana</b></div><div><small>PRIMARY CROP</small><b>{profileRecord?.primaryCrop ?? "Paddy"}</b></div></div><div className="profile-data-note"><ShieldCheck/><p>This profile is delivered from the protected database API after login.</p></div></section><aside className="profile-aside"><Pill kind="yellow">PROCUREMENT READY</Pill><h3>Profile status: {profileRecord?.status ?? "APPROVED"}</h3><p>Your authenticated profile is eligible to make bookings.</p><button onClick={() => navigate("paddy")}>Start a new booking <ArrowRight size={15}/></button></aside></div></>);
 
   const notifications = farmerShell(<><SectionTitle eyebrow="NOTIFICATIONS" title={t.notificationTitle} body="Booking, queue, procurement, and payment signals are loaded from your database records."/><div className="notifications-list">{(apiNotifications.length ? apiNotifications.map(notification => ({ icon: notification.category === "PAYMENT" ? WalletCards : notification.category === "PROCUREMENT" ? ClipboardCheck : notification.category === "QUEUE" ? UsersRound : Ticket, tone: notification.category === "QUEUE" ? "yellow" : notification.category === "PROCUREMENT" ? "blue" : "green", title: notification.title, copy: notification.message, time: new Date(notification.createdAt).toLocaleString() })) : [{ icon: Ticket, tone: "green", title: "Sign in to see API notifications", copy: "Your booking and status updates will appear here after an authenticated login.", time: "Live" }]).map(({ icon: Icon, tone, title, copy, time }) => <article key={`${title}-${time}`}><span className={`notice-icon ${tone}`}><Icon/></span><div><h3>{title}</h3><p>{copy}</p></div><small>{time}</small></article>)}</div></>);
 
@@ -2677,29 +3370,70 @@ export default function Home() {
     </>
   );
 
+  const officerMenuItems = useMemo(() => {
+    const role = officerProfile?.role || "HEAD_OFFICER";
+    if (role === "HEAD_OFFICER") {
+      return [
+        { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
+        { key: "staff", label: "Staff Management", icon: Users, target: "staffManagement" as Screen, badge: staffList.filter(s => s.status === "PENDING_VERIFICATION").length },
+        { key: "pending", label: "Pending farmers", icon: UserCheck, target: "registrations" as Screen, badge: pendingRegistrations.length },
+        { key: "approved", label: "Approved farmers", icon: CheckCircle2, target: "approved" as Screen, badge: 0 },
+        { key: "bookings", label: "Bookings & queue", icon: CalendarDays, target: "bookings" as Screen, badge: 0 },
+        { key: "quality", label: "Quality Control", icon: ShieldCheck, target: "quality" as Screen, badge: 0 },
+        { key: "logistics", label: "Logistics & Transport", icon: Truck, target: "officerLogistics" as Screen, badge: officerLogisticsList.filter(l => l.status === "REQUESTED" || l.status === "ASSIGNED").length },
+        { key: "payments", label: "Payment Settlement", icon: WalletCards, target: "officerPayments" as Screen, badge: 0 },
+      ];
+    }
+    if (role === "PROCUREMENT_OFFICER") {
+      return [
+        { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
+        { key: "pending", label: "Pending farmers", icon: UserCheck, target: "registrations" as Screen, badge: pendingRegistrations.length },
+        { key: "approved", label: "Approved farmers", icon: CheckCircle2, target: "approved" as Screen, badge: 0 },
+        { key: "bookings", label: "Bookings & queue", icon: CalendarDays, target: "bookings" as Screen, badge: 0 },
+        { key: "payments", label: "Payment Settlement", icon: WalletCards, target: "officerPayments" as Screen, badge: 0 },
+      ];
+    }
+    if (role === "QUALITY_CONTROL_INSPECTOR") {
+      return [
+        { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
+        { key: "quality", label: "Quality Control Inspection", icon: ShieldCheck, target: "quality" as Screen, badge: 0 },
+      ];
+    }
+    if (role === "LOGISTICS_OFFICER") {
+      return [
+        { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
+        { key: "logistics", label: "Logistics & Transport", icon: Truck, target: "officerLogistics" as Screen, badge: officerLogisticsList.filter(l => l.status === "REQUESTED" || l.status === "ASSIGNED").length },
+      ];
+    }
+    if (role === "PAYMENT_OFFICER") {
+      return [
+        { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
+        { key: "payments", label: "Payment Settlement", icon: WalletCards, target: "officerPayments" as Screen, badge: 0 },
+      ];
+    }
+    return [
+      { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
+      { key: "pending", label: "Pending farmers", icon: UserCheck, target: "registrations" as Screen, badge: pendingRegistrations.length },
+    ];
+  }, [officerProfile, staffList, pendingRegistrations, officerLogisticsList]);
+
   const officerShell = (content: React.ReactNode) => (
     <div className="officer-shell">
       <aside className="officer-rail">
         <button onClick={() => navigate("landing")}><AppLogo inverse/></button>
-        <p>OFFICER CONSOLE</p>
-        {[
-          ["overview", "Overview", Sprout],
-          ["pending", "Pending farmers", UserCheck],
-          ["approved", "Approved farmers", CheckCircle2],
-          ["bookings", "Bookings & queue", CalendarDays],
-          ["payments", "Payment status", WalletCards],
-        ].map(([key, label, Icon]) => (
+        <p>{(officerProfile?.role || "OFFICER CONSOLE").replaceAll("_", " ")}</p>
+        {officerMenuItems.map(item => (
           <button
-            key={key as string}
+            key={item.key}
             onClick={() => {
-              setOfficerView(key as typeof officerView);
-              navigate(key === "overview" ? "officerDashboard" : key === "pending" ? "registrations" : key === "approved" ? "approved" : key === "payments" ? "officerPayments" : "bookings");
+              setOfficerView(item.key as typeof officerView);
+              navigate(item.target);
             }}
-            className={officerView === key ? "active" : ""}
+            className={officerView === item.key ? "active" : ""}
           >
-            <Icon size={19}/>
-            {label as string}
-            {key === "pending" && pendingRegistrations.length > 0 && <i>{pendingRegistrations.length}</i>}
+            <item.icon size={19}/>
+            {item.label}
+            {item.badge > 0 && <i>{item.badge}</i>}
           </button>
         ))}
         <div className="officer-rail-bottom">
@@ -2708,15 +3442,68 @@ export default function Home() {
       </aside>
       <div className="officer-main">
         <header>
-          <div><span className="today-dot"/> Procurement window <b>Open today</b></div>
+          <div>
+            <span className="today-dot"/> 
+            {officerProfile ? (
+              <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-full ml-1 border border-emerald-300">
+                {(officerProfile?.role || "HEAD_OFFICER").replaceAll("_", " ")} · {officerProfile?.branch || "GUNTUR"}
+              </span>
+            ) : (
+              <>Procurement window <b>Open today</b></>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <LanguagePicker language={language} setLanguage={changeLanguage}/>
-            <button className="notification-button" onClick={() => toast.message("Connected to live procurement database.")}><Bell size={19}/><i/></button>
-            <span className="officer-user">SO</span>
+            <button
+              className="notification-button relative"
+              onClick={() => setShowOfficerNotifModal(true)}
+              title="View officer & staff alerts"
+            >
+              <Bell size={19}/>
+              {officerNotificationsList.filter(n => !n.isRead).length > 0 && <i/>}
+            </button>
+            <span className="officer-user font-bold" title={officerProfile?.name || "Officer"}>
+              {getInitials(officerProfile?.name, "SO")}
+            </span>
+            <button className="top-logout-btn" onClick={logoutOfficer} title="Log out of officer console">
+              <LogOut size={15} /> <span>Logout</span>
+            </button>
           </div>
         </header>
         <main>{content}</main>
       </div>
+
+      {/* Officer Notifications Modal */}
+      {showOfficerNotifModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                <Bell size={18} className="text-emerald-700" /> Operational Alerts & Notifications
+              </h3>
+              <button onClick={() => setShowOfficerNotifModal(false)}><X size={18}/></button>
+            </div>
+            <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+              {officerNotificationsList.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-400">No new officer notifications.</div>
+              ) : (
+                officerNotificationsList.map(notif => (
+                  <div key={notif.id} className="py-2.5">
+                    <strong className="text-xs font-bold text-slate-900 block">{notif.title}</strong>
+                    <p className="text-xs text-slate-600 m-0 mt-0.5">{notif.message}</p>
+                    <span className="text-[10px] text-slate-400 font-medium block mt-1">
+                      {new Date(notif.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+            <Button size="sm" onClick={() => setShowOfficerNotifModal(false)} className="w-full text-xs font-bold mt-1">
+              Close Alerts
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -2728,20 +3515,110 @@ export default function Home() {
       </header>
       <main>
         <section>
-          <Pill kind="blue">PROCUREMENT OFFICER</Pill>
-          <h1>Make every farmer’s arrival count.</h1>
-          <p>Review registrations, balance centre capacity, update procurement stages, and monitor live payments from one database-synchronized console.</p>
+          <Pill kind="blue">OFFICER & STAFF GOVERNANCE</Pill>
+          <h1>Department Staff & Mandi Management.</h1>
+          <p>Multi-department access with Head Officer onboarding verification. Verify registrations, balance capacity, run quality inspections, assign subsidized transport, and settle farmer payments directly.</p>
           <div className="officer-login-stat">
             <span><UsersRound/> <b>{officerAnalytics?.approvedFarmers ?? 3}</b> farmers approved</span>
             <span><Clock3/> <b>{officerAnalytics?.activeBookings ?? 3}</b> active bookings</span>
           </div>
         </section>
         <form onSubmit={e => { e.preventDefault(); void loginOfficer(); }}>
-          <p className="eyebrow">OFFICER LOGIN</p>
-          <h2>Enter officer credentials.</h2>
-          <label>Officer ID<Input defaultValue="OFF-NZM-104" /></label>
-          <label>Password<Input type="password" defaultValue="Officer@2026" /></label>
+          <p className="eyebrow">OFFICER & STAFF LOGIN</p>
+          <h2>Enter your verified credentials.</h2>
+          <label>
+            Officer / Login ID
+            <Input
+              value={officerLoginForm.officerCode}
+              onChange={e => setOfficerLoginForm(f => ({ ...f, officerCode: e.target.value }))}
+              placeholder="e.g. OFF-NZM-104 or QC-2026-4892"
+            />
+          </label>
+          <label>
+            Password
+            <Input
+              type="password"
+              value={officerLoginForm.password}
+              onChange={e => setOfficerLoginForm(f => ({ ...f, password: e.target.value }))}
+              placeholder="Enter password"
+            />
+          </label>
+
           <Button type="submit" className="action-button">Enter officer console <ArrowRight size={17}/></Button>
+
+          {/* Quick Demo Login Preset Pills */}
+          <div className="flex flex-col gap-2 pt-2 border-t border-slate-200">
+            <span className="text-[11px] font-bold text-slate-500">QUICK LOGIN PRESETS:</span>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const creds = { officerCode: "OFF-NZM-104", password: "Officer@2026" };
+                  setOfficerLoginForm(creds);
+                  void loginOfficer(creds);
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-900 rounded-lg cursor-pointer transition-colors"
+              >
+                👑 Head Officer
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const creds = { officerCode: "QC-2026-4892", password: "Officer@2026" };
+                  setOfficerLoginForm(creds);
+                  void loginOfficer(creds);
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 hover:bg-blue-200 text-blue-900 rounded-lg cursor-pointer transition-colors"
+              >
+                🔍 QC Inspector
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const creds = { officerCode: "LOG-2026-1042", password: "Officer@2026" };
+                  setOfficerLoginForm(creds);
+                  void loginOfficer(creds);
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg cursor-pointer transition-colors"
+              >
+                🚚 Logistics Officer
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const creds = { officerCode: "PAY-2026-9041", password: "Officer@2026" };
+                  setOfficerLoginForm(creds);
+                  void loginOfficer(creds);
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-900 rounded-lg cursor-pointer transition-colors"
+              >
+                💳 Payment Officer
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const creds = { officerCode: "PO-2026-3391", password: "Officer@2026" };
+                  setOfficerLoginForm(creds);
+                  void loginOfficer(creds);
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold bg-teal-100 hover:bg-teal-200 text-teal-900 rounded-lg cursor-pointer transition-colors"
+              >
+                🌾 Procurement Officer
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">New employee joining a department?</span>
+            <button
+              type="button"
+              onClick={() => setShowAddStaffModal(true)}
+              className="text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer"
+            >
+              + Onboard Staff
+            </button>
+          </div>
+
           <p className="form-note"><ShieldCheck size={16}/> Authenticated officer session with role authorization.</p>
         </form>
       </main>
@@ -2781,8 +3658,8 @@ export default function Home() {
         <article className="registration-alert">
           <div>
             <Pill kind={pendingRegistrations.length > 0 ? "yellow" : "green"}><Clock3 size={13}/> {pendingRegistrations.length > 0 ? "ACTION NEEDED" : "ALL REVIEWED"}</Pill>
-            <h2>{pendingRegistrations.length > 0 ? `${pendingRegistrations.length} farmer${pendingRegistrations.length > 1 ? "s" : ""} waiting for approval.` : "Registration queue cleared."}</h2>
-            <p>{pendingRegistrations.length > 0 ? `${pendingRegistrations[0].farmer.name} (${pendingRegistrations[0].farmer.village}) submitted registration.` : "All farmer registrations have been processed."}</p>
+            <h2>{pendingRegistrations.length > 0 ? `${pendingRegistrations.length} farmer${pendingRegistrations.length > 1 ? "s" : ""} waiting for approval.` : "No pending registrations"}</h2>
+            <p>{pendingRegistrations.length > 0 && pendingRegistrations[0]?.farmer?.name ? `${pendingRegistrations[0].farmer.name} (${pendingRegistrations[0].farmer.village || "Village"}) submitted registration.` : "All farmer registrations have been processed."}</p>
           </div>
           {pendingRegistrations.length > 0 ? (
             <ActionButton onClick={() => { setOfficerView("pending"); navigate("registrations"); }} icon={ArrowRight}>Review now</ActionButton>
@@ -2804,7 +3681,7 @@ export default function Home() {
             const util = "utilizationPercent" in centre ? centre.utilizationPercent : Math.round((queueCount / capacity) * 100);
             return (
               <div className="pulse-centre" key={centre.id}>
-                <span><i className={centre.status.toLowerCase()}/>{centre.name}</span>
+                <span><i className={(centre.status || "active").toLowerCase()}/>{centre.name}</span>
                 <b>{queueCount} in queue ({util}% cap)</b>
                 <Progress value={Math.min(100, util)} />
               </div>
@@ -2856,12 +3733,12 @@ export default function Home() {
         {officerPayments.length ? officerPayments.map(payment => (
           <article className="registration-row" key={payment.paymentId}>
             <div>
-              <span className="avatar">{payment.farmer.name.split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
-              <b>{payment.farmer.name}<small>{payment.farmer.farmerCode}</small></b>
+              <span className="avatar">{getInitials(payment.farmer?.name, "FM")}</span>
+              <b>{payment.farmer?.name ?? "Farmer"}<small>{payment.farmer?.farmerCode ?? "FMR-2026"}</small></b>
             </div>
-            <span>{payment.bookingCode}<small>{payment.centre.name}</small></span>
-            <span>{payment.method} · ₹{payment.amount.toLocaleString("en-IN")}</span>
-            <span>{payment.paymentId}<small>{payment.transactionReference}</small></span>
+            <span>{payment.bookingCode ?? "BK-2026"}<small>{payment.centre?.name ?? "Procurement Centre"}</small></span>
+            <span>{payment.method ?? "UPI"} · ₹{(payment.amount ?? 0).toLocaleString("en-IN")}</span>
+            <span>{payment.paymentId}<small>{payment.transactionReference ?? ""}</small></span>
             <Pill kind={payment.status === "SUCCESS" ? "green" : payment.status === "FAILED" ? "yellow" : "blue"}>{payment.status}</Pill>
             <ChevronRight/>
           </article>
@@ -2904,11 +3781,11 @@ export default function Home() {
             key={registration.id}
           >
             <div>
-              <span className="avatar">{registration.farmer.name.split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
-              <b>{registration.farmer.name}<small>{registration.farmer.farmerCode}</small></b>
+              <span className="avatar">{getInitials(registration.farmer?.name, "FM")}</span>
+              <b>{registration.farmer?.name ?? "Farmer"}<small>{registration.farmer?.farmerCode ?? "FMR-2026"}</small></b>
             </div>
-            <span>{registration.farmer.village}, {registration.farmer.district}</span>
-            <span>{registration.farmer.primaryCrop}</span>
+            <span>{registration.farmer?.village ?? "Village"}, {registration.farmer?.district ?? "District"}</span>
+            <span>{registration.farmer?.primaryCrop ?? "Paddy"}</span>
             <span>Awaiting review</span>
             <Pill kind="yellow">PENDING</Pill>
             <ChevronRight/>
@@ -2916,7 +3793,7 @@ export default function Home() {
         )) : (
           <div className="table-empty">
             <span><CheckCircle2/></span>
-            <h3>All caught up.</h3>
+            <h3>No pending registrations</h3>
             <p>There are no pending farmer registrations requiring review.</p>
           </div>
         )}
@@ -2931,18 +3808,18 @@ export default function Home() {
             <button onClick={() => setShowRecord(false)}><X/></button>
           </div>
           <div className="review-farmer">
-            <span className="profile-avatar">{selectedPending.farmer.name.split(" ").map(part => part[0]).join("").slice(0, 2)}</span>
+            <span className="profile-avatar">{getInitials(selectedPending.farmer?.name, "FM")}</span>
             <div>
-              <h3>{selectedPending.farmer.name}</h3>
-              <p>{selectedPending.farmer.farmerCode} · Awaiting officer review</p>
+              <h3>{selectedPending.farmer?.name ?? "Farmer"}</h3>
+              <p>{selectedPending.farmer?.farmerCode ?? "FMR-2026"} · Awaiting officer review</p>
             </div>
           </div>
           <div className="review-data">
-            <div><small>MOBILE NUMBER</small><b>+91 {selectedPending.farmer.phone}</b></div>
-            <div><small>VILLAGE</small><b>{selectedPending.farmer.village}</b></div>
-            <div><small>DISTRICT</small><b>{selectedPending.farmer.district}</b></div>
-            <div><small>PRIMARY CROP</small><b>{selectedPending.farmer.primaryCrop}</b></div>
-            <div><small>ACCOUNT STATUS</small><b>{selectedPending.farmer.status}</b></div>
+            <div><small>MOBILE NUMBER</small><b>{selectedPending.farmer?.phone ? `+91 ${selectedPending.farmer.phone}` : "—"}</b></div>
+            <div><small>VILLAGE</small><b>{selectedPending.farmer?.village ?? "—"}</b></div>
+            <div><small>DISTRICT</small><b>{selectedPending.farmer?.district ?? "—"}</b></div>
+            <div><small>PRIMARY CROP</small><b>{selectedPending.farmer?.primaryCrop ?? "Paddy"}</b></div>
+            <div><small>ACCOUNT STATUS</small><b>{selectedPending.farmer?.status ?? "PENDING"}</b></div>
             <div><small>DECLARATION</small><b><CheckCircle2/> Confirmed</b></div>
           </div>
           <div className="review-note">
@@ -2964,7 +3841,7 @@ export default function Home() {
               <h3 className="text-lg font-bold">Reject Farmer Registration</h3>
               <button onClick={() => setShowRejectModal(false)}><X size={18}/></button>
             </div>
-            <p className="text-sm text-muted-foreground">Specify the reason for rejecting <b>{selectedPending.farmer.name}</b>. The farmer will be notified.</p>
+            <p className="text-sm text-muted-foreground">Specify the reason for rejecting <b>{selectedPending.farmer?.name ?? "Farmer"}</b>. The farmer will be notified.</p>
             <label className="text-sm font-medium">Rejection Reason</label>
             <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Document mismatch, incomplete land record..." />
             <div className="flex justify-end gap-2 pt-2">
@@ -3010,7 +3887,7 @@ export default function Home() {
             return (
               <article key={centre.id}>
                 <div>
-                  <span className={`centre-status ${centre.status.toLowerCase()}`}><MapPin/></span>
+                  <span className={`centre-status ${(centre.status || "active").toLowerCase()}`}><MapPin/></span>
                   <Pill kind={centre.status === "Open" ? "green" : centre.status === "Busy" ? "yellow" : "blue"}>{centre.status}</Pill>
                 </div>
                 <h3>{centre.name}</h3>
@@ -3032,16 +3909,16 @@ export default function Home() {
           officerBookings.map(b => (
             <article key={b.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/40 transition-colors">
               <div className="flex items-center gap-3">
-                <b>{b.slot.startTime}</b>
-                <span className="avatar small">{b.farmer.name.split(" ").map(w => w[0]).join("")}</span>
+                <b>{b.slot?.startTime ?? "10:30"}</b>
+                <span className="avatar small">{getInitials(b.farmer?.name, "FM")}</span>
                 <div>
-                  <h3>{b.farmer.name} <Pill kind="green">{b.tokenNumber}</Pill></h3>
-                  <p>{b.paddyVariety} · {b.expectedQuantityQuintals} qtl · <small>{b.centre.name}</small></p>
+                  <h3>{b.farmer?.name ?? "Farmer"} <Pill kind="green">{b.tokenNumber ?? "AP-001"}</Pill></h3>
+                  <p>{b.paddyVariety ?? "Common paddy"} · {b.expectedQuantityQuintals ?? 18} qtl · <small>{b.centre?.name ?? "Procurement Centre"}</small></p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Pill kind={b.procurement?.status === "COMPLETED" ? "green" : b.procurement?.status === "PROCESSING" || b.procurement?.status === "WEIGHING" ? "blue" : "yellow"}>
-                  {b.procurement?.status.replaceAll("_", " ") ?? "BOOKED"}
+                  {(b.procurement?.status || "BOOKED").replaceAll("_", " ")}
                 </Pill>
                 <Button
                   size="sm"
@@ -3071,12 +3948,12 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold">Update Procurement Stage</h3>
-                <p className="text-xs text-muted-foreground">Farmer: <b>{selectedOfficerBooking.farmer.name}</b> · Token: <b>{selectedOfficerBooking.tokenNumber}</b></p>
+                <p className="text-xs text-muted-foreground">Farmer: <b>{selectedOfficerBooking.farmer?.name ?? "Farmer"}</b> · Token: <b>{selectedOfficerBooking.tokenNumber ?? "AP-001"}</b></p>
               </div>
               <button onClick={() => setShowProcurementModal(false)}><X size={18}/></button>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs bg-muted/40 p-3 rounded-lg">
-              <div><span className="text-muted-foreground">Centre:</span> <b>{selectedOfficerBooking.centre.name}</b></div>
+              <div><span className="text-muted-foreground">Centre:</span> <b>{selectedOfficerBooking.centre?.name ?? "Procurement Centre"}</b></div>
               <div><span className="text-muted-foreground">Booking Code:</span> <b>{selectedOfficerBooking.bookingCode}</b></div>
               <div><span className="text-muted-foreground">Expected:</span> <b>{selectedOfficerBooking.expectedQuantityQuintals} quintals</b></div>
               <div><span className="text-muted-foreground">Variety:</span> <b>{selectedOfficerBooking.paddyVariety}</b></div>
@@ -3129,10 +4006,721 @@ export default function Home() {
     </>
   );
 
+  const qualityControlScreen = officerShell(
+    <>
+      <SectionTitle
+        eyebrow="QUALITY ASSURANCE & LAB TESTING"
+        title="Quality Control & Crop Grading"
+        body="Inspect incoming paddy lots, verify moisture content & foreign matter according to Fair Average Quality (FAQ) standards, and approve for procurement payout."
+        action={
+          <ActionButton onClick={() => { if (officerToken) void loadOfficerBookings(officerToken); }} icon={LocateFixed}>
+            Refresh QC Queue
+          </ActionButton>
+        }
+      />
+
+      <section className="officer-metrics">
+        <MetricCard
+          icon={Clock3}
+          label="Delivered / Awaiting QC"
+          value={`${officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").length}`}
+          hint="Crops at Mandi ready for test"
+          tone="yellow"
+        />
+        <MetricCard
+          icon={Wheat}
+          label="Procured & Graded"
+          value={`${officerBookings.filter(b => b.procurement?.status === "COMPLETED" || b.procurement?.status === "QUALITY_CHECK").length}`}
+          hint="Passed FAQ standards"
+          tone="green"
+        />
+        <MetricCard
+          icon={CheckCircle2}
+          label="FAQ Acceptance Rate"
+          value="98.2%"
+          hint="AP Civil Supplies standard"
+          tone="green"
+        />
+        <MetricCard
+          icon={WalletCards}
+          label="Ready for DBT Payout"
+          value={`${officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK").length}`}
+          hint="Certified FAQ grade lots"
+          tone="blue"
+        />
+      </section>
+
+      <section className="officer-booking-list">
+        <div className="flex items-center justify-between">
+          <h2>Farmers in Quality Inspection Queue ({officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").length})</h2>
+          <Pill kind="green">OFFICIAL LAB WORKFLOW</Pill>
+        </div>
+
+        {officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").length > 0 ? (
+          officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").map(b => (
+            <article key={b.id} className="p-5 border border-slate-200 bg-white rounded-xl shadow-xs hover:border-emerald-300 transition-all flex flex-col gap-4">
+              {/* Header: Farmer Name, Token, Reg ID, Village, Centre */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="token-disc small green"><ShieldCheck size={16} /></span>
+                    <h3 className="text-base font-bold text-[#143e2b] m-0">{b.farmer?.name ?? "Farmer"}</h3>
+                    <Pill kind="green">{b.tokenNumber ?? "AP-001"}</Pill>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 m-0">
+                    📍 {b.farmer?.village ?? "Village"}, {b.farmer?.district ?? "District"} · 🏢 <b>{b.centre?.name ?? "Procurement Centre"}</b>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Reg ID:</span>
+                  <Badge variant="outline" className="font-mono text-xs text-slate-700 bg-slate-50 border-slate-200">
+                    {b.farmer?.farmerCode ?? "FMR-2026"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Middle Grid: Booking details, Schedule, Crop, Quantity, Stage, Grade */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 p-3.5 rounded-lg text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Booking ID</span>
+                  <b className="font-mono text-slate-800">{b.bookingCode ?? `BK-2026-${b.id}`}</b>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Logistics Trip</span>
+                  <b className="font-mono text-emerald-800">{b.transport?.transportCode || "Delivered at Centre"}</b>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Crop & Variety</span>
+                  <b className="text-slate-800">{b.paddyVariety ?? "Paddy (Common)"}</b>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Expected Quantity</span>
+                  <b className="text-slate-800">{b.expectedQuantityQuintals ?? 18} Quintals</b>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Current Stage</span>
+                  <Pill kind={b.procurement?.status === "COMPLETED" ? "green" : b.procurement?.status === "QUALITY_CHECK" ? "blue" : "yellow"}>
+                    {(b.procurement?.status || "ARRIVED").replaceAll("_", " ")}
+                  </Pill>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Quality Grade</span>
+                  <b className={b.procurement?.qualityGrade ? "text-emerald-700 font-bold" : "text-slate-500"}>
+                    {b.procurement?.qualityGrade || "Pending Inspection"}
+                  </b>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Weighed Quantity</span>
+                  <b className={b.procurement?.weighedQuantityQuintals ? "text-emerald-700 font-bold" : "text-slate-500"}>
+                    {b.procurement?.weighedQuantityQuintals ? `${b.procurement.weighedQuantityQuintals} Qtl` : "Pending Weighing"}
+                  </b>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Inspection Status</span>
+                  <b className={b.procurement?.status === "COMPLETED" || b.procurement?.status === "QUALITY_CHECK" ? "text-emerald-700 font-bold" : "text-amber-600"}>
+                    {b.procurement?.status === "COMPLETED" ? "Payment Settled" : b.procurement?.status === "QUALITY_CHECK" ? "Inspection Passed (Ready for Payout)" : "In QC Queue"}
+                  </b>
+                </div>
+              </div>
+
+              {/* Dedicated Action Button Row */}
+              <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => setViewingQcFarmerProfile(b.farmer || { name: "Farmer", farmerCode: "FMR-2026", village: "Muppalapally", district: "Guntur", primaryCrop: "Paddy" })}
+                >
+                  <UserCheck size={14} className="mr-1.5 text-slate-600" /> View Profile
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs border-emerald-600 text-emerald-800 hover:bg-emerald-50 font-bold"
+                  onClick={() => {
+                    setSelectedQcBooking(b);
+                    setQcForm({
+                      qualityGrade: b.procurement?.qualityGrade || b.paddyGrade || "Grade A Fine (FAQ)",
+                      qcResult: "ACCEPTED",
+                      weighedQuantityQuintals: String(b.procurement?.weighedQuantityQuintals || b.expectedQuantityQuintals || "18.50"),
+                      moisturePercent: "14.2",
+                      foreignMatterPercent: "1.0",
+                      remarks: "Grain sample inspected. Moisture and purity meet FAQ standards.",
+                    });
+                    setShowQcModal(true);
+                  }}
+                >
+                  <ShieldCheck size={14} className="mr-1.5 text-emerald-700" /> Inspect Crop Quality
+                </Button>
+
+                {b.procurement?.status === "QUALITY_CHECK" && (
+                  <Button
+                    size="sm"
+                    className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+                    disabled={payoutProcessingId === b.id}
+                    onClick={() => { void disburseFarmerPayout(b.id); }}
+                  >
+                    <WalletCards size={14} className="mr-1.5" />
+                    {payoutProcessingId === b.id ? "Disbursing DBT…" : "Disburse DBT Payout"}
+                  </Button>
+                )}
+
+                {b.procurement?.status === "COMPLETED" && (
+                  <Pill kind="green">✓ DBT Payout Settled</Pill>
+                )}
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="p-8 text-center text-muted-foreground bg-slate-50/60 rounded-2xl border border-dashed">
+            No crops currently waiting in quality control queue. Deliveries will appear here as logistics marks them delivered.
+          </div>
+        )}
+      </section>
+
+      {/* Farmer Profile Inspection Modal for QC */}
+      {viewingQcFarmerProfile && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="profile-avatar text-sm">{getInitials(viewingQcFarmerProfile.name, "FM")}</span>
+                <div>
+                  <h3 className="text-base font-bold text-[#143e2b] m-0">{viewingQcFarmerProfile.name}</h3>
+                  <small className="text-xs text-muted-foreground">{viewingQcFarmerProfile.farmerCode ?? "FMR-2026-11842"}</small>
+                </div>
+              </div>
+              <button onClick={() => setViewingQcFarmerProfile(null)}><X size={18} /></button>
+            </div>
+
+            <div className="bg-slate-50 border rounded-xl p-3.5 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Mobile Phone:</span>
+                <b>+91 {viewingQcFarmerProfile.phone ?? "98765 43210"}</b>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Village & District:</span>
+                <b>{viewingQcFarmerProfile.village ?? "Muppalapally"}, {viewingQcFarmerProfile.district ?? "Guntur"}</b>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Primary Crop:</span>
+                <b>{viewingQcFarmerProfile.primaryCrop ?? "Paddy"}</b>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Account Status:</span>
+                <Pill kind="green">{viewingQcFarmerProfile.status ?? "APPROVED"}</Pill>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200">
+                <span className="text-muted-foreground">Aadhaar (Masked):</span>
+                <b>XXXX XXXX 4512</b>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">e-Crop Land Registry:</span>
+                <span className="text-emerald-700 font-bold flex items-center gap-1"><Check size={13} /> Verified (Pahani/1B)</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t">
+              <Button onClick={() => setViewingQcFarmerProfile(null)} className="action-button">Close Profile</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QC Inspection Modal */}
+      {showQcModal && selectedQcBooking && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl p-6 max-w-lg w-full shadow-2xl border flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-[#143e2b]">Crop Quality & Lab Inspection</h3>
+                <p className="text-xs text-muted-foreground">
+                  Farmer: <b>{selectedQcBooking.farmer?.name}</b> ({selectedQcBooking.farmer?.farmerCode}) · Token: <b>{selectedQcBooking.tokenNumber}</b>
+                </p>
+              </div>
+              <button onClick={() => setShowQcModal(false)}><X size={18} /></button>
+            </div>
+
+            <div className="bg-emerald-50/60 border border-emerald-200/70 p-3 rounded-lg text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Procurement Centre:</span>
+                <b>{selectedQcBooking.centre?.name}</b>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Paddy Variety:</span>
+                <b>{selectedQcBooking.paddyVariety}</b>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Expected Load:</span>
+                <b>{selectedQcBooking.expectedQuantityQuintals} Quintals</b>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-bold">
+                Crop Quality / Grade
+                <select
+                  className="w-full mt-1 p-2 rounded-md border bg-background text-xs font-semibold"
+                  value={qcForm.qualityGrade}
+                  onChange={e => setQcForm(f => ({ ...f, qualityGrade: e.target.value }))}
+                >
+                  <option value="Grade A">Grade A (Fine / Premium)</option>
+                  <option value="Common">Common (Grade B)</option>
+                  <option value="Super Fine">Super Fine (BPT 5204)</option>
+                  <option value="FAQ Certified">FAQ Certified Standard</option>
+                </select>
+              </label>
+
+              <label className="text-xs font-bold">
+                Inspection Result
+                <select
+                  className="w-full mt-1 p-2 rounded-md border bg-background text-xs font-semibold"
+                  value={qcForm.qcResult}
+                  onChange={e => setQcForm(f => ({ ...f, qcResult: e.target.value as "ACCEPTED" | "REJECTED" | "HOLD" }))}
+                >
+                  <option value="ACCEPTED">Accepted (Passed Inspection)</option>
+                  <option value="HOLD">Hold (Requires Re-drying)</option>
+                  <option value="REJECTED">Rejected (Below Quality Standards)</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-bold">
+                Moisture Content % (Max 17.0%)
+                <Input
+                  type="number"
+                  step="0.1"
+                  className="mt-1 text-xs"
+                  value={qcForm.moisturePercent}
+                  onChange={e => setQcForm(f => ({ ...f, moisturePercent: e.target.value }))}
+                />
+              </label>
+
+              <label className="text-xs font-bold">
+                Net Weighed Quantity (Quintals)
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="mt-1 text-xs font-bold text-emerald-900"
+                  value={qcForm.weighedQuantityQuintals}
+                  onChange={e => setQcForm(f => ({ ...f, weighedQuantityQuintals: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            <label className="text-xs font-bold">
+              Foreign Matter / Refraction %
+              <Input
+                type="number"
+                step="0.1"
+                className="mt-1 text-xs"
+                value={qcForm.foreignMatterPercent}
+                onChange={e => setQcForm(f => ({ ...f, foreignMatterPercent: e.target.value }))}
+              />
+            </label>
+
+            <label className="text-xs font-bold">
+              Inspection Remarks
+              <Input
+                className="mt-1 text-xs"
+                placeholder="e.g. Grain sample inspected. Moisture and purity meet FAQ standards."
+                value={qcForm.remarks}
+                onChange={e => setQcForm(f => ({ ...f, remarks: e.target.value }))}
+              />
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setShowQcModal(false)}>Cancel</Button>
+              <Button
+                disabled={qcSubmitting}
+                onClick={() => { void submitQcInspection(); }}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+              >
+                {qcSubmitting ? "Submitting Quality Inspection…" : "Submit Quality Inspection"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const officerLogisticsScreen = officerShell(
+    <>
+      <SectionTitle
+        eyebrow="FLEET & TRANSPORTATION MANAGEMENT"
+        title="Logistics & Transportation"
+        body="Manage farmer transportation requests, vehicle assignments, driver dispatch, live route mapping, and crop movement to procurement centres."
+        action={
+          <ActionButton onClick={() => { if (officerToken) void loadOfficerTransport(officerToken); }} icon={LocateFixed}>
+            Refresh Fleet
+          </ActionButton>
+        }
+      />
+
+      <section className="officer-metrics">
+        <MetricCard
+          icon={Truck}
+          label="Total Fleet Trips"
+          value={`${officerLogisticsList.length}`}
+          hint="Subsidized transport bookings"
+          tone="blue"
+        />
+        <MetricCard
+          icon={Clock3}
+          label="In Transit / Active"
+          value={`${officerLogisticsList.filter(t => t.status === "REQUESTED" || t.status === "ASSIGNED" || t.status === "IN_TRANSIT").length}`}
+          hint="En route to mandis"
+          tone="yellow"
+        />
+        <MetricCard
+          icon={CheckCircle2}
+          label="Delivered at Mandi"
+          value={`${officerLogisticsList.filter(t => t.status === "DELIVERED_AT_CENTRE").length}`}
+          hint="Arrived for weighing"
+          tone="green"
+        />
+        <MetricCard
+          icon={Coins}
+          label="Govt 30% Subsidy Disbursed"
+          value={`₹${officerLogisticsList.reduce((sum, t) => sum + Number(t.subsidyAmount || 0), 0).toFixed(0)}`}
+          hint="Direct transport support"
+          tone="green"
+        />
+      </section>
+
+      <section className="officer-booking-list">
+        <div className="flex items-center justify-between">
+          <h2>Logistics & Transportation Requests ({officerLogisticsList.length})</h2>
+          <Pill kind="blue">30% GOVT SUBSIDY NETWORK</Pill>
+        </div>
+
+        {officerLogisticsList.length > 0 ? (
+          officerLogisticsList.map(t => (
+            <article key={t.id} className="p-5 border rounded-2xl bg-card shadow-xs hover:border-emerald-300 transition-all flex flex-col gap-4">
+              {/* Header: Booking ID, Status, Vehicle Type */}
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-border/60">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-blue-50 text-blue-800 border border-blue-200/60"><Truck size={18} /></span>
+                  <div>
+                    <h3 className="text-base font-extrabold text-[#153828] m-0">{t.transportCode}</h3>
+                    <small className="text-[11px] text-muted-foreground">Booked on {t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-IN") : "Today"}</small>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Pill kind="blue">{t.vehicleName}</Pill>
+                  <Pill kind={t.status === "DELIVERED_AT_CENTRE" ? "green" : t.status === "IN_TRANSIT" ? "yellow" : "blue"}>
+                    {(t.status || "REQUESTED").replaceAll("_", " ")}
+                  </Pill>
+                </div>
+              </div>
+
+              {/* Grid: 4 organized columns without text overlap */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+                {/* 1. Farmer & Pickup */}
+                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Registered Farmer</span>
+                  <div className="font-bold text-slate-900 text-sm">{t.farmerName || "Farmer details unavailable"}</div>
+                  <div className="text-[11px] font-mono text-emerald-800 font-semibold">{t.farmerCode || "FMR-2026"}</div>
+                  <div className="text-[11px] text-muted-foreground">📞 +91 {t.farmerPhone || "9876543210"}</div>
+                  <div className="text-xs text-[#173e2d] font-semibold pt-1 border-t border-slate-200">
+                    📍 Pickup: <b>{t.pickupVillage}</b>
+                  </div>
+                </div>
+
+                {/* 2. Destination & Route */}
+                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Destination Centre</span>
+                  <div className="font-bold text-slate-900 text-sm">{t.destinationCentreName}</div>
+                  <div className="text-xs text-muted-foreground">Distance: <b className="text-slate-800">{t.distanceKm} km</b></div>
+                  <div className="text-xs text-muted-foreground">Est. Trip Duration: <b className="text-slate-800">~{Math.round(t.distanceKm * 2.2)} mins</b></div>
+                  <div className="text-xs text-emerald-800 font-bold pt-1 border-t border-slate-200 flex items-center gap-1">
+                    <span>{t.pickupVillage}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span>{t.destinationCentreName}</span>
+                  </div>
+                </div>
+
+                {/* 3. Schedule & Cargo */}
+                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Schedule & Cargo Load</span>
+                  <div className="text-xs text-slate-900 font-semibold">📅 <b>{t.scheduledDate}</b></div>
+                  <div className="text-xs text-slate-800">⏰ {t.timeSlot}</div>
+                  <div className="text-xs text-emerald-950 font-bold pt-1 border-t border-slate-200">
+                    🌾 Estimated Load: <span className="text-sm text-emerald-900 font-extrabold">{t.estimatedLoadQuintals} Qtl</span>
+                  </div>
+                </div>
+
+                {/* 4. Driver & Subsidized Fare */}
+                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/70 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">Driver & Subsidized Fare</span>
+                  <div className="text-xs font-bold text-slate-900">
+                    👤 {t.driverName} <span className="text-slate-500 font-normal font-mono">({t.vehicleNumber})</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">📞 +91 {t.driverPhone || "9876500000"}</div>
+                  <div className="text-[11px] text-slate-600 flex justify-between pt-1 border-t border-emerald-200/60">
+                    <span>Standard Fare:</span>
+                    <b>₹{t.baseFare.toFixed(2)}</b>
+                  </div>
+                  <div className="text-[11px] text-emerald-700 font-bold flex justify-between">
+                    <span>30% Govt Subsidy:</span>
+                    <span>-₹{t.subsidyAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="text-xs font-extrabold text-emerald-950 pt-1 border-t border-emerald-300 flex justify-between items-baseline">
+                    <span>Net Payable:</span>
+                    <span className="text-sm text-emerald-800 font-extrabold">₹{t.netPayable.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button Row */}
+              <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-border/40">
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <LocateFixed size={14} className="text-emerald-700" />
+                  <span>Route: <b>{t.pickupVillage}</b> to <b>{t.destinationCentreName}</b> ({t.distanceKm} km)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs border-blue-600 text-blue-800 hover:bg-blue-50 font-bold"
+                    onClick={() => setViewingTransportRouteItem(t)}
+                  >
+                    <MapPin size={14} className="mr-1.5 text-blue-700" /> View Route Map
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+                    onClick={() => {
+                      setSelectedTransportItem(t);
+                      setTransportUpdateStatus(t.status as typeof transportUpdateStatus);
+                      setShowTransportModal(true);
+                    }}
+                  >
+                    <Truck size={14} className="mr-1.5" /> Update Status
+                  </Button>
+                </div>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="p-8 text-center text-muted-foreground bg-slate-50/60 rounded-2xl border border-dashed">No active transportation bookings found.</div>
+        )}
+      </section>
+
+      {/* Interactive Logistics Route Map Modal */}
+      {viewingTransportRouteItem && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-2xl p-6 max-w-2xl w-full shadow-2xl border flex flex-col gap-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-blue-100 text-blue-900 border border-blue-200">
+                  <Truck size={20} />
+                </span>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#153828] m-0">
+                    Live Logistics Route & GPS Tracker
+                  </h3>
+                  <small className="text-xs text-muted-foreground">
+                    Trip: <b>{viewingTransportRouteItem.transportCode}</b> · Assigned Driver: <b>{viewingTransportRouteItem.driverName}</b> ({viewingTransportRouteItem.vehicleNumber})
+                  </small>
+                </div>
+              </div>
+              <button onClick={() => setViewingTransportRouteItem(null)} className="p-1 rounded-md hover:bg-slate-100"><X size={20} /></button>
+            </div>
+
+            {/* Route Stepper Banner */}
+            <div className="bg-slate-900 text-white p-4 rounded-xl flex items-center justify-between text-xs flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[10px]">1</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase">Logistics Unit / Hub</span>
+                  <b>{driverGps.isLive ? "Live Driver GPS (Active)" : "Guntur Transport Hub"}</b>
+                </div>
+              </div>
+              <span className="text-slate-500">→</span>
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px]">2</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase">Farmer Pickup</span>
+                  <b>{viewingTransportRouteItem.pickupVillage} ({viewingTransportRouteItem.farmerName})</b>
+                </div>
+              </div>
+              <span className="text-slate-500">→</span>
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-[10px]">3</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase">Procurement Mandi</span>
+                  <b>{viewingTransportRouteItem.destinationCentreName}</b>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Visual Map Canvas */}
+            <div className="relative w-full h-64 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-inner">
+              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 600 240" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="50%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="glow" />
+                    <feComposite in="SourceGraphic" in2="glow" operator="over" />
+                  </filter>
+                </defs>
+
+                {/* Grid map lines */}
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" strokeWidth="0.8" />
+                </pattern>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+
+                {/* Route Path Polyline */}
+                <path
+                  d="M 80 180 C 180 80, 240 160, 310 90 C 380 30, 440 140, 520 70"
+                  fill="none"
+                  stroke="url(#routeGradient)"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  filter="url(#glow)"
+                />
+                <path
+                  d="M 80 180 C 180 80, 240 160, 310 90 C 380 30, 440 140, 520 70"
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                  strokeDasharray="6 4"
+                  strokeLinecap="round"
+                />
+
+                {/* Marker 1: Driver Location */}
+                <g transform="translate(80, 180)">
+                  <circle r="16" fill="#3b82f6" fillOpacity="0.3" className="animate-ping" />
+                  <circle r="12" fill="#3b82f6" stroke="#ffffff" strokeWidth="2.5" />
+                  <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">🚚</text>
+                  <text y="25" textAnchor="middle" fill="#93c5fd" fontSize="10" fontWeight="bold">Driver Location</text>
+                </g>
+
+                {/* Marker 2: Farmer Pickup Point */}
+                <g transform="translate(310, 90)">
+                  <circle r="16" fill="#10b981" fillOpacity="0.3" className="animate-ping" />
+                  <circle r="12" fill="#10b981" stroke="#ffffff" strokeWidth="2.5" />
+                  <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">🌾</text>
+                  <text y="25" textAnchor="middle" fill="#86efac" fontSize="10" fontWeight="bold">Pickup: {viewingTransportRouteItem.pickupVillage}</text>
+                </g>
+
+                {/* Marker 3: Mandi Centre */}
+                <g transform="translate(520, 70)">
+                  <circle r="16" fill="#f59e0b" fillOpacity="0.3" className="animate-ping" />
+                  <circle r="12" fill="#f59e0b" stroke="#ffffff" strokeWidth="2.5" />
+                  <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">🏢</text>
+                  <text y="25" textAnchor="middle" fill="#fde68a" fontSize="10" fontWeight="bold">Procurement Mandi</text>
+                </g>
+              </svg>
+
+              <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur border border-slate-700 text-white px-3 py-1.5 rounded-lg text-[11px] flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Live Route Tracking Active</span>
+              </div>
+            </div>
+
+            {/* Metrics Breakdown */}
+            <div className="grid grid-cols-3 gap-3 text-xs bg-slate-50 p-3 rounded-xl border">
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Total Road Distance</span>
+                <b className="text-sm text-slate-900">{viewingTransportRouteItem.distanceKm} km</b>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Estimated Travel Time</span>
+                <b className="text-sm text-emerald-800">~{Math.round(viewingTransportRouteItem.distanceKm * 2.2)} mins</b>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Trip Status</span>
+                <Pill kind={viewingTransportRouteItem.status === "DELIVERED_AT_CENTRE" ? "green" : "blue"}>
+                  {(viewingTransportRouteItem.status || "REQUESTED").replaceAll("_", " ")}
+                </Pill>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t flex-wrap gap-2">
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&origin=${driverGps.lat},${driverGps.lng}&destination=${16.2970},${80.4350}&travelmode=driving`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg border border-blue-200 transition-colors"
+              >
+                <Navigation size={14} /> Open in Google Maps Directions ↗
+              </a>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setViewingTransportRouteItem(null)}>
+                  Close Route Map
+                </Button>
+                <Button
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+                  onClick={() => {
+                    setSelectedTransportItem(viewingTransportRouteItem);
+                    setTransportUpdateStatus(viewingTransportRouteItem.status as typeof transportUpdateStatus);
+                    setViewingTransportRouteItem(null);
+                    setShowTransportModal(true);
+                  }}
+                >
+                  <Truck size={14} className="mr-1.5" /> Update Status
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logistics Status Update Modal */}
+      {showTransportModal && selectedTransportItem && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-[#143e2b]">Update Logistics Status</h3>
+                <p className="text-xs text-muted-foreground">
+                  Transport: <b>{selectedTransportItem.transportCode}</b> · Farmer: <b>{selectedTransportItem.farmerName || "Farmer details unavailable"}</b>
+                </p>
+              </div>
+              <button onClick={() => setShowTransportModal(false)}><X size={18} /></button>
+            </div>
+
+            <label className="text-xs font-bold">
+              Select Trip Status
+              <select
+                className="w-full mt-1.5 p-2 rounded-md border bg-background text-sm font-semibold"
+                value={transportUpdateStatus}
+                onChange={e => setTransportUpdateStatus(e.target.value as typeof transportUpdateStatus)}
+              >
+                <option value="REQUESTED">REQUESTED (New Booking)</option>
+                <option value="ASSIGNED">ASSIGNED (Driver & Vehicle Allocated)</option>
+                <option value="IN_TRANSIT">IN TRANSIT (Pickup Scheduled / Picked Up)</option>
+                <option value="DELIVERED_AT_CENTRE">DELIVERED AT CENTRE (Arrived at Mandi)</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setShowTransportModal(false)}>Cancel</Button>
+              <Button onClick={() => { void updateLogisticsStatus(); }} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold">
+                Save & Notify Farmer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const filteredCropPrices = useMemo(() => {
     return cropPricesList.filter(item => {
-      const matchesCat = selectedCropCategory === "ALL" || item.category.toLowerCase() === selectedCropCategory.toLowerCase();
-      const matchesSearch = !cropSearchQuery || item.cropName.toLowerCase().includes(cropSearchQuery.toLowerCase()) || item.variety.toLowerCase().includes(cropSearchQuery.toLowerCase());
+      const matchesCat = selectedCropCategory === "ALL" || (item.category || "").toLowerCase() === selectedCropCategory.toLowerCase();
+      const matchesSearch = !cropSearchQuery || (item.cropName || "").toLowerCase().includes(cropSearchQuery.toLowerCase()) || (item.variety || "").toLowerCase().includes(cropSearchQuery.toLowerCase());
       return matchesCat && matchesSearch;
     });
   }, [cropPricesList, selectedCropCategory, cropSearchQuery]);
@@ -3447,7 +5035,7 @@ export default function Home() {
 
   const calculatedFare = useMemo(() => {
     const chosenCentre = apiCentres.find(c => c.id === transportForm.destinationCentreId) ?? apiCentres[0];
-    const distNum = parseFloat(chosenCentre.distance.replace(/[^0-9.]/g, "")) || 12;
+    const distNum = parseFloat((chosenCentre?.distance || "12 km").replace(/[^0-9.]/g, "")) || 12;
     const rates: Record<string, { base: number; perKm: number; name: string }> = {
       TRACTOR_TROLLEY: { base: 250, perKm: 18, name: "Tractor Trolley" },
       MINI_TRUCK: { base: 350, perKm: 22, name: "Mini Truck" },
@@ -3624,6 +5212,629 @@ export default function Home() {
     </>
   );
 
+  const staffManagementScreen = officerShell(
+    <>
+      <SectionTitle
+        eyebrow="HEAD OFFICER GOVERNANCE · STAFF ONBOARDING"
+        title="Department Staff Governance & Access Control"
+        body="Verify new employee onboarding requests, assign departmental roles and branch centres, provision secure Login IDs, and review system audit logs."
+        action={
+          <ActionButton onClick={() => setShowAddStaffModal(true)} icon={UserPlus}>
+            + Onboard New Staff
+          </ActionButton>
+        }
+      />
+
+      <section className="officer-metrics mb-6">
+        <MetricCard
+          icon={UserPlus}
+          label="Pending Verification"
+          value={`${staffList.filter(s => s.status === "PENDING_VERIFICATION").length}`}
+          hint="Requires Head Officer Approval"
+          tone="yellow"
+        />
+        <MetricCard
+          icon={Users}
+          label="Active Staff Members"
+          value={`${staffList.filter(s => s.status === "ACTIVE").length + (officerProfile?.role === "HEAD_OFFICER" ? 1 : 0)}`}
+          hint="Operational across all branches"
+          tone="green"
+        />
+        <MetricCard
+          icon={Shield}
+          label="Assigned Departments"
+          value="4 Units"
+          hint="QC · Logistics · Procurement · Payment"
+          tone="blue"
+        />
+        <MetricCard
+          icon={History}
+          label="Audit Events Logged"
+          value={`${staffAuditLogsList.length}`}
+          hint="Full compliance trail recorded"
+          tone="green"
+        />
+      </section>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col gap-6">
+        {/* Tab Navigation */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2">
+            {[
+              { key: "pending", label: "Pending Verification", count: staffList.filter(s => s.status === "PENDING_VERIFICATION").length, badgeTone: "bg-amber-100 text-amber-800" },
+              { key: "active", label: "Active Staff Network", count: staffList.filter(s => s.status === "ACTIVE").length, badgeTone: "bg-emerald-100 text-emerald-800" },
+              { key: "disabled", label: "Disabled / Inactive", count: staffList.filter(s => s.status === "DISABLED").length, badgeTone: "bg-slate-100 text-slate-700" },
+              { key: "audit", label: "Audit Trail & Logs", count: staffAuditLogsList.length, badgeTone: "bg-blue-100 text-blue-800" },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setStaffTab(tab.key as typeof staffTab)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                  staffTab === tab.key
+                    ? "bg-[#165339] text-white shadow-xs"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                {tab.label}
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${staffTab === tab.key ? "bg-white/20 text-white" : tab.badgeTone}`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <Button
+            onClick={() => setShowAddStaffModal(true)}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl h-9 px-4 flex items-center gap-1.5"
+          >
+            <UserPlus size={15} /> Onboard New Employee
+          </Button>
+        </div>
+
+        {/* Tab: Pending Verification */}
+        {staffTab === "pending" && (
+          <div className="flex flex-col gap-4">
+            {staffList.filter(s => s.status === "PENDING_VERIFICATION").length === 0 ? (
+              <div className="p-12 text-center flex flex-col items-center justify-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                <span className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
+                  <CheckCircle2 size={24} />
+                </span>
+                <h3 className="text-base font-bold text-slate-800 mb-1">No Pending Staff Verification Requests</h3>
+                <p className="text-xs text-slate-500 max-w-md">All onboarding applications have been verified. Click "+ Onboard New Employee" to register new staff joining a branch.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {staffList.filter(s => s.status === "PENDING_VERIFICATION").map(staff => (
+                  <article key={staff.id} className="p-5 border border-amber-200 bg-amber-50/30 rounded-2xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <span className="w-12 h-12 rounded-xl bg-amber-600 text-white font-black text-sm flex items-center justify-center shrink-0">
+                        {staff.role === "QUALITY_CONTROL_INSPECTOR" ? "QC" : staff.role === "LOGISTICS_OFFICER" ? "LOG" : staff.role === "PAYMENT_OFFICER" ? "PAY" : "PO"}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h4 className="text-sm font-bold text-slate-900 m-0">{staff.name}</h4>
+                          <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] font-bold">
+                            {staff.employeeId || "NEW APPLICANT"}
+                          </Badge>
+                          <Badge className="bg-blue-100 text-blue-900 border-blue-200 text-[10px] font-bold">
+                            {(staff.role || "STAFF").replaceAll("_", " ")}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-slate-600 flex flex-wrap items-center gap-x-4 gap-y-1">
+                          <span>🏢 <b>Dept:</b> {staff.department} ({staff.designation || "Staff"})</span>
+                          <span>📍 <b>Branch:</b> {staff.branch} ({staff.centreName || staff.district})</span>
+                          <span>📞 <b>Phone:</b> {staff.phone || "—"}</span>
+                          <span>✉️ <b>Email:</b> {staff.email || "—"}</span>
+                        </div>
+                        <p className="text-[11px] text-amber-800 mt-2 m-0 flex items-center gap-1 font-medium">
+                          <Clock3 size={13} /> Submitted for Head Officer verification on {new Date(staff.createdAt).toLocaleDateString("en-IN")}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setViewingStaffDetails(staff); }}
+                        className="text-xs font-semibold h-9 rounded-xl border-slate-300"
+                      >
+                        <Eye size={14} className="mr-1" /> View Profile
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setRejectStaffTarget(staff); setShowRejectStaffModal(true); }}
+                        className="text-xs font-semibold h-9 rounded-xl text-rose-700 hover:bg-rose-50 border-rose-200"
+                      >
+                        <UserX size={14} className="mr-1" /> Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => { void approveStaffMember(staff.id); }}
+                        className="text-xs font-bold h-9 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs"
+                      >
+                        <Key size={14} className="mr-1" /> Approve & Issue Login
+                      </Button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Active Staff Network */}
+        {staffTab === "active" && (
+          <div className="flex flex-col gap-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-bold bg-slate-50/50">
+                    <th className="py-3 px-4">OFFICER / LOGIN ID</th>
+                    <th className="py-3 px-4">EMPLOYEE ID & NAME</th>
+                    <th className="py-3 px-4">ROLE & DEPARTMENT</th>
+                    <th className="py-3 px-4">ASSIGNED BRANCH & CENTRE</th>
+                    <th className="py-3 px-4">STATUS</th>
+                    <th className="py-3 px-4 text-right">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {/* Default Head Officer Row */}
+                  <tr className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-800">
+                        <Key size={13} className="text-emerald-600" /> OFF-NZM-104
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-slate-900">K. Venkata Rao</div>
+                      <div className="text-[11px] text-slate-500">EMP-HO-104 · 9848012345</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 font-bold text-[10px]">HEAD OFFICER</Badge>
+                      <div className="text-[11px] text-slate-500 mt-0.5">Administration & District Governance</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="font-semibold text-slate-800">Guntur & Nizamabad Main Branch</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        <Check size={11} /> ACTIVE (PRIMARY)
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right text-slate-400 font-medium text-[11px]">
+                      Head Officer Master Account
+                    </td>
+                  </tr>
+
+                  {/* Dynamic Staff Rows */}
+                  {staffList.filter(s => s.status === "ACTIVE").map(staff => (
+                    <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
+                          <Key size={13} className="text-emerald-600" /> {staff.officerCode}
+                          <button
+                            onClick={() => { navigator.clipboard?.writeText(staff.officerCode); toast.success(`Login ID ${staff.officerCode} copied!`); }}
+                            className="p-1 hover:bg-slate-200 rounded text-slate-500"
+                            title="Copy Login ID"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900">{staff.name}</div>
+                        <div className="text-[11px] text-slate-500">{staff.employeeId} · {staff.phone || "—"}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge className="bg-blue-100 text-blue-900 border-blue-200 font-bold text-[10px]">{(staff.role || "STAFF").replaceAll("_", " ")}</Badge>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{staff.department}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-slate-800">{staff.branch}</span>
+                        <div className="text-[11px] text-slate-500">{staff.centreName || staff.district}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          <Check size={11} /> ACTIVE
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewingStaffDetails(staff)}
+                            className="h-8 px-2 text-slate-600 hover:bg-slate-100 text-xs"
+                          >
+                            <Eye size={13} className="mr-1" /> Details
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => { void disableStaffMember(staff.id); }}
+                            className="h-8 px-2 text-amber-700 hover:bg-amber-50 border-amber-200 text-xs"
+                          >
+                            <Lock size={13} className="mr-1" /> Deactivate
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Disabled Staff */}
+        {staffTab === "disabled" && (
+          <div className="flex flex-col gap-4">
+            {staffList.filter(s => s.status === "DISABLED").length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-xs bg-slate-50 rounded-xl">
+                No staff accounts currently deactivated.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {staffList.filter(s => s.status === "DISABLED").map(staff => (
+                  <div key={staff.id} className="p-4 border border-slate-200 bg-slate-50 rounded-xl flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <strong className="text-xs font-bold text-slate-800">{staff.name}</strong>
+                        <span className="font-mono text-[11px] text-slate-500">({staff.officerCode})</span>
+                        <Badge variant="outline" className="text-[10px] text-slate-600 bg-slate-200">DEACTIVATED</Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500 m-0 mt-1">
+                        {(staff.role || "STAFF").replaceAll("_", " ")} · {staff.department || "Administration"} · {staff.branch || "Guntur"}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => { void enableStaffMember(staff.id); }}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs h-8 rounded-lg"
+                    >
+                      <RefreshCw size={13} className="mr-1" /> Re-enable Access
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Audit Trail */}
+        {staffTab === "audit" && (
+          <div className="flex flex-col gap-3">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-center gap-2">
+              <ShieldCheck size={16} className="text-blue-700 shrink-0" />
+              <span>Immutable administrative audit trail recording all staff onboarding, verification approvals, credential issuances, and deactivations.</span>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {staffAuditLogsList.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">No audit logs recorded yet.</div>
+              ) : (
+                staffAuditLogsList.map(log => (
+                  <div key={log.id} className="py-3 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
+                        log.action.includes("APPROVED") ? "bg-emerald-100 text-emerald-800" :
+                        log.action.includes("DISABLED") || log.action.includes("REJECTED") ? "bg-rose-100 text-rose-800" :
+                        "bg-blue-100 text-blue-800"
+                      }`}>
+                        {log.action.includes("APPROVED") ? <Check size={15} /> : log.action.includes("DISABLED") ? <Lock size={15} /> : <History size={15} />}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <strong className="text-xs font-bold text-slate-900">{(log.action || "").replaceAll("_", " ")}</strong>
+                          <span className="text-[11px] text-slate-500">by <b>{log.performedByOfficerName}</b></span>
+                        </div>
+                        <p className="text-xs text-slate-600 m-0 mt-0.5">{log.details}</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium shrink-0">
+                      {new Date(log.createdAt).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add Staff Modal */}
+      {showAddStaffModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                  <UserPlus size={18} className="text-emerald-700" /> Onboard Department Staff Member
+                </h3>
+                <p className="text-xs text-slate-500 m-0 mt-0.5">Submit employee details for Head Officer verification and role provisioning.</p>
+              </div>
+              <button onClick={() => setShowAddStaffModal(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={e => { e.preventDefault(); void submitAddStaff(); }} className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-xs font-bold text-slate-700">
+                  Full Name *
+                  <Input
+                    required
+                    className="mt-1"
+                    placeholder="e.g. S. Srinivas Reddy"
+                    value={addStaffForm.name}
+                    onChange={e => setAddStaffForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-700">
+                  Employee ID (HR / Govt) *
+                  <Input
+                    required
+                    className="mt-1"
+                    placeholder="e.g. EMP-QC-8842"
+                    value={addStaffForm.employeeId}
+                    onChange={e => setAddStaffForm(f => ({ ...f, employeeId: e.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-xs font-bold text-slate-700">
+                  Mobile Number *
+                  <Input
+                    required
+                    type="tel"
+                    className="mt-1"
+                    placeholder="10-digit mobile number"
+                    value={addStaffForm.phone}
+                    onChange={e => setAddStaffForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-700">
+                  Official Email Address *
+                  <Input
+                    required
+                    type="email"
+                    className="mt-1"
+                    placeholder="name@smartprocure.gov.in"
+                    value={addStaffForm.email}
+                    onChange={e => setAddStaffForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-xs font-bold text-slate-700">
+                  Department *
+                  <select
+                    className="w-full h-10 px-3 mt-1 rounded-lg border bg-background text-xs font-semibold"
+                    value={addStaffForm.department}
+                    onChange={e => {
+                      const dept = e.target.value;
+                      let role: StaffRecord["role"] = "QUALITY_CONTROL_INSPECTOR";
+                      let desig = "Inspector";
+                      if (dept === "Quality Control") { role = "QUALITY_CONTROL_INSPECTOR"; desig = "Quality Control Inspector"; }
+                      else if (dept === "Logistics & Transportation") { role = "LOGISTICS_OFFICER"; desig = "Logistics Officer"; }
+                      else if (dept === "Payment & DBT") { role = "PAYMENT_OFFICER"; desig = "Payment Accounts Officer"; }
+                      else if (dept === "Procurement Operations") { role = "PROCUREMENT_OFFICER"; desig = "Procurement Officer"; }
+                      else { role = "HEAD_OFFICER"; desig = "Assistant Head Officer"; }
+                      setAddStaffForm(f => ({ ...f, department: dept, role, designation: desig }));
+                    }}
+                  >
+                    <option value="Quality Control">Quality Control</option>
+                    <option value="Logistics & Transportation">Logistics & Transportation</option>
+                    <option value="Payment & DBT">Payment & DBT</option>
+                    <option value="Procurement Operations">Procurement Operations</option>
+                    <option value="Administration">Administration</option>
+                  </select>
+                </label>
+
+                <label className="text-xs font-bold text-slate-700">
+                  System Role Assigned
+                  <div className="h-10 px-3 mt-1 rounded-lg border bg-slate-100 flex items-center text-xs font-bold text-slate-800">
+                    {(addStaffForm.role || "STAFF").replaceAll("_", " ")}
+                  </div>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-xs font-bold text-slate-700">
+                  Branch / Procurement Centre *
+                  <select
+                    className="w-full h-10 px-3 mt-1 rounded-lg border bg-background text-xs font-semibold"
+                    value={addStaffForm.branch}
+                    onChange={e => {
+                      const b = e.target.value;
+                      const c = apiCentres.find(item => (item.place || "").toLowerCase().includes((b || "").toLowerCase())) || apiCentres[0];
+                      setAddStaffForm(f => ({ ...f, branch: b, centreId: c?.id || 1, centreName: c?.name || "Guntur Yard", district: b }));
+                    }}
+                  >
+                    <option value="Guntur">Guntur Main Yard (Guntur District)</option>
+                    <option value="Nizamabad">Nizamabad Market Yard (Nizamabad District)</option>
+                    <option value="Bhiknoor">Bhiknoor Procurement Centre (Kamareddy District)</option>
+                    <option value="Warangal">Warangal Enamamula Market (Warangal District)</option>
+                    <option value="Karimnagar">Karimnagar District Centre</option>
+                  </select>
+                </label>
+
+                <label className="text-xs font-bold text-slate-700">
+                  Designation Title
+                  <Input
+                    className="mt-1"
+                    placeholder="e.g. Senior Quality Inspector"
+                    value={addStaffForm.designation}
+                    onChange={e => setAddStaffForm(f => ({ ...f, designation: e.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-2">
+                <ShieldCheck size={16} className="text-emerald-700 shrink-0" />
+                <span>Onboarding requests require Head Officer verification before access credentials and login privileges become active.</span>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+                <Button type="button" variant="outline" onClick={() => setShowAddStaffModal(false)} className="text-xs font-semibold">
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={addStaffSubmitting}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-5"
+                >
+                  {addStaffSubmitting ? "Submitting..." : "Submit Onboarding Application"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Credentials Modal */}
+      {showApproveCredentialsModal && approvedCredentials && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-emerald-200 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <span className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={26} />
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 m-0">Staff Access Approved!</h3>
+                <p className="text-xs text-slate-500 m-0">{approvedCredentials.staff?.name} is now verified and active.</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-3">
+              <div>
+                <span className="text-[11px] font-bold text-slate-500">PROVISIONED LOGIN ID</span>
+                <div className="flex items-center justify-between bg-white p-2.5 mt-1 rounded-lg border border-slate-200">
+                  <code className="text-sm font-black text-emerald-800 tracking-wider">{approvedCredentials.officerCode}</code>
+                  <button
+                    onClick={() => { navigator.clipboard?.writeText(approvedCredentials.officerCode); toast.success("Login ID copied!"); }}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800"
+                    title="Copy Login ID"
+                  >
+                    <Copy size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-bold text-slate-500">TEMPORARY ACTIVATION PASSWORD</span>
+                <div className="flex items-center justify-between bg-white p-2.5 mt-1 rounded-lg border border-slate-200">
+                  <code className="text-sm font-mono font-bold text-slate-800">{approvedCredentials.temporaryPassword || "Staff@2026#AP"}</code>
+                  <button
+                    onClick={() => { navigator.clipboard?.writeText(approvedCredentials.temporaryPassword || "Staff@2026#AP"); toast.success("Temporary password copied!"); }}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800"
+                    title="Copy Password"
+                  >
+                    <Copy size={15} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 m-0">
+              Provide these credentials to <b>{approvedCredentials.staff?.name}</b>. They can sign in immediately through the Officer Portal.
+            </p>
+
+            <Button
+              onClick={() => { setShowApproveCredentialsModal(false); setApprovedCredentials(null); }}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold w-full h-10 rounded-xl mt-1"
+            >
+              Done & Return to Staff List
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Staff Modal */}
+      {showRejectStaffModal && rejectStaffTarget && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900 m-0">Reject Staff Onboarding</h3>
+              <button onClick={() => setShowRejectStaffModal(false)}><X size={18} /></button>
+            </div>
+            <p className="text-xs text-slate-600">
+              Specify the reason for rejecting <b>{rejectStaffTarget.name}</b> ({rejectStaffTarget.employeeId}).
+            </p>
+            <label className="text-xs font-bold text-slate-700">
+              Rejection Reason
+              <Input
+                className="mt-1"
+                value={staffRejectReason}
+                onChange={e => setStaffRejectReason(e.target.value)}
+                placeholder="e.g. Employee ID not found on payroll, verification failed..."
+              />
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowRejectStaffModal(false)}>Cancel</Button>
+              <Button variant="destructive" size="sm" onClick={() => { void submitRejectStaff(); }}>Confirm Rejection</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Staff Details Drawer/Modal */}
+      {viewingStaffDetails && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-blue-100 text-blue-900 border-blue-200 text-xs font-bold">
+                  {(viewingStaffDetails?.role || "STAFF").replaceAll("_", " ")}
+                </Badge>
+              </div>
+              <button onClick={() => setViewingStaffDetails(null)}><X size={18} /></button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="w-14 h-14 rounded-2xl bg-emerald-700 text-white font-black text-lg flex items-center justify-center shrink-0">
+                {getInitials(viewingStaffDetails?.name, "ST")}
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 m-0">{viewingStaffDetails.name}</h3>
+                <p className="text-xs text-slate-500 m-0">{viewingStaffDetails.designation || "Staff"} · {viewingStaffDetails.employeeId}</p>
+                <div className="mt-1 font-mono text-xs font-bold text-emerald-800">Login ID: {viewingStaffDetails.officerCode}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl text-xs">
+              <div><span className="text-slate-400 font-bold block text-[10px]">DEPARTMENT</span><b>{viewingStaffDetails.department}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">BRANCH CENTRE</span><b>{viewingStaffDetails.branch}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">CONTACT PHONE</span><b>{viewingStaffDetails.phone || "—"}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">EMAIL ADDRESS</span><b>{viewingStaffDetails.email || "—"}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">STATUS</span><b className="text-emerald-700">{viewingStaffDetails.status}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">ENROLLED AT</span><b>{new Date(viewingStaffDetails.createdAt).toLocaleDateString("en-IN")}</b></div>
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
+              <b>Role Scope:</b>{" "}
+              {viewingStaffDetails.role === "QUALITY_CONTROL_INSPECTOR"
+                ? "Grain quality inspection, moisture/foreign matter testing, batch accept/reject grading."
+                : viewingStaffDetails.role === "LOGISTICS_OFFICER"
+                ? "Subsidized transport allocation, vehicle tracking, delivery status updates."
+                : viewingStaffDetails.role === "PAYMENT_OFFICER"
+                ? "DBT direct settlement authorization, subsidy release, payment auditing."
+                : "Farmer registration verification, queue allotment, mandi procurement operations."}
+            </div>
+
+            <Button onClick={() => setViewingStaffDetails(null)} className="w-full h-10 rounded-xl text-xs font-bold">
+              Close Profile
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   switch (screen) {
     case "registration": return registration;
     case "pending": return pending;
@@ -3647,11 +5858,14 @@ export default function Home() {
     case "notifications": return notifications;
     case "officerLogin": return officerLogin;
     case "officerDashboard": return officerDashboard;
+    case "staffManagement": return staffManagementScreen;
     case "officerPayments": return officerPaymentStatus;
     case "registrations": return registrations;
     case "farmerDetail": return registrations;
     case "approved": return approvedList;
     case "bookings": return bookings;
+    case "quality": return qualityControlScreen;
+    case "officerLogistics": return officerLogisticsScreen;
     default: return landing;
   }
 }

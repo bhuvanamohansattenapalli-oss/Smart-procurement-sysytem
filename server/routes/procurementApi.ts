@@ -15,6 +15,8 @@ import {
   registrations,
   slots,
   transportBookings,
+  staffAuditLogs,
+  staffNotifications,
 } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { requireApiAuth, requireRole } from "../middleware/apiAuth";
@@ -25,7 +27,7 @@ import { ensurePrototypeSeed, prototypeCropPrices } from "../services/seedServic
 import { issueAccessToken, verifyAccessToken } from "../services/tokenService";
 import { paymentGateway, type PaymentOutcome } from "../services/paymentGatewayService";
 import { createRazorpayOrder, getRazorpayPublicConfig, isRazorpayConfigured, verifyRazorpaySignature } from "../services/razorpayService";
-import type { AuthenticatedRequest, BookingContext } from "../types/api";
+import type { AuthenticatedRequest, BookingContext, StaffRole } from "../types/api";
 
 const phoneSchema = z.string().trim().regex(/^\d{10}$/, "Phone must be a 10-digit Indian mobile number.");
 const passwordSchema = z.string().min(8, "Password must contain at least 8 characters.");
@@ -34,7 +36,26 @@ const registrationSchema = z.object({ name: z.string().trim().min(2).max(160), p
 const otpChallengeSchema = z.object({ challengeId: idSchema, otp: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit OTP.") });
 const otpResendSchema = z.object({ challengeId: idSchema });
 const loginSchema = z.object({ phone: phoneSchema, password: passwordSchema });
-const officerLoginSchema = z.object({ officerCode: z.string().trim().min(4).max(40), password: passwordSchema });
+const officerLoginSchema = z.object({ officerCode: z.string().trim().min(3).max(64), password: passwordSchema });
+const staffRegistrationSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  employeeId: z.string().trim().min(2).max(64),
+  email: z.string().trim().email(),
+  phone: phoneSchema,
+  department: z.enum(["Procurement", "Quality Control", "Logistics & Transportation", "Payment", "Administration"]),
+  role: z.enum([
+    "HEAD_OFFICER",
+    "PROCUREMENT_OFFICER",
+    "QUALITY_CONTROL_INSPECTOR",
+    "LOGISTICS_OFFICER",
+    "PAYMENT_OFFICER",
+  ]),
+  branch: z.string().trim().min(2).max(160),
+  centreId: idSchema.optional(),
+  centreName: z.string().trim().optional(),
+  district: z.string().trim().min(2).max(160),
+  designation: z.string().trim().min(2).max(120),
+});
 const bookingSchema = z.object({ centreId: idSchema, slotId: idSchema, paddyVariety: z.string().trim().min(2).max(120), paddyGrade: z.string().trim().min(1).max(32), expectedQuantityQuintals: z.coerce.number().positive().max(1000) });
 const transportBookingSchema = z.object({
   bookingId: idSchema.optional(),
@@ -100,14 +121,52 @@ function formatFarmer(farmer: typeof farmers.$inferSelect) {
   return { id: farmer.id, farmerCode: farmer.farmerCode, name: farmer.name, phone: farmer.phone, village: farmer.village, district: farmer.district, primaryCrop: farmer.primaryCrop, status: farmer.status };
 }
 
+function formatOfficer(officer: typeof officers.$inferSelect) {
+  return {
+    id: officer.id,
+    officerCode: officer.officerCode,
+    employeeId: officer.employeeId ?? null,
+    name: officer.name,
+    email: officer.email ?? null,
+    phone: officer.phone ?? null,
+    role: officer.role ?? "HEAD_OFFICER",
+    department: officer.department ?? "Administration",
+    designation: officer.designation ?? "Procurement Officer",
+    branch: officer.branch ?? "Guntur",
+    centreId: officer.centreId ?? null,
+    centreName: officer.centreName ?? null,
+    district: officer.district,
+    status: officer.status ?? "ACTIVE",
+    mustChangePassword: officer.mustChangePassword ? 1 : 0,
+    approvedByOfficerId: officer.approvedByOfficerId ?? null,
+    approvedAt: officer.approvedAt ? (officer.approvedAt instanceof Date ? officer.approvedAt.toISOString() : String(officer.approvedAt)) : null,
+    rejectionReason: officer.rejectionReason ?? null,
+    createdAt: officer.createdAt instanceof Date ? officer.createdAt.toISOString() : String(officer.createdAt),
+  };
+}
+
 function formatCentre(centre: typeof procurementCentres.$inferSelect, queueCount: number, availableSlots: number) {
   return { id: centre.id, name: centre.name, place: centre.place, district: centre.district, latitude: Number(centre.latitude), longitude: Number(centre.longitude), distanceKm: Number(centre.distanceKm), status: centre.status, currentToken: centre.currentToken, currentQueue: queueCount, availableSlots };
 }
 
-function createPrototypePaymentQuote(paddyVariety: string, expectedQuantityQuintals: number) {
-  const unitPrice = paddyVariety.toLowerCase().includes("parboiled") ? 2320 : paddyVariety.toLowerCase().includes("fine") ? 2203 : 2300;
-  const qualityAdjustment = 0;
-  return { unitPrice, qualityAdjustment, demoPayable: Number((expectedQuantityQuintals * unitPrice + qualityAdjustment).toFixed(2)), currency: "INR", isOfficial: false };
+function createPrototypePaymentQuote(paddyVariety: string, expectedQuantityQuintals: number, mspPrice?: { mspPerQuintal: number; govtBonusPerQuintal: number }) {
+  let unitPrice = 2300;
+  let bonus = 0;
+  if (mspPrice) {
+    unitPrice = mspPrice.mspPerQuintal;
+    bonus = mspPrice.govtBonusPerQuintal;
+  } else {
+    const v = (paddyVariety || "").toLowerCase();
+    if (v.includes("parboiled") || v.includes("boiled")) unitPrice = 2320;
+    else if (v.includes("grade a") || v.includes("bpt 5204") || v.includes("fine")) { unitPrice = 2320; bonus = 50; }
+    else if (v.includes("maize")) unitPrice = 2225;
+    else if (v.includes("cotton")) unitPrice = 7121;
+    else if (v.includes("moong")) { unitPrice = 8558; bonus = 200; }
+    else if (v.includes("groundnut")) { unitPrice = 6783; bonus = 150; }
+    else unitPrice = 2300;
+  }
+  const effectiveRate = unitPrice + bonus;
+  return { unitPrice, govtBonus: bonus, effectiveRate, demoPayable: Number((expectedQuantityQuintals * effectiveRate).toFixed(2)), currency: "INR", isOfficial: true };
 }
 
 function paymentView(payment: typeof payments.$inferSelect) {
@@ -120,20 +179,21 @@ async function getQueueCount(centreId: number) {
   return (await db.select().from(queueEntries).where(and(eq(queueEntries.centreId, centreId), eq(queueEntries.status, "WAITING")))).length;
 }
 
-async function getBookingContext(bookingId: number): Promise<{ booking: typeof bookings.$inferSelect; farmer: typeof farmers.$inferSelect; centre: typeof procurementCentres.$inferSelect; slot: typeof slots.$inferSelect; queue: typeof queueEntries.$inferSelect | undefined; procurement: typeof procurements.$inferSelect | undefined } | undefined> {
+async function getBookingContext(bookingId: number): Promise<{ booking: typeof bookings.$inferSelect; farmer: typeof farmers.$inferSelect; centre: typeof procurementCentres.$inferSelect; slot: typeof slots.$inferSelect; queue: typeof queueEntries.$inferSelect | undefined; procurement: typeof procurements.$inferSelect | undefined; transport: typeof transportBookings.$inferSelect | undefined } | undefined> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable.");
   const booking = (await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1))[0];
   if (!booking) return undefined;
-  const [farmer, centre, slot, queue, procurement] = await Promise.all([
+  const [farmer, centre, slot, queue, procurement, transport] = await Promise.all([
     db.select().from(farmers).where(eq(farmers.id, booking.farmerId)).limit(1).then(rows => rows[0]),
     db.select().from(procurementCentres).where(eq(procurementCentres.id, booking.centreId)).limit(1).then(rows => rows[0]),
     db.select().from(slots).where(eq(slots.id, booking.slotId)).limit(1).then(rows => rows[0]),
     db.select().from(queueEntries).where(eq(queueEntries.bookingId, booking.id)).limit(1).then(rows => rows[0]),
     db.select().from(procurements).where(eq(procurements.bookingId, booking.id)).limit(1).then(rows => rows[0]),
+    db.select().from(transportBookings).where(or(eq(transportBookings.bookingId, booking.id), eq(transportBookings.farmerId, booking.farmerId))).orderBy(desc(transportBookings.createdAt)).limit(1).then(rows => rows[0]),
   ]);
   if (!farmer || !centre || !slot) return undefined;
-  return { booking, farmer, centre, slot, queue, procurement };
+  return { booking, farmer, centre, slot, queue, procurement, transport };
 }
 
 async function requireBookingAccess(req: AuthenticatedRequest, res: Response, bookingId: number) {
@@ -146,26 +206,53 @@ async function requireBookingAccess(req: AuthenticatedRequest, res: Response, bo
 function publicBooking(context: Awaited<ReturnType<typeof getBookingContext>>) {
   if (!context) return undefined;
   const quantity = Number(context.booking.expectedQuantityQuintals);
-  return { id: context.booking.id, bookingCode: context.booking.bookingCode, status: context.booking.status, paddyVariety: context.booking.paddyVariety, paddyGrade: context.booking.paddyGrade, expectedQuantityQuintals: quantity, tokenNumber: context.booking.tokenNumber, createdAt: context.booking.createdAt, farmer: formatFarmer(context.farmer), centre: { id: context.centre.id, name: context.centre.name, place: context.centre.place, distanceKm: Number(context.centre.distanceKm) }, slot: { id: context.slot.id, date: context.slot.slotDate, startTime: context.slot.startTime, endTime: context.slot.endTime }, queue: context.queue ? { position: context.queue.position, peopleAhead: Math.max(0, context.queue.position - 1), estimatedWaitMinutes: context.queue.estimatedWaitMinutes, status: context.queue.status, currentToken: context.centre.currentToken } : null, procurement: context.procurement ? { status: context.procurement.status, weighedQuantityQuintals: context.procurement.weighedQuantityQuintals ? Number(context.procurement.weighedQuantityQuintals) : null, qualityGrade: context.procurement.qualityGrade, updatedAt: context.procurement.updatedAt } : null, paymentQuote: createPrototypePaymentQuote(context.booking.paddyVariety, quantity) };
+  return {
+    id: context.booking.id,
+    bookingCode: context.booking.bookingCode,
+    status: context.booking.status,
+    paddyVariety: context.booking.paddyVariety,
+    paddyGrade: context.booking.paddyGrade,
+    expectedQuantityQuintals: quantity,
+    tokenNumber: context.booking.tokenNumber,
+    createdAt: context.booking.createdAt,
+    farmer: formatFarmer(context.farmer),
+    centre: { id: context.centre.id, name: context.centre.name, place: context.centre.place, distanceKm: Number(context.centre.distanceKm) },
+    slot: { id: context.slot.id, date: context.slot.slotDate, startTime: context.slot.startTime, endTime: context.slot.endTime },
+    queue: context.queue ? { position: context.queue.position, peopleAhead: Math.max(0, context.queue.position - 1), estimatedWaitMinutes: context.queue.estimatedWaitMinutes, status: context.queue.status, currentToken: context.centre.currentToken } : null,
+    procurement: context.procurement ? { status: context.procurement.status, weighedQuantityQuintals: context.procurement.weighedQuantityQuintals ? Number(context.procurement.weighedQuantityQuintals) : null, qualityGrade: context.procurement.qualityGrade, updatedAt: context.procurement.updatedAt } : null,
+    transport: context.transport ? { id: context.transport.id, transportCode: context.transport.transportCode, vehicleType: context.transport.vehicleType, vehicleNumber: context.transport.vehicleNumber, driverName: context.transport.driverName, driverPhone: context.transport.driverPhone, status: context.transport.status } : null,
+    paymentQuote: createPrototypePaymentQuote(context.booking.paddyVariety, quantity),
+  };
 }
 
 function apiCors(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const configuredOrigins = (process.env.CORS_ORIGIN ?? "").split(",").map(origin => origin.trim()).filter(Boolean);
   const origin = req.header("origin");
-  if (origin && configuredOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Vary", "Origin");
-    res.header("Access-Control-Allow-Credentials", "true");
+  if (origin) {
+    if (configuredOrigins.length === 0 || configuredOrigins.includes(origin) || configuredOrigins.includes("*")) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Vary", "Origin");
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
+  } else {
+    res.header("Access-Control-Allow-Origin", "*");
   }
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   return next();
 }
 
+
 export function createProcurementApi() {
   const api = Router();
   api.use(apiCors);
+  api.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    next();
+  });
   api.use(async (_req, res, next) => { try { await ensurePrototypeSeed(); next(); } catch { res.status(503).json({ error: "SERVICE_UNAVAILABLE", message: "Prototype database is unavailable." }); } });
 
   api.post(["/registration", "/farmers/register"], async (req, res) => {
@@ -231,16 +318,361 @@ export function createProcurementApi() {
   api.post("/officers/login", async (req, res) => {
     const input = respondValidation(res, officerLoginSchema, req.body); if (!input) return;
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const officer = (await db.select().from(officers).where(eq(officers.officerCode, input.officerCode)).limit(1))[0];
-    if (!officer || !verifyPassword(input.password, officer.passwordHash)) return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Officer ID or password is incorrect." });
-    const token = await issueAccessToken({ id: officer.id, role: "officer", code: officer.officerCode, name: officer.name });
-    return res.json({ accessToken: token, tokenType: "Bearer", expiresInSeconds: 28800, officer: { id: officer.id, officerCode: officer.officerCode, name: officer.name, district: officer.district } });
+    const officer = (await db.select().from(officers).where(or(eq(officers.officerCode, input.officerCode), eq(officers.employeeId, input.officerCode))).limit(1))[0];
+    if (!officer) {
+      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Officer Login ID or password is incorrect." });
+    }
+    if (officer.status === "PENDING_VERIFICATION") {
+      return res.status(403).json({
+        error: "ACCOUNT_PENDING_VERIFICATION",
+        message: "Your staff account is pending Head Officer verification. Please contact your Head Officer.",
+        status: "PENDING_VERIFICATION",
+      });
+    }
+    if (officer.status === "DISABLED") {
+      return res.status(403).json({
+        error: "ACCOUNT_DISABLED",
+        message: "Your staff account has been disabled by the Head Officer. Access denied.",
+        status: "DISABLED",
+      });
+    }
+    if (officer.status === "REJECTED") {
+      return res.status(403).json({
+        error: "ACCOUNT_REJECTED",
+        message: `Your staff application was rejected: ${officer.rejectionReason || "Please contact your Head Officer."}`,
+        status: "REJECTED",
+      });
+    }
+    if (!verifyPassword(input.password, officer.passwordHash)) {
+      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Officer Login ID or password is incorrect." });
+    }
+
+    const token = await issueAccessToken({
+      id: officer.id,
+      role: "officer",
+      staffRole: officer.role as StaffRole,
+      department: officer.department ?? undefined,
+      designation: officer.designation ?? undefined,
+      branch: officer.branch ?? undefined,
+      centreId: officer.centreId ?? undefined,
+      centreName: officer.centreName ?? undefined,
+      code: officer.officerCode,
+      name: officer.name,
+      district: officer.district ?? undefined,
+    });
+    return res.json({
+      accessToken: token,
+      tokenType: "Bearer",
+      expiresInSeconds: 28800,
+      officer: formatOfficer(officer),
+    });
+  });
+
+  // Head Officer: Submit new staff onboarding request (Status: PENDING_VERIFICATION)
+  api.post("/officers/staff/register", requireApiAuth, requireRole("HEAD_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const input = respondValidation(res, staffRegistrationSchema, req.body);
+    if (!input) return;
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    // Check duplicate employee ID, phone or email
+    const existing = (await db.select().from(officers).where(or(eq(officers.employeeId, input.employeeId), eq(officers.phone, input.phone))).limit(1))[0];
+    if (existing) {
+      return res.status(409).json({
+        error: "STAFF_ALREADY_EXISTS",
+        message: `Staff member with Employee ID '${input.employeeId}' or Phone '${input.phone}' is already registered.`,
+      });
+    }
+
+    const tempCode = `PENDING-${Math.floor(10000 + Math.random() * 90000)}`;
+    const placeholderHash = hashPassword(`Initial@${Math.floor(1000 + Math.random() * 9000)}`);
+
+    await db.insert(officers).values({
+      officerCode: tempCode,
+      employeeId: input.employeeId,
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      passwordHash: placeholderHash,
+      role: input.role,
+      department: input.department,
+      designation: input.designation,
+      branch: input.branch,
+      centreId: input.centreId ?? null,
+      centreName: input.centreName ?? null,
+      district: input.district,
+      status: "PENDING_VERIFICATION",
+      mustChangePassword: 1,
+    });
+
+    const created = (await db.select().from(officers).where(eq(officers.employeeId, input.employeeId)).limit(1))[0];
+
+    // Audit Trail
+    await db.insert(staffAuditLogs).values({
+      performedByOfficerId: req.principal!.id,
+      performedByOfficerName: req.principal!.name,
+      targetOfficerId: created?.id,
+      targetOfficerName: input.name,
+      action: "STAFF_REQUEST_CREATED",
+      details: `Staff onboarding request submitted for ${input.name} (${input.employeeId}) as ${input.role} in ${input.department}, ${input.branch} branch.`,
+    });
+
+    return res.status(201).json({
+      message: "Staff registration submitted. Pending Head Officer verification.",
+      status: "PENDING_VERIFICATION",
+      staff: created ? formatOfficer(created) : null,
+    });
+  });
+
+  // Head Officer: List staff records (optionally filter by status)
+  api.get("/officers/staff", requireApiAuth, requireRole("HEAD_OFFICER"), async (req, res) => {
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    const statusParam = req.query.status as string | undefined;
+
+    let rows = await db.select().from(officers).orderBy(desc(officers.createdAt));
+    if (statusParam) {
+      rows = rows.filter(o => o.status === statusParam);
+    }
+    return res.json({ staff: rows.map(formatOfficer) });
+  });
+
+  // Head Officer: Approve & Grant Access
+  api.put("/officers/staff/:id/approve", requireApiAuth, requireRole("HEAD_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const staff = (await db.select().from(officers).where(eq(officers.id, id.data)).limit(1))[0];
+    if (!staff) return res.status(404).json({ error: "STAFF_NOT_FOUND", message: "Staff record not found." });
+    if (staff.status === "ACTIVE") return res.status(409).json({ error: "STAFF_ALREADY_ACTIVE", message: "Staff account is already active." });
+
+    // Generate Role-specific unique Login ID
+    const rolePrefixMap: Record<string, string> = {
+      HEAD_OFFICER: "HO",
+      PROCUREMENT_OFFICER: "PO",
+      QUALITY_CONTROL_INSPECTOR: "QC",
+      LOGISTICS_OFFICER: "LOG",
+      PAYMENT_OFFICER: "PAY",
+    };
+    const prefix = rolePrefixMap[staff.role] || "OFF";
+    let newLoginId = "";
+    let isUnique = false;
+    while (!isUnique) {
+      const randNum = Math.floor(1000 + Math.random() * 9000);
+      newLoginId = `${prefix}-2026-${randNum}`;
+      const conflict = (await db.select().from(officers).where(eq(officers.officerCode, newLoginId)).limit(1))[0];
+      if (!conflict) isUnique = true;
+    }
+
+    // Generate secure temporary password
+    const tempPassword = `Staff@${Math.floor(1000 + Math.random() * 9000)}#26`;
+    const hashedTemp = hashPassword(tempPassword);
+
+    await db.update(officers).set({
+      officerCode: newLoginId,
+      passwordHash: hashedTemp,
+      status: "ACTIVE",
+      mustChangePassword: 1,
+      approvedByOfficerId: req.principal!.id,
+      approvedAt: new Date(),
+      rejectionReason: null,
+      updatedAt: new Date(),
+    }).where(eq(officers.id, staff.id));
+
+    const updated = (await db.select().from(officers).where(eq(officers.id, staff.id)).limit(1))[0];
+
+    // Create staff notification
+    await db.insert(staffNotifications).values({
+      officerId: staff.id,
+      title: "Staff Account Approved & Activated",
+      message: `Your staff account has been approved by Head Officer. Your Login ID is ${newLoginId}. Department: ${staff.department}, Branch: ${staff.branch}. Please change your password on first login.`,
+      category: "ONBOARDING",
+    });
+
+    // Create audit log
+    await db.insert(staffAuditLogs).values({
+      performedByOfficerId: req.principal!.id,
+      performedByOfficerName: req.principal!.name,
+      targetOfficerId: staff.id,
+      targetOfficerName: staff.name,
+      action: "STAFF_APPROVED",
+      details: `Head Officer granted active access to ${staff.name} as ${staff.role}. Generated Login ID: ${newLoginId}.`,
+    });
+
+    return res.json({
+      message: "Staff member approved and access granted successfully.",
+      officerCode: newLoginId,
+      temporaryPassword: tempPassword,
+      staff: updated ? formatOfficer(updated) : null,
+    });
+  });
+
+  // Head Officer: Reject pending staff request
+  api.put("/officers/staff/:id/reject", requireApiAuth, requireRole("HEAD_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.id);
+    const input = respondValidation(res, z.object({ reason: z.string().trim().min(3).max(500) }), req.body);
+    if (!id.success || !input) return;
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const staff = (await db.select().from(officers).where(eq(officers.id, id.data)).limit(1))[0];
+    if (!staff) return res.status(404).json({ error: "STAFF_NOT_FOUND" });
+
+    await db.update(officers).set({
+      status: "REJECTED",
+      rejectionReason: input.reason,
+      updatedAt: new Date(),
+    }).where(eq(officers.id, staff.id));
+
+    const updated = (await db.select().from(officers).where(eq(officers.id, staff.id)).limit(1))[0];
+
+    // Audit Trail
+    await db.insert(staffAuditLogs).values({
+      performedByOfficerId: req.principal!.id,
+      performedByOfficerName: req.principal!.name,
+      targetOfficerId: staff.id,
+      targetOfficerName: staff.name,
+      action: "STAFF_REJECTED",
+      details: `Staff application for ${staff.name} rejected. Reason: ${input.reason}`,
+    });
+
+    return res.json({
+      message: "Staff registration rejected.",
+      staff: updated ? formatOfficer(updated) : null,
+    });
+  });
+
+  // Head Officer: Disable staff access
+  api.put("/officers/staff/:id/disable", requireApiAuth, requireRole("HEAD_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const staff = (await db.select().from(officers).where(eq(officers.id, id.data)).limit(1))[0];
+    if (!staff) return res.status(404).json({ error: "STAFF_NOT_FOUND" });
+    if (staff.role === "HEAD_OFFICER" && staff.id === req.principal!.id) {
+      return res.status(400).json({ error: "CANNOT_DISABLE_SELF", message: "You cannot disable your own Head Officer account." });
+    }
+
+    await db.update(officers).set({
+      status: "DISABLED",
+      updatedAt: new Date(),
+    }).where(eq(officers.id, staff.id));
+
+    const updated = (await db.select().from(officers).where(eq(officers.id, staff.id)).limit(1))[0];
+
+    // Audit Trail
+    await db.insert(staffAuditLogs).values({
+      performedByOfficerId: req.principal!.id,
+      performedByOfficerName: req.principal!.name,
+      targetOfficerId: staff.id,
+      targetOfficerName: staff.name,
+      action: "STAFF_DISABLED",
+      details: `Account access disabled for ${staff.name} (${staff.officerCode}).`,
+    });
+
+    return res.json({
+      message: "Staff member access disabled.",
+      staff: updated ? formatOfficer(updated) : null,
+    });
+  });
+
+  // Head Officer: Enable / Re-activate staff access
+  api.put("/officers/staff/:id/enable", requireApiAuth, requireRole("HEAD_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const staff = (await db.select().from(officers).where(eq(officers.id, id.data)).limit(1))[0];
+    if (!staff) return res.status(404).json({ error: "STAFF_NOT_FOUND" });
+
+    await db.update(officers).set({
+      status: "ACTIVE",
+      updatedAt: new Date(),
+    }).where(eq(officers.id, staff.id));
+
+    const updated = (await db.select().from(officers).where(eq(officers.id, staff.id)).limit(1))[0];
+
+    // Audit Trail
+    await db.insert(staffAuditLogs).values({
+      performedByOfficerId: req.principal!.id,
+      performedByOfficerName: req.principal!.name,
+      targetOfficerId: staff.id,
+      targetOfficerName: staff.name,
+      action: "STAFF_ENABLED",
+      details: `Account access re-enabled for ${staff.name} (${staff.officerCode}).`,
+    });
+
+    return res.json({
+      message: "Staff member access re-enabled.",
+      staff: updated ? formatOfficer(updated) : null,
+    });
+  });
+
+  // Head Officer: View Staff Audit Logs
+  api.get("/officers/staff/audit-logs", requireApiAuth, requireRole("HEAD_OFFICER"), async (_req, res) => {
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    const logs = await db.select().from(staffAuditLogs).orderBy(desc(staffAuditLogs.createdAt)).limit(50);
+    return res.json({ auditLogs: logs });
+  });
+
+  // Staff Notifications
+  api.get("/officers/notifications", requireApiAuth, requireRole("officer"), async (req: AuthenticatedRequest, res) => {
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    const notifs = await db.select().from(staffNotifications).where(eq(staffNotifications.officerId, req.principal!.id)).orderBy(desc(staffNotifications.createdAt));
+    return res.json({ notifications: notifs });
+  });
+
+  api.put("/officers/notifications/:id/read", requireApiAuth, requireRole("officer"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    await db.update(staffNotifications).set({ isRead: 1 }).where(and(eq(staffNotifications.id, id.data), eq(staffNotifications.officerId, req.principal!.id)));
+    return res.json({ success: true });
+  });
+
+  // Staff Change Password
+  api.post("/officers/change-password", requireApiAuth, requireRole("officer"), async (req: AuthenticatedRequest, res) => {
+    const input = respondValidation(res, z.object({ currentPassword: z.string(), newPassword: passwordSchema }), req.body);
+    if (!input) return;
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const officer = (await db.select().from(officers).where(eq(officers.id, req.principal!.id)).limit(1))[0];
+    if (!officer || !verifyPassword(input.currentPassword, officer.passwordHash)) {
+      return res.status(401).json({ error: "INVALID_PASSWORD", message: "Current password is incorrect." });
+    }
+
+    await db.update(officers).set({
+      passwordHash: hashPassword(input.newPassword),
+      mustChangePassword: 0,
+      updatedAt: new Date(),
+    }).where(eq(officers.id, officer.id));
+
+    return res.json({ message: "Password updated successfully." });
   });
 
   api.get("/officers/registrations/pending", requireApiAuth, requireRole("officer"), async (_req, res) => {
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const pending = await db.select().from(registrations).where(eq(registrations.status, "PENDING")).orderBy(desc(registrations.submittedAt));
-    const rows = await Promise.all(pending.map(async registration => ({ ...registration, farmer: formatFarmer((await db.select().from(farmers).where(eq(farmers.id, registration.farmerId)).limit(1))[0]!) })));
+    const rows = [];
+    for (const reg of pending) {
+      const farmerRows = await db.select().from(farmers).where(eq(farmers.id, reg.farmerId)).limit(1);
+      const farmer = farmerRows[0];
+      if (farmer && farmer.status === "PENDING") {
+        rows.push({
+          ...reg,
+          farmer: formatFarmer(farmer),
+        });
+      }
+    }
     return res.json({ registrations: rows });
   });
 
@@ -253,7 +685,7 @@ export function createProcurementApi() {
     return res.json({ registration, farmer: farmer && formatFarmer(farmer) });
   });
 
-  api.put("/officers/registrations/:id/approve", requireApiAuth, requireRole("officer"), async (req: AuthenticatedRequest, res) => {
+  const handleApproveRegistration = async (req: AuthenticatedRequest, res: Response) => {
     const id = idSchema.safeParse(req.params.id); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const registration = (await db.select().from(registrations).where(eq(registrations.id, id.data)).limit(1))[0];
@@ -262,10 +694,10 @@ export function createProcurementApi() {
     await db.update(registrations).set({ status: "APPROVED", reviewedByOfficerId: req.principal!.id, reviewedAt: new Date(), rejectionReason: null }).where(eq(registrations.id, registration.id));
     await db.update(farmers).set({ status: "APPROVED" }).where(eq(farmers.id, registration.farmerId));
     await db.insert(notifications).values({ farmerId: registration.farmerId, title: "Registration approved", message: "Your profile is approved. You can now login and book a procurement slot.", category: "REGISTRATION" });
-    return res.json({ message: "Farmer registration approved.", registrationId: registration.id, status: "APPROVED" });
-  });
+    return res.json({ success: true, message: "Farmer registration approved.", registrationId: registration.id, status: "APPROVED" });
+  };
 
-  api.put("/officers/registrations/:id/reject", requireApiAuth, requireRole("officer"), async (req: AuthenticatedRequest, res) => {
+  const handleRejectRegistration = async (req: AuthenticatedRequest, res: Response) => {
     const id = idSchema.safeParse(req.params.id); const input = respondValidation(res, z.object({ reason: z.string().trim().min(3).max(500) }), req.body); if (!id.success || !input) return res.status(400).json({ error: "VALIDATION_ERROR", message: "A rejection reason is required." });
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const registration = (await db.select().from(registrations).where(eq(registrations.id, id.data)).limit(1))[0];
@@ -274,8 +706,14 @@ export function createProcurementApi() {
     await db.update(registrations).set({ status: "REJECTED", rejectionReason: input.reason, reviewedByOfficerId: req.principal!.id, reviewedAt: new Date() }).where(eq(registrations.id, registration.id));
     await db.update(farmers).set({ status: "REJECTED" }).where(eq(farmers.id, registration.farmerId));
     await db.insert(notifications).values({ farmerId: registration.farmerId, title: "Registration needs attention", message: `Officer note: ${input.reason}`, category: "REGISTRATION" });
-    return res.json({ message: "Farmer registration rejected.", registrationId: registration.id, status: "REJECTED" });
-  });
+    return res.json({ success: true, message: "Farmer registration rejected.", registrationId: registration.id, status: "REJECTED" });
+  };
+
+  api.put("/officers/registrations/:id/approve", requireApiAuth, requireRole("officer"), handleApproveRegistration);
+  api.post("/officers/registrations/:id/approve", requireApiAuth, requireRole("officer"), handleApproveRegistration);
+  api.put("/officers/registrations/:id/reject", requireApiAuth, requireRole("officer"), handleRejectRegistration);
+  api.post("/officers/registrations/:id/reject", requireApiAuth, requireRole("officer"), handleRejectRegistration);
+
 
   api.get("/centres", async (_req, res) => {
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
@@ -372,7 +810,7 @@ export function createProcurementApi() {
       await db.update(bookings).set({ status: "COMPLETED" }).where(eq(bookings.id, context.booking.id));
       if (context.queue) await db.update(queueEntries).set({ status: "SERVED", estimatedWaitMinutes: 0, updatedAt: new Date() }).where(eq(queueEntries.bookingId, context.booking.id));
     }
-    await db.insert(notifications).values({ farmerId: context.farmer.id, title: "Procurement status updated", message: `Your booking ${context.booking.bookingCode} is now ${input.status.replaceAll("_", " ")}.`, category: "PROCUREMENT" });
+    await db.insert(notifications).values({ farmerId: context.farmer.id, title: "Procurement status updated", message: `Your booking ${context.booking.bookingCode} is now ${(input.status || "").replaceAll("_", " ")}.`, category: "PROCUREMENT" });
     return res.json({ message: "Procurement status updated.", bookingId: context.booking.id, status: input.status });
   });
 
@@ -600,7 +1038,7 @@ export function createProcurementApi() {
     return res.json({ farmerId: id.data, payments: history });
   });
 
-  api.get("/officers/payments", requireApiAuth, requireRole("officer"), async (_req, res) => {
+  api.get("/officers/payments", requireApiAuth, requireRole("HEAD_OFFICER", "PAYMENT_OFFICER", "PROCUREMENT_OFFICER"), async (_req, res) => {
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const paymentRows = await db.select().from(payments).orderBy(desc(payments.createdAt));
     const rows = await Promise.all(paymentRows.map(async payment => { const context = await getBookingContext(payment.bookingId); return context ? { ...paymentView(payment), bookingCode: context.booking.bookingCode, farmer: { id: context.farmer.id, name: context.farmer.name, farmerCode: context.farmer.farmerCode }, centre: { id: context.centre.id, name: context.centre.name } } : null; }));
@@ -742,6 +1180,32 @@ export function createProcurementApi() {
     const subsidyAmount = Number(((baseFare * vehicleConfig.subsidyPercent) / 100).toFixed(2));
     const netPayable = Number((baseFare - subsidyAmount).toFixed(2));
 
+    // Duplicate protection / idempotency check (within 60 seconds)
+    const recentDuplicate = (await db.select().from(transportBookings).where(
+      and(
+        eq(transportBookings.farmerId, farmer.id),
+        eq(transportBookings.destinationCentreId, centre.id),
+        eq(transportBookings.scheduledDate, input.scheduledDate),
+        eq(transportBookings.timeSlot, input.timeSlot),
+      )
+    ).orderBy(desc(transportBookings.createdAt)).limit(1))[0];
+
+    if (recentDuplicate && (Date.now() - new Date(recentDuplicate.createdAt).getTime() < 60000)) {
+      return res.status(200).json({
+        message: "Transportation booking already created.",
+        transport: {
+          ...recentDuplicate,
+          vehicleName: vehicleConfig.name,
+          centreName: centre.name,
+          baseFare,
+          subsidyAmount,
+          netPayable,
+          distanceKm,
+          estimatedLoadQuintals: Number(recentDuplicate.estimatedLoadQuintals),
+        },
+      });
+    }
+
     const driverPool = [
       { name: "B. Venkatesham", phone: "9440192831", plate: "TS-16-TR-4921" },
       { name: "K. Mohan Reddy", phone: "9848039218", plate: "TS-16-PK-8812" },
@@ -772,10 +1236,19 @@ export function createProcurementApi() {
 
     const created = (await db.select().from(transportBookings).where(eq(transportBookings.transportCode, transportCode)).limit(1))[0];
 
+    // Farmer in-app notification
     await db.insert(notifications).values({
       farmerId: farmer.id,
       title: "Crop Transport Booked",
       message: `Transport ${transportCode} (${vehicleConfig.name}) booked for ${input.scheduledDate}. Driver: ${assignedDriver.name} (${assignedDriver.phone}). Govt Subsidy: ₹${subsidyAmount.toFixed(2)}.`,
+      category: "TRANSPORT",
+    });
+
+    // Logistics Department in-app notification (Requirement 8)
+    await db.insert(notifications).values({
+      farmerId: farmer.id,
+      title: "New Transportation Request",
+      message: `Farmer ${farmer.name} has booked transportation from ${input.pickupVillage} to ${centre.name} for ${input.scheduledDate} (${input.timeSlot}).`,
       category: "TRANSPORT",
     });
 
@@ -831,19 +1304,379 @@ export function createProcurementApi() {
   });
 
   api.put("/transport/:id/status", requireApiAuth, async (req: AuthenticatedRequest, res) => {
-    const id = idSchema.safeParse(req.params.id);
-    const statusParsed = z.object({ status: z.enum(["REQUESTED", "ASSIGNED", "IN_TRANSIT", "DELIVERED_AT_CENTRE", "CANCELLED"]) }).safeParse(req.body);
-    if (!id.success || !statusParsed.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+    const rawId = String(req.params.id || "").trim();
+    const numId = Number(rawId);
+    const isNumeric = !isNaN(numId) && Number.isInteger(numId) && numId > 0;
+
+    let rawStatus = String(req.body?.status || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+    if (rawStatus === "DELIVERED" || rawStatus === "DELIVERED_AT_MANDI") rawStatus = "DELIVERED_AT_CENTRE";
+    if (rawStatus === "CANCEL") rawStatus = "CANCELLED";
+
+    const validStatuses = ["REQUESTED", "ASSIGNED", "IN_TRANSIT", "DELIVERED_AT_CENTRE", "CANCELLED"] as const;
+    type ValidStatus = typeof validStatuses[number];
+
+    if (!validStatuses.includes(rawStatus as ValidStatus)) {
+      return res.status(400).json({
+        error: "VALIDATION_ERROR",
+        message: `Invalid status '${req.body?.status}'. Allowed values: ${validStatuses.join(", ")}.`,
+      });
+    }
+
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
 
-    const existing = (await db.select().from(transportBookings).where(eq(transportBookings.id, id.data)).limit(1))[0];
-    if (!existing) return res.status(404).json({ error: "TRANSPORT_NOT_FOUND" });
+    const existing = (
+      await db
+        .select()
+        .from(transportBookings)
+        .where(
+          isNumeric
+            ? or(eq(transportBookings.id, numId), eq(transportBookings.transportCode, rawId))
+            : eq(transportBookings.transportCode, rawId)
+        )
+        .limit(1)
+    )[0];
 
-    await db.update(transportBookings).set({ status: statusParsed.data.status, updatedAt: new Date() }).where(eq(transportBookings.id, id.data));
-    const updated = (await db.select().from(transportBookings).where(eq(transportBookings.id, id.data)).limit(1))[0];
+    if (!existing) {
+      return res.status(404).json({
+        error: "TRANSPORT_NOT_FOUND",
+        message: `Transportation booking '${rawId}' was not found.`,
+      });
+    }
 
-    return res.json({ message: "Transport status updated.", transport: updated });
+    const updateValues: Partial<typeof transportBookings.$inferInsert> = {
+      status: rawStatus as ValidStatus,
+      updatedAt: new Date(),
+    };
+    if (req.body?.driverName && typeof req.body.driverName === "string") {
+      updateValues.driverName = req.body.driverName.trim();
+    }
+    if (req.body?.driverPhone && typeof req.body.driverPhone === "string") {
+      updateValues.driverPhone = req.body.driverPhone.trim();
+    }
+    if (req.body?.vehicleNumber && typeof req.body.vehicleNumber === "string") {
+      updateValues.vehicleNumber = req.body.vehicleNumber.trim();
+    }
+
+    await db.update(transportBookings).set(updateValues).where(eq(transportBookings.id, existing.id));
+    const updated = (
+      await db.select().from(transportBookings).where(eq(transportBookings.id, existing.id)).limit(1)
+    )[0];
+
+    let notificationSent = false;
+    try {
+      const readableStatus = (rawStatus || "").replaceAll("_", " ");
+      await db.insert(notifications).values({
+        farmerId: existing.farmerId,
+        title: "Logistics Status Updated",
+        message: `Your transport booking ${existing.transportCode} status is now ${readableStatus}.`,
+        category: "TRANSPORT",
+      });
+      notificationSent = true;
+    } catch (notifErr) {
+      console.error("Failed to create farmer notification for transport update:", notifErr);
+    }
+
+    return res.json({
+      message: "Transport status updated.",
+      success: true,
+      notificationSent,
+      transport: updated,
+    });
+  });
+
+  api.get("/officers/transport", requireApiAuth, requireRole("HEAD_OFFICER", "LOGISTICS_OFFICER", "PROCUREMENT_OFFICER"), async (_req, res) => {
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    const rows = await db.select().from(transportBookings).orderBy(desc(transportBookings.createdAt));
+    const [allCentres, allFarmers] = await Promise.all([
+      db.select().from(procurementCentres),
+      db.select().from(farmers),
+    ]);
+    const centreMap = new Map(allCentres.map(c => [c.id, c.name]));
+    const farmerMap = new Map(allFarmers.map(f => [f.id, f]));
+    const formatted = rows.map(item => {
+      const f = farmerMap.get(item.farmerId);
+      return {
+        id: item.id,
+        transportCode: item.transportCode,
+        farmerId: item.farmerId,
+        farmerName: f?.name || "Farmer details unavailable",
+        farmerCode: f?.farmerCode || "FMR-2026",
+        farmerPhone: f?.phone || "9876543210",
+        vehicleType: item.vehicleType,
+        vehicleName: VEHICLE_CATALOG[item.vehicleType as keyof typeof VEHICLE_CATALOG]?.name || item.vehicleType,
+        pickupVillage: item.pickupVillage,
+        destinationCentreId: item.destinationCentreId,
+        destinationCentreName: centreMap.get(item.destinationCentreId) || "Procurement Centre",
+        scheduledDate: item.scheduledDate,
+        timeSlot: item.timeSlot,
+        estimatedLoadQuintals: Number(item.estimatedLoadQuintals),
+        driverName: item.driverName,
+        driverPhone: item.driverPhone,
+        vehicleNumber: item.vehicleNumber,
+        distanceKm: Number(item.distanceKm),
+        baseFare: Number(item.baseFare),
+        subsidyAmount: Number(item.subsidyAmount),
+        netPayable: Number(item.netPayable),
+        status: item.status,
+        createdAt: item.createdAt,
+      };
+    });
+    return res.json({ transportBookings: formatted });
+  });
+
+  api.put("/officers/transport/:id/status", requireApiAuth, requireRole("HEAD_OFFICER", "LOGISTICS_OFFICER", "PROCUREMENT_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const rawId = String(req.params.id || "").trim();
+    const numId = Number(rawId);
+    const isNumeric = !isNaN(numId) && Number.isInteger(numId) && numId > 0;
+
+    let rawStatus = String(req.body?.status || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+    if (rawStatus === "DELIVERED" || rawStatus === "DELIVERED_AT_MANDI") rawStatus = "DELIVERED_AT_CENTRE";
+    if (rawStatus === "CANCEL") rawStatus = "CANCELLED";
+
+    const validStatuses = ["REQUESTED", "ASSIGNED", "IN_TRANSIT", "DELIVERED_AT_CENTRE", "CANCELLED"] as const;
+    type ValidStatus = typeof validStatuses[number];
+
+    if (!validStatuses.includes(rawStatus as ValidStatus)) {
+      return res.status(400).json({
+        error: "VALIDATION_ERROR",
+        message: `Invalid status '${req.body?.status}'. Allowed values: ${validStatuses.join(", ")}.`,
+      });
+    }
+
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const existing = (
+      await db
+        .select()
+        .from(transportBookings)
+        .where(
+          isNumeric
+            ? or(eq(transportBookings.id, numId), eq(transportBookings.transportCode, rawId))
+            : eq(transportBookings.transportCode, rawId)
+        )
+        .limit(1)
+    )[0];
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "TRANSPORT_NOT_FOUND",
+        message: `Transportation booking '${rawId}' was not found.`,
+      });
+    }
+
+    const updateValues: Partial<typeof transportBookings.$inferInsert> = {
+      status: rawStatus as ValidStatus,
+      updatedAt: new Date(),
+    };
+    if (req.body?.driverName && typeof req.body.driverName === "string") {
+      updateValues.driverName = req.body.driverName.trim();
+    }
+    if (req.body?.driverPhone && typeof req.body.driverPhone === "string") {
+      updateValues.driverPhone = req.body.driverPhone.trim();
+    }
+    if (req.body?.vehicleNumber && typeof req.body.vehicleNumber === "string") {
+      updateValues.vehicleNumber = req.body.vehicleNumber.trim();
+    }
+
+    await db.update(transportBookings).set(updateValues).where(eq(transportBookings.id, existing.id));
+    const updated = (
+      await db.select().from(transportBookings).where(eq(transportBookings.id, existing.id)).limit(1)
+    )[0];
+
+    // State-based trigger: when transport is DELIVERED_AT_CENTRE, advance linked booking to QC queue
+    if (rawStatus === "DELIVERED_AT_CENTRE") {
+      try {
+        let linkedBookingId = existing.bookingId;
+        if (!linkedBookingId) {
+          const activeBooking = (
+            await db
+              .select()
+              .from(bookings)
+              .where(and(eq(bookings.farmerId, existing.farmerId), eq(bookings.status, "ACTIVE")))
+              .orderBy(desc(bookings.createdAt))
+              .limit(1)
+          )[0];
+          if (activeBooking) linkedBookingId = activeBooking.id;
+        }
+
+        if (linkedBookingId) {
+          await db
+            .update(procurements)
+            .set({ status: "QUALITY_CHECK", updatedAt: new Date() })
+            .where(eq(procurements.bookingId, linkedBookingId));
+
+          await db
+            .update(queueEntries)
+            .set({ status: "CALLED", estimatedWaitMinutes: 0, updatedAt: new Date() })
+            .where(eq(queueEntries.bookingId, linkedBookingId));
+        }
+      } catch (triggerErr) {
+        console.error("Error triggering QC transition on transport delivery:", triggerErr);
+      }
+    }
+
+    let notificationSent = false;
+    try {
+      const readableStatus = (rawStatus || "").replaceAll("_", " ");
+      const isDelivered = rawStatus === "DELIVERED_AT_CENTRE";
+      await db.insert(notifications).values({
+        farmerId: existing.farmerId,
+        title: isDelivered ? "Crop Delivered at Mandi" : "Logistics Status Updated",
+        message: isDelivered
+          ? `Your transport booking ${existing.transportCode} status is now DELIVERED AT CENTRE and is now queued for Quality Control inspection.`
+          : `Your transport booking ${existing.transportCode} status is now ${readableStatus}.`,
+        category: "TRANSPORT",
+      });
+      notificationSent = true;
+    } catch (notifErr) {
+      console.error("Failed to create farmer notification for transport update:", notifErr);
+    }
+
+    try {
+      if (req.principal?.id) {
+        const officerId = Number(req.principal.id);
+        if (!isNaN(officerId) && officerId > 0) {
+          await db.insert(staffAuditLogs).values({
+            performedByOfficerId: officerId,
+            performedByOfficerName: req.principal.name || "Logistics Officer",
+            targetOfficerId: null,
+            targetOfficerName: null,
+            action: "UPDATE_TRANSPORT_STATUS",
+            details: `Updated transport ${existing.transportCode} status from ${existing.status} to ${rawStatus}.`,
+          });
+        }
+      }
+    } catch {}
+
+    return res.json({
+      message: `Transport status updated to ${(rawStatus || "").replaceAll("_", " ")}.`,
+      success: true,
+      notificationSent,
+      transport: updated,
+    });
+  });
+
+  api.put("/officers/procurement/:bookingId/qc-inspection", requireApiAuth, requireRole("HEAD_OFFICER", "QUALITY_CONTROL_INSPECTOR", "PROCUREMENT_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.bookingId);
+    const input = respondValidation(res, z.object({
+      qualityGrade: z.string().trim().min(1).max(64),
+      qcResult: z.enum(["ACCEPTED", "REJECTED", "HOLD"]).optional(),
+      qcStatus: z.enum(["ACCEPTED", "REJECTED", "HOLD"]).optional(),
+      weighedQuantityQuintals: z.coerce.number().positive(),
+      moisturePercent: z.coerce.number().min(0).max(40).optional(),
+      moistureContent: z.coerce.number().min(0).max(40).optional(),
+      foreignMatterPercent: z.coerce.number().min(0).max(20).optional(),
+      remarks: z.string().trim().max(500).optional(),
+    }), req.body);
+    if (!id.success || !input) return;
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const context = await getBookingContext(id.data);
+    if (!context) return res.status(404).json({ error: "BOOKING_NOT_FOUND" });
+
+    const qcResult = input.qcResult || input.qcStatus || "ACCEPTED";
+    const nextProcurementStatus: "QUALITY_CHECK" | "PROCESSING" = "QUALITY_CHECK";
+    if (qcResult === "REJECTED") {
+      await db.update(bookings).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(bookings.id, context.booking.id));
+    }
+
+    await db.update(procurements).set({
+      status: nextProcurementStatus,
+      weighedQuantityQuintals: input.weighedQuantityQuintals.toFixed(2),
+      qualityGrade: input.qualityGrade,
+      updatedAt: new Date(),
+    }).where(eq(procurements.bookingId, context.booking.id));
+
+    await db.insert(notifications).values({
+      farmerId: context.farmer.id,
+      title: `Quality Inspection: ${qcResult}`,
+      message: `Crop inspection completed at ${context.centre.name}. Grade: ${input.qualityGrade}, Weighed: ${input.weighedQuantityQuintals} Quintals. Status: ${qcResult}. ${input.remarks ? `Note: ${input.remarks}` : ""}`,
+      category: "PROCUREMENT",
+    });
+
+    return res.json({
+      message: "Quality control inspection submitted successfully.",
+      bookingId: context.booking.id,
+      qcResult,
+      qualityGrade: input.qualityGrade,
+      weighedQuantityQuintals: input.weighedQuantityQuintals,
+    });
+  });
+
+  api.post("/officers/procurement/:bookingId/payout", requireApiAuth, requireRole("HEAD_OFFICER", "PAYMENT_OFFICER", "PROCUREMENT_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.bookingId);
+    if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const context = await getBookingContext(id.data);
+    if (!context) return res.status(404).json({ error: "BOOKING_NOT_FOUND" });
+
+    const existingSuccessful = (await db.select().from(payments).where(and(eq(payments.bookingId, context.booking.id), eq(payments.status, "SUCCESS"))).limit(1))[0];
+    if (existingSuccessful) {
+      return res.status(409).json({ error: "PAYMENT_ALREADY_SUCCESSFUL", message: "Procurement payout has already been disbursed for this booking.", payment: paymentView(existingSuccessful) });
+    }
+
+    const qty = context.procurement?.weighedQuantityQuintals ? Number(context.procurement.weighedQuantityQuintals) : Number(context.booking.expectedQuantityQuintals);
+
+    // Look up exact MSP rate from cropPrices table
+    const allPrices = await db.select().from(cropPrices);
+    const varietyLower = (context.booking.paddyVariety || "").toLowerCase();
+    const matchedCrop = allPrices.find(p =>
+      varietyLower.includes((p.variety || "").toLowerCase()) ||
+      varietyLower.includes((p.cropName || "").toLowerCase()) ||
+      (p.variety || "").toLowerCase().includes(varietyLower) ||
+      (p.cropName || "").toLowerCase().includes(varietyLower)
+    );
+
+    const mspPrice = matchedCrop ? {
+      mspPerQuintal: Number(matchedCrop.mspPerQuintal),
+      govtBonusPerQuintal: Number(matchedCrop.govtBonusPerQuintal || 0),
+    } : undefined;
+
+    const quote = createPrototypePaymentQuote(context.booking.paddyVariety, qty, mspPrice);
+    const paymentId = `PAY-DBT-${Date.now().toString().slice(-8)}`;
+    const txRef = `DBT-AP-GOVT-${Date.now().toString().slice(-9)}`;
+    const rcpNo = `RCP-${Date.now().toString().slice(-9)}`;
+
+    await db.insert(payments).values({
+      bookingId: context.booking.id,
+      paymentCode: paymentId,
+      transactionReference: txRef,
+      receiptNumber: rcpNo,
+      amount: quote.demoPayable.toFixed(2),
+      method: "NET_BANKING",
+      gateway: "GOVT_DBT_DIRECT_CREDIT",
+      status: "SUCCESS",
+      isDemo: 1,
+      completedAt: new Date(),
+      processedAt: new Date(),
+    });
+
+    await db.update(procurements).set({ status: "COMPLETED", updatedAt: new Date() }).where(eq(procurements.bookingId, context.booking.id));
+    await db.update(bookings).set({ status: "COMPLETED", updatedAt: new Date() }).where(eq(bookings.id, context.booking.id));
+    if (context.queue) {
+      await db.update(queueEntries).set({ status: "SERVED", estimatedWaitMinutes: 0, updatedAt: new Date() }).where(eq(queueEntries.bookingId, context.booking.id));
+    }
+
+    const createdPayment = (await db.select().from(payments).where(eq(payments.paymentCode, paymentId)).limit(1))[0];
+
+    await db.insert(notifications).values({
+      farmerId: context.farmer.id,
+      title: "Procurement Payment Credited (DBT)",
+      message: `₹${quote.demoPayable.toLocaleString("en-IN")} credited directly to your bank account for booking ${context.booking.bookingCode}. Ref: ${txRef}.`,
+      category: "PAYMENT",
+    });
+
+    return res.status(201).json({
+      message: "Procurement DBT payout initiated and credited successfully.",
+      payment: paymentView(createdPayment),
+      amount: quote.demoPayable,
+    });
   });
 
   // ==========================================
@@ -1149,6 +1982,13 @@ export function createProcurementApi() {
       weather: report,
       availableDistricts,
       lastUpdated: new Date().toISOString(),
+    });
+  });
+
+  api.use("*", (req, res) => {
+    res.status(404).json({
+      error: "NOT_FOUND",
+      message: `API endpoint ${req.method} ${req.originalUrl || req.url} was not found on this server.`,
     });
   });
 

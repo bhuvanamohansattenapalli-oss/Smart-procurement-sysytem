@@ -60,9 +60,89 @@ async function seedDatabase(): Promise<void> {
     await db.insert(cropPrices).values(prototypeCropPrices);
   }
 
-  const existingOfficer = await db.select().from(officers).where(eq(officers.officerCode, "OFF-NZM-104")).limit(1);
-  if (!existingOfficer[0]) {
-    await db.insert(officers).values({ officerCode: "OFF-NZM-104", name: "K. Venkata Rao (Officer)", passwordHash: hashPassword("Officer@2026"), district: "Guntur" });
+  const seededOfficers = [
+    {
+      officerCode: "OFF-NZM-104",
+      employeeId: "EMP-HO-104",
+      name: "K. Venkata Rao (Head Officer)",
+      email: "head.officer@smartprocure.gov.in",
+      phone: "9848012345",
+      passwordHash: hashPassword("Officer@2026"),
+      role: "HEAD_OFFICER" as const,
+      department: "Administration",
+      designation: "Chief District Procurement Officer",
+      branch: "Guntur",
+      district: "Guntur",
+      status: "ACTIVE" as const,
+      mustChangePassword: 0,
+    },
+    {
+      officerCode: "QC-2026-4892",
+      employeeId: "EMP-QC-4892",
+      name: "Dr. S. Madhavan",
+      email: "qc.madhavan@smartprocure.gov.in",
+      phone: "9848012346",
+      passwordHash: hashPassword("Officer@2026"),
+      role: "QUALITY_CONTROL_INSPECTOR" as const,
+      department: "Quality Assurance & Lab",
+      designation: "Chief Quality Inspector",
+      branch: "Guntur Agricultural Market Yard",
+      district: "Guntur",
+      status: "ACTIVE" as const,
+      mustChangePassword: 0,
+    },
+    {
+      officerCode: "LOG-2026-1042",
+      employeeId: "EMP-LOG-1042",
+      name: "B. Prabhakar Reddy",
+      email: "logistics.prabhakar@smartprocure.gov.in",
+      phone: "9848012347",
+      passwordHash: hashPassword("Officer@2026"),
+      role: "LOGISTICS_OFFICER" as const,
+      department: "Logistics & Transportation",
+      designation: "District Fleet Coordinator",
+      branch: "Guntur Transport Hub",
+      district: "Guntur",
+      status: "ACTIVE" as const,
+      mustChangePassword: 0,
+    },
+    {
+      officerCode: "PAY-2026-9041",
+      employeeId: "EMP-PAY-9041",
+      name: "N. Anjaneyulu",
+      email: "finance.anjaneyulu@smartprocure.gov.in",
+      phone: "9848012348",
+      passwordHash: hashPassword("Officer@2026"),
+      role: "PAYMENT_OFFICER" as const,
+      department: "Finance & Accounts (DBT)",
+      designation: "Senior Treasury Officer",
+      branch: "Guntur",
+      district: "Guntur",
+      status: "ACTIVE" as const,
+      mustChangePassword: 0,
+    },
+    {
+      officerCode: "PO-2026-3391",
+      employeeId: "EMP-PO-3391",
+      name: "T. Rajasekhar",
+      email: "mandi.rajasekhar@smartprocure.gov.in",
+      phone: "9848012349",
+      passwordHash: hashPassword("Officer@2026"),
+      role: "PROCUREMENT_OFFICER" as const,
+      department: "Mandi Operations",
+      designation: "Procurement Yard Officer",
+      branch: "Guntur Agricultural Market Yard",
+      district: "Guntur",
+      status: "ACTIVE" as const,
+      mustChangePassword: 0,
+    },
+  ];
+
+  for (const off of seededOfficers) {
+    const existingOfficer = await db.select({ id: officers.id }).from(officers).where(eq(officers.officerCode, off.officerCode)).limit(1);
+    if (!existingOfficer[0]) {
+      await db.insert(officers).values(off);
+    }
   }
 
   const existingCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres).limit(1);
@@ -83,14 +163,14 @@ async function seedDatabase(): Promise<void> {
 
   const additionalPrototypeFarmers = [
     { farmerCode: "FMR-2026-11843", name: "Lakshmi Devi", phone: "9876543211", passwordHash: hashPassword("Farmer@2026"), village: "Tenali", district: "Guntur", primaryCrop: "Paddy", status: "APPROVED" as const },
-    { farmerCode: "FMR-2026-11844", name: "Srinivas Rao", phone: "9876543212", passwordHash: hashPassword("Farmer@2026"), village: "Tadepalle", district: "Guntur", primaryCrop: "Paddy", status: "PENDING" as const },
+    { farmerCode: "FMR-2026-11844", name: "Srinivas Rao", phone: "9876543212", passwordHash: hashPassword("Farmer@2026"), village: "Tadepalle", district: "Guntur", primaryCrop: "Paddy", status: "APPROVED" as const },
   ];
   for (const prototypeFarmer of additionalPrototypeFarmers) {
     const exists = await db.select({ id: farmers.id }).from(farmers).where(eq(farmers.phone, prototypeFarmer.phone)).limit(1);
     if (!exists[0]) {
       await db.insert(farmers).values(prototypeFarmer);
       const created = (await db.select({ id: farmers.id }).from(farmers).where(eq(farmers.phone, prototypeFarmer.phone)).limit(1))[0];
-      if (created) await db.insert(registrations).values({ farmerId: created.id, aadhaarMasked: "XXXX XXXX 2194", declarationAccepted: 1, status: prototypeFarmer.status });
+      if (created) await db.insert(registrations).values({ farmerId: created.id, aadhaarMasked: "XXXX XXXX 2194", declarationAccepted: 1, status: "APPROVED" });
     }
   }
 
@@ -100,41 +180,49 @@ async function seedDatabase(): Promise<void> {
     await db.insert(registrations).values({ farmerId: farmer.id, aadhaarMasked: "XXXX XXXX 4512", declarationAccepted: 1, status: "APPROVED", reviewedByOfficerId: officer?.id, reviewedAt: new Date() });
   }
 
-  const existingBooking = await db.select().from(bookings).where(and(eq(bookings.farmerId, farmer.id), eq(bookings.status, "ACTIVE"))).limit(1);
-  if (!existingBooking[0]) {
-    const centre = (await db.select().from(procurementCentres).where(eq(procurementCentres.name, "Guntur Agricultural Market Yard")).limit(1))[0] || (await db.select().from(procurementCentres).limit(1))[0];
-    const slot = centre ? (await db.select().from(slots).where(and(eq(slots.centreId, centre.id), eq(slots.startTime, "10:30"))).limit(1))[0] : undefined;
-    if (centre && slot) {
-      await db.insert(bookings).values({ bookingCode: "BK-2026-7294", farmerId: farmer.id, centreId: centre.id, slotId: slot.id, paddyVariety: "Common paddy", paddyGrade: "Grade A", expectedQuantityQuintals: "18.00", tokenNumber: "P-042", status: "ACTIVE" });
-      const booking = (await db.select().from(bookings).where(eq(bookings.bookingCode, "BK-2026-7294")).limit(1))[0];
-      if (booking) {
-        await db.insert(queueEntries).values({ bookingId: booking.id, centreId: centre.id, position: 18, estimatedWaitMinutes: 35, status: "WAITING" });
-        await db.insert(procurements).values({ bookingId: booking.id, status: "PROCESSING", qualityGrade: "A" });
-      }
-    }
+  const existingTransport = await db.select({ id: transportBookings.id }).from(transportBookings).limit(1);
+  if (!existingTransport[0]) {
+    await db.insert(transportBookings).values([
+      {
+        transportCode: "TR-2026-7160",
+        farmerId: farmer.id,
+        bookingId: null,
+        vehicleType: "TRACTOR_TROLLEY",
+        pickupVillage: "Mangalagiri",
+        destinationCentreId: 1,
+        scheduledDate: "2026-09-04",
+        timeSlot: "Morning (07:00 - 11:00 AM)",
+        estimatedLoadQuintals: "24.00",
+        driverName: "B. Venkatesham",
+        driverPhone: "9440192831",
+        vehicleNumber: "TS-16-TR-4921",
+        distanceKm: "14.00",
+        baseFare: "502.00",
+        subsidyAmount: "150.60",
+        netPayable: "351.40",
+        status: "ASSIGNED",
+      },
+      {
+        transportCode: "TR-2026-4891",
+        farmerId: farmer.id,
+        bookingId: null,
+        vehicleType: "MINI_TRUCK",
+        pickupVillage: "Tenali",
+        destinationCentreId: 1,
+        scheduledDate: "2026-09-04",
+        timeSlot: "Afternoon (12:00 - 04:00 PM)",
+        estimatedLoadQuintals: "35.00",
+        driverName: "K. Mohan Reddy",
+        driverPhone: "9848039218",
+        vehicleNumber: "AP-16-PK-8812",
+        distanceKm: "18.00",
+        baseFare: "746.00",
+        subsidyAmount: "223.80",
+        netPayable: "522.20",
+        status: "REQUESTED",
+      },
+    ]);
   }
 
-  // Seed sample transport booking for demonstration
-  const existingTransport = await db.select().from(transportBookings).where(eq(transportBookings.farmerId, farmer.id)).limit(1);
-  if (!existingTransport[0]) {
-    const centre = (await db.select().from(procurementCentres).where(eq(procurementCentres.name, "Guntur Agricultural Market Yard")).limit(1))[0] || (await db.select().from(procurementCentres).limit(1))[0];
-    await db.insert(transportBookings).values({
-      transportCode: "TR-2026-8812",
-      farmerId: farmer.id,
-      vehicleType: "TRACTOR_TROLLEY",
-      pickupVillage: "Mangalagiri",
-      destinationCentreId: centre?.id || 1,
-      scheduledDate: "2026-03-18",
-      timeSlot: "Morning (07:00 - 11:00 AM)",
-      estimatedLoadQuintals: "18.00",
-      driverName: "B. Venkatesham",
-      driverPhone: "9440192831",
-      vehicleNumber: "AP-07-TR-4921",
-      distanceKm: "12.00",
-      baseFare: "600.00",
-      subsidyAmount: "180.00",
-      netPayable: "420.00",
-      status: "ASSIGNED",
-    });
-  }
 }
+

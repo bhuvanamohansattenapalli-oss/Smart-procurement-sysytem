@@ -275,6 +275,29 @@ describe("Smart Procurement End-to-End Core Workflow", () => {
     expect(transportBookData.transport.vehicleNumber).toBeDefined();
     expect(transportBookData.transport.subsidyAmount).toBeGreaterThan(0);
     expect(transportBookData.transport.netPayable).toBeLessThan(transportBookData.transport.baseFare);
+    const initialTransportCode = transportBookData.transport.transportCode;
+
+    // Idempotency check: Booking with identical parameters immediately returns the existing booking
+    const duplicateBookRes = await fetch(`${baseUrl}/transport/book`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${farmerToken}`,
+      },
+      body: JSON.stringify({
+        bookingId,
+        vehicleType: "TRACTOR_TROLLEY",
+        pickupVillage: "Ankapur",
+        destinationCentreId: 1,
+        scheduledDate: "2026-03-18",
+        timeSlot: "08:00 AM – 11:00 AM",
+        estimatedLoadQuintals: 20,
+        distanceKm: 12,
+      }),
+    });
+    expect(duplicateBookRes.status).toBe(200);
+    const duplicateBookData = await duplicateBookRes.json();
+    expect(duplicateBookData.transport.transportCode).toBe(initialTransportCode);
 
     // 18. Farmer retrieves transport history
     const farmerTransportsRes = await fetch(`${baseUrl}/farmers/${newFarmerId}/transport`, {
@@ -282,9 +305,81 @@ describe("Smart Procurement End-to-End Core Workflow", () => {
     });
     expect(farmerTransportsRes.status).toBe(200);
     const farmerTransportsData = await farmerTransportsRes.json();
-    expect(farmerTransportsData.transportBookings.length).toBeGreaterThanOrEqual(1);
+    expect(farmerTransportsData.transportBookings.length).toBe(1);
 
-    // 19. Dedicated Farmer Analytics
+    // 19. Officer Quality Control Department Inspection & DBT Payout Flow on second booking
+    const booking2Res = await fetch(`${baseUrl}/bookings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${farmerToken}`,
+      },
+      body: JSON.stringify({
+        centreId: 1,
+        slotId: slotsData.slots[1]?.id || slotToBook.id,
+        paddyVariety: "BPT 5204 (Samba Mahsuri)",
+        paddyGrade: "Grade A Fine",
+        expectedQuantityQuintals: 25,
+      }),
+    });
+    expect(booking2Res.status).toBe(201);
+    const booking2Data = await booking2Res.json();
+    const booking2Id = booking2Data.booking.id;
+
+    const qcInspectRes = await fetch(`${baseUrl}/officers/procurement/${booking2Id}/qc-inspection`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${officerToken}`,
+      },
+      body: JSON.stringify({
+        qualityGrade: "Grade A Fine (FAQ)",
+        qcResult: "ACCEPTED",
+        weighedQuantityQuintals: 25.0,
+        moisturePercent: 14.5,
+        foreignMatterPercent: 0.8,
+        remarks: "Sample meets Fair Average Quality standards with optimal moisture content.",
+      }),
+    });
+    expect(qcInspectRes.status).toBe(200);
+    const qcInspectData = await qcInspectRes.json();
+    expect(qcInspectData.qcResult).toBe("ACCEPTED");
+    expect(qcInspectData.qualityGrade).toBe("Grade A Fine (FAQ)");
+
+    // 20. Officer initiates Direct Bank Transfer (DBT) Payout for Farmer
+    const payoutRes = await fetch(`${baseUrl}/officers/procurement/${booking2Id}/payout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${officerToken}`,
+      },
+    });
+    expect(payoutRes.status).toBe(201);
+    const payoutData = await payoutRes.json();
+    expect(payoutData.payment.status).toBe("SUCCESS");
+    expect(payoutData.amount).toBeGreaterThan(0);
+
+    // 21. Officer Logistics & Fleet Management
+    const officerFleetRes = await fetch(`${baseUrl}/officers/transport`, {
+      headers: { Authorization: `Bearer ${officerToken}` },
+    });
+    expect(officerFleetRes.status).toBe(200);
+    const officerFleetData = await officerFleetRes.json();
+    expect(officerFleetData.transportBookings.some((t: any) => t.transportCode === initialTransportCode)).toBe(true);
+
+    const updateFleetRes = await fetch(`${baseUrl}/officers/transport/${transportBookData.transport.id}/status`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${officerToken}`,
+      },
+      body: JSON.stringify({
+        status: "DELIVERED_AT_CENTRE",
+      }),
+    });
+    expect(updateFleetRes.status).toBe(200);
+
+    // 22. Dedicated Farmer Analytics
     const farmerAnalyticsRes = await fetch(`${baseUrl}/analytics/farmer`, {
       headers: { Authorization: `Bearer ${farmerToken}` },
     });
@@ -294,5 +389,13 @@ describe("Smart Procurement End-to-End Core Workflow", () => {
     expect(farmerAnalyticsData.summary.priceRealizationPercent).toBeGreaterThan(0);
     expect(farmerAnalyticsData.cropBreakdown.length).toBeGreaterThanOrEqual(1);
     expect(farmerAnalyticsData.recentProcurements.length).toBeGreaterThanOrEqual(1);
+
+    // 23. Verify pending registrations is now empty
+    const finalPendingRes = await fetch(`${baseUrl}/officers/registrations/pending`, {
+      headers: { Authorization: `Bearer ${officerToken}` },
+    });
+    expect(finalPendingRes.status).toBe(200);
+    const finalPendingData = await finalPendingRes.json();
+    expect(finalPendingData.registrations).toEqual([]);
   });
 });

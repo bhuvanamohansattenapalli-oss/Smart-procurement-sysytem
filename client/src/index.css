@@ -312,6 +312,497 @@
   cursor: pointer;
 }
 
+.top-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.top-logout-btn:hover {
+  background: #fecaca;
+  color: #7f1d1d;
+  transform: translateY(-1px);
+}
+
+/* Compact Language Dropdown & Farmer Profile Dropdown Header System */
+.desktop-status-bar {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  height: 66px;
+  padding: 0 32px;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid #e5ebe4;
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 25;
+}
+
+.desktop-status-bar .header-left,
+.mobile-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.desktop-status-bar .header-right,
+.mobile-header .header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid #e5ebe4;
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 25;
+}
+
+.mobile-nav-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #edf5ef;
+  color: #176b4a;
+  border: 1px solid #cce2d3;
+  cursor: pointer;
+}
+
+/* Language Dropdown */
+.language-dropdown-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.language-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: #ffffff;
+  border: 1.5px solid #d4e2d8;
+  border-radius: 10px;
+  color: #244637;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.16s ease;
+}
+
+.language-dropdown-btn:hover {
+  background: #f4faf6;
+  border-color: #1e7b52;
+  color: #1e7b52;
+}
+
+.lang-globe-icon {
+  color: #1e7b52;
+}
+
+.lang-active-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #e2f0e6;
+  color: #176b4a;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.lang-arrow {
+  color: #728a7c;
+  transition: transform 0.2s ease;
+}
+
+.lang-arrow.open {
+  transform: rotate(180deg);
+}
+
+.language-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #d4e2d8;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(18, 56, 38, 0.14);
+  padding: 6px;
+  z-index: 50;
+  animation: dropdown-pop 0.15s ease-out;
+}
+
+.language-dropdown-panel::-webkit-scrollbar {
+  width: 5px;
+}
+.language-dropdown-panel::-webkit-scrollbar-thumb {
+  background: #c3d9cb;
+  border-radius: 4px;
+}
+
+.language-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  text-align: left;
+  background: transparent;
+  color: #375344;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.language-option:hover {
+  background: #f0f7f2;
+  color: #1e7b52;
+}
+
+.language-option.selected {
+  background: #e6f4ea;
+  color: #13633e;
+  font-weight: 700;
+}
+
+.lang-opt-labels {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lang-native-text {
+  font-size: 12px;
+}
+
+.lang-english-text {
+  font-size: 10px;
+  color: #758b7e;
+}
+
+.lang-check-icon {
+  color: #1e7b52;
+}
+
+/* Farmer Profile Dropdown */
+.profile-dropdown-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.profile-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 12px 4px 5px;
+  background: #ffffff;
+  border: 1.5px solid #d4e2d8;
+  border-radius: 999px;
+  color: #244637;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.16s ease;
+}
+
+.profile-dropdown-trigger:hover {
+  background: #f4faf6;
+  border-color: #1e7b52;
+}
+
+.profile-avatar-circle {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #d8eee0;
+  color: #176b4a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.profile-trigger-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-arrow {
+  color: #728a7c;
+  transition: transform 0.2s ease;
+}
+
+.profile-arrow.open {
+  transform: rotate(180deg);
+}
+
+.profile-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid #d4e2d8;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(18, 56, 38, 0.14);
+  padding: 10px;
+  z-index: 50;
+  animation: dropdown-pop 0.15s ease-out;
+}
+
+.profile-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 8px;
+}
+
+.profile-panel-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #d8eee0;
+  color: #176b4a;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.profile-panel-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-panel-name {
+  font-size: 13px;
+  color: #1b3d2f;
+  font-weight: 800;
+}
+
+.profile-panel-code {
+  font-size: 10px;
+  color: #70867a;
+  font-weight: 600;
+}
+
+.profile-panel-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  color: #176b4a;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.profile-panel-divider {
+  margin: 6px 0;
+  border: 0;
+  border-top: 1px solid #edf2ed;
+}
+
+.profile-panel-action {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  text-align: left;
+  background: transparent;
+  color: #375344;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.profile-panel-action:hover {
+  background: #f0f7f2;
+  color: #1e7b52;
+}
+
+.profile-panel-action.logout-action {
+  color: #b91c1c;
+}
+
+.profile-panel-action.logout-action:hover {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Slot Booking Free ₹0 Banner */
+.slot-fee-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 20px;
+  margin: 14px 20px;
+  background: #f0f7f2;
+  border: 1px solid #cbe4d3;
+  border-radius: 12px;
+}
+
+.fee-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.fee-text {
+  color: #4a6657;
+  font-weight: 600;
+}
+
+.fee-free-text {
+  color: #166534;
+  background: #dcfce7;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.fee-total-line {
+  padding-top: 6px;
+  border-top: 1px dashed #cadfd1;
+}
+
+.fee-zero-text {
+  color: #15803d;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* Payment Direct Benefit Transfer Credit Card & Payout UI */
+.payment-credit-highlight-card {
+  background: linear-gradient(135deg, #f0fbf4 0%, #e2f5e9 100%);
+  border: 1.5px solid #b7e3c5;
+  border-radius: 18px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 18px rgba(22, 101, 52, 0.06);
+}
+
+.credit-highlight-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.credit-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.payout-type-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #15803d;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.credit-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b4d34;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.credit-amount {
+  font-size: 38px;
+  font-weight: 900;
+  color: #14532d;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-bank-note {
+  font-size: 13px;
+  color: #276749;
+  margin-top: 4px;
+}
+
+.credit-details-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid #c5e6d0;
+}
+
+.credit-details-strip div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.credit-details-strip small {
+  font-size: 10px;
+  font-weight: 800;
+  color: #527964;
+  letter-spacing: 0.06em;
+}
+
+.credit-details-strip b {
+  font-size: 13px;
+  font-weight: 700;
+  color: #183e2b;
+}
+
+@keyframes dropdown-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
 @media (min-width: 901px) {
   .mobile-header { display: none !important; }
@@ -319,3 +810,4 @@
 @media (max-width: 900px) {
   .desktop-status-bar { display: none !important; }
 }
+

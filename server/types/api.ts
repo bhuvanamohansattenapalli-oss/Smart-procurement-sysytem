@@ -1,10 +1,30 @@
 import type { Request } from "express";
 
-export type ApiRole = "farmer" | "officer";
+export type ApiRole =
+  | "farmer"
+  | "officer"
+  | "HEAD_OFFICER"
+  | "PROCUREMENT_OFFICER"
+  | "QUALITY_CONTROL_INSPECTOR"
+  | "LOGISTICS_OFFICER"
+  | "PAYMENT_OFFICER";
+
+export type StaffRole =
+  | "HEAD_OFFICER"
+  | "PROCUREMENT_OFFICER"
+  | "QUALITY_CONTROL_INSPECTOR"
+  | "LOGISTICS_OFFICER"
+  | "PAYMENT_OFFICER";
 
 export type ApiPrincipal = {
   id: number;
-  role: ApiRole;
+  role: "farmer" | "officer";
+  staffRole?: StaffRole;
+  department?: string;
+  designation?: string;
+  branch?: string;
+  centreId?: number;
+  centreName?: string;
   code: string;
   name: string;
   district?: string;
