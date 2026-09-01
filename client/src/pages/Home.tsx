@@ -4,6 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   BarChart3,
@@ -623,6 +624,9 @@ export default function Home() {
   const [selectedSlot, setSelectedSlot] = useState("10:30 – 11:00 AM");
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
   const [backendSlots, setBackendSlots] = useState<BackendSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [bookingCropCategory, setBookingCropCategory] = useState<string>("ALL");
+  const [expectedQuantity, setExpectedQuantity] = useState<number>(18);
   const [paymentDone, setPaymentDone] = useState(false);
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [queueAhead, setQueueAhead] = useState(18);
@@ -1263,6 +1267,7 @@ export default function Home() {
   }, []);
 
   const loadCentreSlots = async (centreId: number, dateStr?: string) => {
+    setSlotsLoading(true);
     try {
       const url = dateStr ? apiUrl(`/centres/${centreId}/slots?date=${encodeURIComponent(dateStr)}`) : apiUrl(`/centres/${centreId}/slots`);
       const response = await fetch(url);
@@ -1276,7 +1281,11 @@ export default function Home() {
           setSelectedSlot(`${firstAvailable.startTime} – ${firstAvailable.endTime}`);
         }
       }
-    } catch {}
+    } catch (err) {
+      console.error("Failed to load centre slots:", err);
+    } finally {
+      setSlotsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -2009,7 +2018,7 @@ export default function Home() {
           slotId: slotIdToUse,
           paddyVariety: paddyVariety || "Common paddy",
           paddyGrade: paddyGrade ?? "Grade A",
-          expectedQuantityQuintals: 18,
+          expectedQuantityQuintals: expectedQuantity || 18,
         }),
       });
       const data = await response.json();
@@ -2580,7 +2589,151 @@ export default function Home() {
     </>
   );
 
-  const paddy = farmerShell(<><SectionTitle eyebrow="NEW PROCUREMENT BOOKING" title={t.bookingTitle} body={t.bookingBody} /><div className="booking-layout"><div><StepTrack current={1}/><div className="choice-grid paddy-grid">{[["Common paddy", "Grade A", "₹2,300 / quintal", "Uniform grain, ready for standard procurement"], ["Fine paddy", "Grade B", "₹2,203 / quintal", "Select for premium local varieties"], ["Parboiled paddy", "Grade A", "₹2,320 / quintal", "Moisture checked and prepared"]].map(([name, grade, price, desc], index) => <button key={name} onClick={() => setSelectedPaddy(`${name} — ${grade}`)} className={`paddy-choice ${selectedPaddy.includes(name) ? "selected" : ""}`}><span className={`grain-art g${index + 1}`}><Wheat /></span><div><Pill kind={index === 1 ? "blue" : "green"}>{grade}</Pill><h3>{name}</h3><p>{desc}</p><b>{price}</b></div><span className="select-ring">{selectedPaddy.includes(name) && <Check />}</span></button>)}</div><article className="quantity-card"><div><span><Tractor /></span><div><h3>Expected quantity</h3><p>We use this only to plan the centre capacity.</p></div></div><div className="quantity-control"><button onClick={() => toast.message("Quantity set for standard load.")}>−</button><b>18 <small>quintals</small></b><button onClick={() => toast.message("Quantity set for standard load.")}>+</button></div></article><div className="page-actions"><ActionButton onClick={() => navigate("dashboard")} secondary icon={ArrowLeft}>Save for later</ActionButton><ActionButton onClick={() => navigate("centres")} icon={ArrowRight}>Choose a centre</ActionButton></div></div><aside className="booking-aside"><Pill kind="yellow">BOOKING TIP</Pill><h3>Good selection means a smoother morning.</h3><p>You will see the current queue and available capacity before choosing your centre.</p><div className="tip-line"><MapPin /> Centre availability updates live from the server.</div></aside></div></>);
+  const bookingCrops = useMemo(() => {
+    const list = cropPricesList.length > 0 ? cropPricesList : [
+      { id: 1, cropName: "Paddy (Common)", variety: "Standard / MTU 1010", category: "Cereals", mspPerQuintal: 2300, effectiveRatePerQuintal: 2300, govtBonusPerQuintal: 0, maxMoisturePercent: 17 },
+      { id: 2, cropName: "Paddy (Grade A)", variety: "Grade A / BPT 5204", category: "Cereals", mspPerQuintal: 2320, effectiveRatePerQuintal: 2370, govtBonusPerQuintal: 50, maxMoisturePercent: 17 },
+      { id: 3, cropName: "Paddy (Parboiled)", variety: "Boiled Grade A", category: "Cereals", mspPerQuintal: 2320, effectiveRatePerQuintal: 2350, govtBonusPerQuintal: 30, maxMoisturePercent: 15 },
+      { id: 4, cropName: "Wheat (Gehun)", variety: "Kalyan Sona / Sharbati", category: "Cereals", mspPerQuintal: 2275, effectiveRatePerQuintal: 2275, govtBonusPerQuintal: 0, maxMoisturePercent: 12 },
+      { id: 5, cropName: "Maize (Makka)", variety: "Hybrid Yellow", category: "Coarse Cereals", mspPerQuintal: 2225, effectiveRatePerQuintal: 2225, govtBonusPerQuintal: 0, maxMoisturePercent: 14 },
+      { id: 6, cropName: "Cotton (Long Staple)", variety: "BT Cotton / DCH-32", category: "Commercial", mspPerQuintal: 7521, effectiveRatePerQuintal: 7521, govtBonusPerQuintal: 0, maxMoisturePercent: 8 },
+    ];
+    if (bookingCropCategory === "ALL") return list;
+    return list.filter(c => (c.category || "").toLowerCase() === bookingCropCategory.toLowerCase());
+  }, [cropPricesList, bookingCropCategory]);
+
+  const selectedCropRecord = useMemo(() => {
+    return cropPricesList.find(c => selectedPaddy.includes(c.cropName) || `${c.cropName} — ${c.variety}` === selectedPaddy) ?? cropPricesList[0];
+  }, [cropPricesList, selectedPaddy]);
+
+  const paddy = farmerShell(
+    <>
+      <SectionTitle
+        eyebrow="NEW PROCUREMENT BOOKING"
+        title={t.bookingTitle}
+        body="Select your harvested crop type, variety, and expected quantity for government MSP procurement."
+      />
+      <div className="booking-layout">
+        <div>
+          <StepTrack current={1} />
+
+          {/* Category Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-4 text-xs font-semibold scrollbar-none">
+            {["ALL", "Cereals", "Coarse Cereals", "Pulses", "Oilseeds", "Commercial"].map(cat => (
+              <button
+                type="button"
+                key={cat}
+                onClick={() => setBookingCropCategory(cat)}
+                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap text-xs ${
+                  bookingCropCategory === cat
+                    ? "bg-emerald-700 text-white font-bold shadow-xs"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                {cat === "ALL" ? "All Crops" : cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="choice-grid paddy-grid">
+            {bookingCrops.map((crop, index) => {
+              const fullLabel = `${crop.cropName} — ${crop.variety}`;
+              const isSelected = selectedPaddy === fullLabel || selectedPaddy.includes(crop.cropName);
+              return (
+                <button
+                  key={crop.id}
+                  type="button"
+                  onClick={() => setSelectedPaddy(fullLabel)}
+                  className={`paddy-choice text-left ${isSelected ? "selected ring-2 ring-emerald-600 bg-emerald-50/50" : ""}`}
+                >
+                  <span className={`grain-art g${(index % 3) + 1}`}>
+                    <Wheat />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Pill kind={crop.category === "Pulses" ? "yellow" : crop.category === "Oilseeds" ? "blue" : "green"}>
+                        {crop.category}
+                      </Pill>
+                      {crop.govtBonusPerQuintal > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          +₹{crop.govtBonusPerQuintal} Bonus
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug">{crop.cropName}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{crop.variety} · Max moisture: {crop.maxMoisturePercent}%</p>
+                    <b className="text-emerald-800 font-extrabold text-sm block mt-1.5">
+                      ₹{crop.effectiveRatePerQuintal.toLocaleString("en-IN")} / quintal
+                    </b>
+                  </div>
+                  <span className="select-ring">
+                    {isSelected && <Check size={14} className="text-emerald-700" />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <article className="quantity-card mt-4">
+            <div>
+              <span><Tractor /></span>
+              <div>
+                <h3>Expected harvest quantity</h3>
+                <p>Used by the mandi to plan daily weighing and yard storage capacity.</p>
+              </div>
+            </div>
+            <div className="quantity-control">
+              <button
+                type="button"
+                onClick={() => setExpectedQuantity(q => Math.max(1, q - 2))}
+              >
+                −
+              </button>
+              <b>{expectedQuantity} <small>quintals</small></b>
+              <button
+                type="button"
+                onClick={() => setExpectedQuantity(q => q + 2)}
+              >
+                +
+              </button>
+            </div>
+          </article>
+
+          <div className="page-actions">
+            <ActionButton onClick={() => navigate("dashboard")} secondary icon={ArrowLeft}>
+              Save for later
+            </ActionButton>
+            <ActionButton onClick={() => navigate("centres")} icon={ArrowRight}>
+              Choose a centre
+            </ActionButton>
+          </div>
+        </div>
+
+        <aside className="booking-aside">
+          <Pill kind="yellow">MSP PROCUREMENT POLICY</Pill>
+          <h3>100% Guaranteed MSP Rates.</h3>
+          <p>Government declared MSP with state bonus credited directly to your bank account via Aadhaar DBT.</p>
+          <div className="tip-line"><ShieldCheck /> Direct Benefit Transfer (DBT) enabled.</div>
+          <div className="tip-line"><MapPin /> Centre availability updates live from server.</div>
+          {selectedCropRecord && (
+            <div className="mt-4 p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase block">Selected Crop Summary</span>
+              <div className="flex justify-between font-bold text-slate-900">
+                <span>{selectedCropRecord.cropName}</span>
+                <span>₹{selectedCropRecord.effectiveRatePerQuintal}/qtl</span>
+              </div>
+              <div className="flex justify-between text-slate-500 text-[11px]">
+                <span>Est. Payout ({expectedQuantity} Qtl):</span>
+                <b className="text-emerald-700 font-bold">
+                  ₹{(expectedQuantity * selectedCropRecord.effectiveRatePerQuintal).toLocaleString("en-IN")}
+                </b>
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
+    </>
+  );
 
   const centresScreen = farmerShell(
     <>
@@ -2679,26 +2832,113 @@ export default function Home() {
 
   const centreDetail = farmerShell(<><button className="back-link" onClick={() => navigate("centres")}><ArrowLeft size={16}/> All centres</button><div className="centre-detail"><section><div className="centre-detail-head"><div><Pill kind={selectedCentre.status === "Open" ? "green" : "yellow"}><span className="pulse-dot" /> {selectedCentre.status}</Pill><h1>{selectedCentre.name}</h1><p><MapPin size={16}/> {selectedCentre.place} · {selectedCentre.distance} from your village</p></div><span className="large-location"><MapPin/></span></div><div className="centre-stat-row"><div><small>CURRENT QUEUE</small><strong>{selectedCentre.queue}</strong><span>farmers waiting</span></div><div><small>ESTIMATED WAIT</small><strong>{selectedCentre.wait}</strong><span>at current speed</span></div><div><small>SLOTS OPEN</small><strong>{selectedCentre.slots}</strong><span>available slots</span></div></div><div className="centre-route-preview"><div className="route-map"><span className="route-source"><Sprout /></span><span className="route-destination"><MapPin /></span><i /></div><div><b>From Muppalapally</b><p>2.4 km · approximately 8 minutes</p></div><button onClick={() => toast.message("Routing map view ready.")}><LocateFixed size={17}/> Route</button></div><section className="centre-notes"><h2>At this centre</h2><div><span><Check /> Weighing facility ready</span><span><Check /> Quality check queue available</span><span><Check /> Document desk open</span></div></section></section><aside><StepTrack current={2}/><Pill kind="blue">YOUR SELECTION</Pill><h3>{selectedPaddy}</h3><p>18 quintals expected</p><hr/><p>Choose a date and slot to hold this centre in your booking.</p><ActionButton onClick={() => navigate("slot")} icon={ArrowRight}>Choose a slot</ActionButton><button onClick={() => navigate("centres")}>Compare another centre</button></aside></div></>);
 
-  const slot = farmerShell(<><SectionTitle eyebrow="RESERVE A TIME" title="Pick the window that fits your day." body={`At ${selectedCentre.name}, these slot capacities are loaded from real backend data.`}/><div className="booking-layout"><div><StepTrack current={3}/><div className="date-picker-row">{["Today, 17 Mar", "Wednesday, 18 March", "Thursday, 19 March", "Friday, 20 March"].map((date, index) => <button onClick={() => { setSelectedDate(date); void loadCentreSlots(selectedCentre.id, date); }} className={selectedDate === date ? "selected" : ""} key={date}><span>{index === 0 ? "TODAY" : index === 1 ? "WED" : index === 2 ? "THU" : "FRI"}</span><b>{17 + index}</b><small>March</small></button>)}</div><h2 className="slot-heading">Available Windows <span>Real backend slot capacity</span></h2><div className="slot-grid">{backendSlots.length > 0 ? backendSlots.map(slotItem => {
-    const isSelected = selectedSlotId === slotItem.id || selectedSlot === `${slotItem.startTime} – ${slotItem.endTime}`;
-    const tone = slotItem.isFull ? "busy" : isSelected ? "selected" : slotItem.available <= 3 ? "busy" : "calm";
-    return (
-      <button
-        disabled={slotItem.isFull}
-        onClick={() => {
-          setSelectedSlotId(slotItem.id);
-          setSelectedSlot(`${slotItem.startTime} – ${slotItem.endTime}`);
-        }}
-        key={slotItem.id}
-        className={`slot-choice ${tone} ${isSelected ? "selected" : ""} ${slotItem.isFull ? "opacity-50 cursor-not-allowed" : ""}`}
-      >
-        <span>{slotItem.startTime} – {slotItem.endTime}</span>
-        <b>{slotItem.bookedCount} booked / {slotItem.capacity} cap</b>
-        <small>{slotItem.isFull ? "Slot full" : `${slotItem.available} slots left`}</small>
-        {isSelected && <i><Check /></i>}
-      </button>
-    );
-  }) : <div className="col-span-full py-4 text-muted-foreground text-center">Loading slots from server...</div>}</div><div className="page-actions"><ActionButton onClick={() => navigate("centre")} secondary icon={ArrowLeft}>Change centre</ActionButton><ActionButton onClick={() => navigate("confirmation")} icon={ArrowRight}>Review booking</ActionButton></div></div><aside className="booking-aside slot-summary"><Pill kind="green">YOUR BOOKING</Pill><h3>{selectedCentre.name}</h3><p>{selectedCentre.distance} from Muppalapally</p><hr/><span><Wheat/> {selectedPaddy}</span><span><CalendarDays/> {selectedDate}</span><span><Clock3/> {selectedSlot}</span><p className="tip-line"><Clock3/> Arrive 10 minutes early for document verification.</p></aside></div></>);
+  const slot = farmerShell(
+    <>
+      <SectionTitle
+        eyebrow="RESERVE A TIME"
+        title="Pick the window that fits your day."
+        body={`At ${selectedCentre.name}, these slot capacities are loaded live from the procurement database.`}
+      />
+      <div className="booking-layout">
+        <div>
+          <StepTrack current={3} />
+          <div className="date-picker-row">
+            {[
+              { label: "Today, 17 Mar", dateStr: "2026-03-17", sub: "TODAY", day: 17 },
+              { label: "Wednesday, 18 March", dateStr: "2026-03-18", sub: "WED", day: 18 },
+              { label: "Thursday, 19 March", dateStr: "2026-03-19", sub: "THU", day: 19 },
+              { label: "Friday, 20 March", dateStr: "2026-03-20", sub: "FRI", day: 20 },
+            ].map(d => (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDate(d.label);
+                  void loadCentreSlots(selectedCentre.id, d.dateStr);
+                }}
+                className={selectedDate === d.label || selectedDate.includes(String(d.day)) ? "selected" : ""}
+                key={d.dateStr}
+              >
+                <span>{d.sub}</span>
+                <b>{d.day}</b>
+                <small>March</small>
+              </button>
+            ))}
+          </div>
+
+          <h2 className="slot-heading flex items-center justify-between">
+            <span>Available Windows</span>
+            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              ● Live Centre Capacity
+            </span>
+          </h2>
+
+          <div className="slot-grid">
+            {slotsLoading ? (
+              <div className="col-span-full py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <div className="inline-block animate-spin rounded-full h-7 w-7 border-2 border-emerald-600 border-t-transparent mb-2" />
+                <p className="text-xs font-bold text-emerald-800">Loading slot availability from server…</p>
+              </div>
+            ) : backendSlots.length > 0 ? (
+              backendSlots.map(slotItem => {
+                const isSelected = selectedSlotId === slotItem.id || selectedSlot === `${slotItem.startTime} – ${slotItem.endTime}`;
+                const isLimited = !slotItem.isFull && slotItem.available <= 5;
+                const tone = slotItem.isFull ? "busy" : isSelected ? "selected" : isLimited ? "busy" : "calm";
+                return (
+                  <button
+                    type="button"
+                    disabled={slotItem.isFull}
+                    onClick={() => {
+                      setSelectedSlotId(slotItem.id);
+                      setSelectedSlot(`${slotItem.startTime} – ${slotItem.endTime}`);
+                    }}
+                    key={slotItem.id}
+                    className={`slot-choice ${tone} ${isSelected ? "selected ring-2 ring-emerald-600" : ""} ${
+                      slotItem.isFull ? "opacity-50 cursor-not-allowed bg-slate-100" : ""
+                    }`}
+                  >
+                    <span className="font-bold text-slate-900 tracking-wide">{slotItem.startTime} – {slotItem.endTime}</span>
+                    <b className="text-xs">{slotItem.available} / {slotItem.capacity} slots available</b>
+                    <div className="mt-1">
+                      {slotItem.isFull ? (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-800 uppercase">FULL</span>
+                      ) : isLimited ? (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 uppercase">LIMITED ({slotItem.available} LEFT)</span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800 uppercase">AVAILABLE</span>
+                      )}
+                    </div>
+                    {isSelected && <i><Check /></i>}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="col-span-full py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p className="text-xs font-bold text-slate-700">No active operational slots for this date.</p>
+                <small className="text-[11px] text-slate-400">Please choose another date or procurement centre.</small>
+              </div>
+            )}
+          </div>
+
+          <div className="page-actions">
+            <ActionButton onClick={() => navigate("centre")} secondary icon={ArrowLeft}>Change centre</ActionButton>
+            <ActionButton onClick={() => navigate("confirmation")} icon={ArrowRight}>Review booking</ActionButton>
+          </div>
+        </div>
+
+        <aside className="booking-aside slot-summary">
+          <Pill kind="green">YOUR BOOKING</Pill>
+          <h3>{selectedCentre.name}</h3>
+          <p>{selectedCentre.distance} from Muppalapally</p>
+          <hr />
+          <span><Wheat /> {selectedPaddy}</span>
+          <span><Tractor /> {expectedQuantity} quintals</span>
+          <span><CalendarDays /> {selectedDate}</span>
+          <span><Clock3 /> {selectedSlot}</span>
+          <p className="tip-line"><Clock3 /> Arrive 10 minutes early for document verification.</p>
+        </aside>
+      </div>
+    </>
+  );
 
   const confirmation = farmerShell(
     <>
@@ -2773,7 +3013,94 @@ export default function Home() {
     </>
   );
 
-  const token = farmerShell(<><SectionTitle eyebrow="BOOKING CONFIRMED" title={t.tokenTitle} body={language === "TE" ? "ఈ స్క్రీన్‌ను సేవ్ చేసి కేంద్రంలో చూపండి." : language === "HI" ? "इस स्क्रीन को सेव करें और केंद्र पर दिखाएँ।" : "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open."}/><div className="token-layout"><section className="token-card"><div className="token-card-head"><AppLogo inverse/><span>PROCUREMENT TOKEN</span></div><div className="token-number"><small>YOUR TOKEN NUMBER</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>{bookingRecord?.slot.date ?? "Wednesday, 18 March"} · {bookingRecord ? `${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : selectedSlot}</span></div><div className="token-card-details"><div><small>CENTRE</small><b>{bookingRecord?.centre.name ?? selectedCentre.name}</b></div><div><small>BOOKING ID</small><b>{bookingRecord?.bookingCode ?? "BK-2026-7294"}</b></div><div><small>FARMER</small><b>{bookingRecord?.farmer.name ?? "Ramesh Kumar"}</b></div><div><small>PADDY</small><b>{bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}</b></div></div><div className="token-qr" style={{ display: "flex", alignItems: "center", gap: 14 }}><QRCodeSvg value={`PROCUREFLOW:${bookingRecord?.tokenNumber ?? "P-042"}|BOOKING:${bookingRecord?.bookingCode ?? "BK-2026-7294"}|FARMER:${profileRecord?.farmerCode ?? "FMR-2026-11842"}|CENTRE:${bookingRecord?.centre?.name ?? selectedCentre.name}`} size={120} /><p>Verified QR pass<br/><b>Scan at verification gate</b></p></div><div className="ticket-corner"/></section><aside className="token-status-card"><Pill kind="yellow"><span className="pulse-dot"/> LIVE ESTIMATE</Pill><h2>{bookingRecord?.queue?.peopleAhead ?? queueAhead} farmers ahead</h2><p>Your connected booking has an estimated <b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} minute</b> wait.</p><div className="token-progress"><span><b>Now</b><small>{bookingRecord?.queue?.currentToken ?? "P-024"}</small></span><Progress value={queueProgress}/><span><b>You</b><small>{bookingRecord?.tokenNumber ?? "P-042"}</small></span></div><ActionButton onClick={() => navigate("queue")} icon={ArrowRight}>Open live queue</ActionButton><button onClick={() => { const copy = `ProcureFlow token ${bookingRecord?.tokenNumber ?? "P-042"}, ${bookingRecord?.bookingCode ?? "BK-2026-7294"}`; navigator.clipboard?.writeText(copy); toast.success("Token details copied."); }}>Copy token details</button></aside></div><section className="token-next"><div><span><CheckCircle2/></span><p><b>Booking saved</b> Your token was generated by the API.</p></div><div><span><Bell/></span><p><b>Notifications on</b> Real-time updates appear in your notification feed.</p></div><div><span><MapPin/></span><p><b>Arrive 10 minutes early</b> Keep your entry smooth.</p></div></section></>);
+  const token = farmerShell(
+    <>
+      <SectionTitle
+        eyebrow="BOOKING CONFIRMED"
+        title={t.tokenTitle}
+        body={language === "TE" ? "ఈ స్క్రీన్‌ను సేవ్ చేసి కేంద్రంలో చూపండి." : language === "HI" ? "इस स्क्रीन को सेव करें और केंद्र पर दिखाएँ।" : "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open."}
+      />
+      <div className="token-layout">
+        <section className="token-card">
+          <div className="token-card-head"><AppLogo inverse/><span>PROCUREMENT TOKEN</span></div>
+          <div className="token-number">
+            <small>YOUR TOKEN NUMBER</small>
+            <strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong>
+            <span>{bookingRecord?.slot.date ?? "Wednesday, 18 March"} · {bookingRecord ? `${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : selectedSlot}</span>
+          </div>
+          <div className="token-card-details">
+            <div><small>CENTRE</small><b>{bookingRecord?.centre.name ?? selectedCentre.name}</b></div>
+            <div><small>BOOKING ID</small><b>{bookingRecord?.bookingCode ?? "BK-2026-7294"}</b></div>
+            <div><small>FARMER</small><b>{bookingRecord?.farmer.name ?? "Ramesh Kumar"}</b></div>
+            <div><small>PADDY / CROP</small><b>{bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}</b></div>
+          </div>
+          <div className="token-qr" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <QRCodeSvg value={`PROCUREFLOW:${bookingRecord?.tokenNumber ?? "P-042"}|BOOKING:${bookingRecord?.bookingCode ?? "BK-2026-7294"}|FARMER:${profileRecord?.farmerCode ?? "FMR-2026-11842"}|CENTRE:${bookingRecord?.centre?.name ?? selectedCentre.name}`} size={120} />
+            <p>Verified QR pass<br/><b>Scan at verification gate</b></p>
+          </div>
+          <div className="ticket-corner"/>
+        </section>
+
+        <aside className="token-status-card">
+          <Pill kind="yellow"><span className="pulse-dot"/> LIVE ESTIMATE</Pill>
+          <h2>{bookingRecord?.queue?.peopleAhead ?? queueAhead} farmers ahead</h2>
+          <p>Your connected booking has an estimated <b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} minute</b> wait.</p>
+          <div className="token-progress">
+            <span><b>Now</b><small>{bookingRecord?.queue?.currentToken ?? "P-024"}</small></span>
+            <Progress value={queueProgress}/>
+            <span><b>You</b><small>{bookingRecord?.tokenNumber ?? "P-042"}</small></span>
+          </div>
+          <ActionButton onClick={() => navigate("queue")} icon={ArrowRight}>Open live queue</ActionButton>
+          <button onClick={() => { const copy = `ProcureFlow token ${bookingRecord?.tokenNumber ?? "P-042"}, ${bookingRecord?.bookingCode ?? "BK-2026-7294"}`; navigator.clipboard?.writeText(copy); toast.success("Token details copied."); }}>
+            Copy token details
+          </button>
+
+          {/* 30-Minute Cancellation Window */}
+          {(() => {
+            const cStatus = getCancellationStatus(bookingRecord?.createdAt);
+            const isCancelled = bookingRecord?.status === "CANCELLED";
+            if (isCancelled) {
+              return (
+                <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5"><AlertTriangle size={15} /> Booking Cancelled</span>
+                  <button onClick={() => navigate("paddy")} className="text-xs text-emerald-800 underline font-bold">Book New Slot</button>
+                </div>
+              );
+            }
+            return (
+              <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="flex items-center gap-1.5 text-xs">
+                    <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-amber-600"} />
+                    {cStatus.expired ? (
+                      <b className="text-slate-500">Cancellation window expired (30m passed)</b>
+                    ) : (
+                      <>Cancellation available for: <b className="text-amber-700 font-mono font-bold">{cStatus.text}</b></>
+                    )}
+                  </span>
+                </div>
+                {!cStatus.expired && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowCancelBookingModal(true)}
+                    className="w-full text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white h-8 rounded-lg mt-1"
+                  >
+                    Cancel Booking
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+        </aside>
+      </div>
+      <section className="token-next">
+        <div><span><CheckCircle2/></span><p><b>Booking saved</b> Your token was generated by the API.</p></div>
+        <div><span><Bell/></span><p><b>Notifications on</b> Real-time updates appear in your notification feed.</p></div>
+        <div><span><MapPin/></span><p><b>Arrive 10 minutes early</b> Keep your entry smooth.</p></div>
+      </section>
+    </>
+  );
 
   const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={language === "TE" ? "ఈ స్క్రీన్ తెరిచి ఉన్నంత వరకు క్యూ ప్రతి పదిహేను సెకన్లకు నవీకరించబడుతుంది." : language === "HI" ? "यह स्क्रीन खुली रहने पर आपकी कतार हर पंद्रह सेकंड में अपडेट होती है।" : "Your connected queue refreshes every fifteen seconds while this screen is open."} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
 
@@ -2787,42 +3114,69 @@ export default function Home() {
         body="Official government DBT payout for your procured harvest credited directly to your bank account."
       />
 
-      <div className="payment-credit-highlight-card">
-        <div className="credit-highlight-main">
-          <div className="credit-badge-row">
-            <span className="payout-type-tag">Government DBT Payout</span>
-            <Pill kind="green">
-              <Check size={13} /> Payment Status: Credited
-            </Pill>
-          </div>
-          <small className="credit-label">Payment Received / Amount Credited</small>
-          <strong className="credit-amount">
-            ₹{((bookingRecord?.paymentQuote?.demoPayable ?? (paymentRecord?.amount ? Number(paymentRecord.amount) : 41400))).toLocaleString("en-IN")}
-          </strong>
-          <p className="credit-bank-note">
-            Credited to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Linked Bank A/C (DBT/Aadhaar Enabled)
-          </p>
-        </div>
+      {(() => {
+        const isPaymentCredited = paymentRecord?.status === "SUCCESS";
+        const isPaymentProcessing = paymentRecord?.status === "PROCESSING" || paymentProcessing;
+        const isPaymentFailed = paymentRecord?.status === "FAILED";
+        const isQcPassed = bookingRecord?.procurement?.status === "COMPLETED" || bookingRecord?.procurement?.status === "QUALITY_CHECK";
+        const paymentStatusLabel = isPaymentCredited
+          ? "Credited"
+          : isPaymentProcessing
+          ? "Processing Payout"
+          : isPaymentFailed
+          ? "Payment Failed"
+          : isQcPassed
+          ? "Ready for Payment"
+          : "Pending Officer Initiation";
 
-        <div className="credit-details-strip">
-          <div>
-            <small>PROCUREMENT ID</small>
-            <b>{bookingRecord?.bookingCode ? `PR-${bookingRecord.bookingCode.replace("BK-", "")}` : "PR-2026-7294"}</b>
+        return (
+          <div className="payment-credit-highlight-card">
+            <div className="credit-highlight-main">
+              <div className="credit-badge-row">
+                <span className="payout-type-tag">Government DBT Payout</span>
+                <Pill kind={isPaymentCredited ? "green" : isPaymentProcessing ? "yellow" : isPaymentFailed ? "yellow" : "blue"}>
+                  {isPaymentCredited ? <Check size={13} /> : <Clock3 size={13} />}
+                  Payment Status: {paymentStatusLabel}
+                </Pill>
+              </div>
+              <small className="credit-label">
+                {isPaymentCredited ? "Payment Received / Amount Credited" : "Estimated Payout / DBT Payable"}
+              </small>
+              <strong className="credit-amount">
+                ₹{((bookingRecord?.paymentQuote?.demoPayable ?? (paymentRecord?.amount ? Number(paymentRecord.amount) : 41400))).toLocaleString("en-IN")}
+              </strong>
+              <p className="credit-bank-note">
+                {isPaymentCredited ? (
+                  <>Credited to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Linked Bank A/C (DBT/Aadhaar Enabled)</>
+                ) : (
+                  <>Payable to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Linked Bank A/C (Aadhaar DBT Enabled upon Officer Initiation)</>
+                )}
+              </p>
+            </div>
+
+            <div className="credit-details-strip">
+              <div>
+                <small>PROCUREMENT ID</small>
+                <b>{bookingRecord?.bookingCode ? `PR-${bookingRecord.bookingCode.replace("BK-", "")}` : "PR-2026-7294"}</b>
+              </div>
+              <div>
+                <small>SETTLEMENT STATUS</small>
+                <b className={isPaymentCredited ? "text-emerald-700" : isPaymentProcessing ? "text-amber-700" : isPaymentFailed ? "text-rose-700" : "text-blue-700"}>
+                  {paymentStatusLabel} {isPaymentCredited && "(Bank Transfer)"}
+                </b>
+              </div>
+              <div>
+                <small>CROP & VARIETY</small>
+                <b>{bookingRecord?.paddyVariety ?? "Common paddy"} ({bookingRecord?.expectedQuantityQuintals ?? 18} Quintals)</b>
+              </div>
+              <div>
+                <small>SETTLEMENT DATE</small>
+                <b>{isPaymentCredited && paymentRecord?.completedAt ? new Date(paymentRecord.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : isPaymentCredited && paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Pending Officer Initiation"}</b>
+              </div>
+            </div>
           </div>
-          <div>
-            <small>SETTLEMENT STATUS</small>
-            <b className="text-emerald-700">Credited (Bank Transfer)</b>
-          </div>
-          <div>
-            <small>CROP & VARIETY</small>
-            <b>{bookingRecord?.paddyVariety ?? "Common paddy"} ({bookingRecord?.expectedQuantityQuintals ?? 18} Quintals)</b>
-          </div>
-          <div>
-            <small>SETTLEMENT DATE</small>
-            <b>{paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}</b>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       <div className="payment-layout">
         <section className="payment-panel">
@@ -2946,36 +3300,55 @@ export default function Home() {
         </section>
 
         <aside className="payment-summary">
-          <Pill kind="blue">PROCUREMENT SETTLEMENT</Pill>
-          <h3>Amount Credited to Farmer</h3>
-          {bookingRecord ? (
-            <>
-              <div>
-                <span>Paddy quantity weighed</span>
-                <b>{bookingRecord.expectedQuantityQuintals} quintals</b>
-              </div>
-              <div>
-                <span>Govt MSP Rate</span>
-                <b>₹{bookingRecord.paymentQuote.unitPrice} / quintal</b>
-              </div>
-              <div>
-                <span>Quality grade incentive</span>
-                <b className="positive">+₹{bookingRecord.paymentQuote.qualityAdjustment}</b>
-              </div>
-              <hr />
-              <div className="payment-total">
-                <span>Total Amount Credited</span>
-                <b className="text-emerald-800">₹{bookingRecord.paymentQuote.demoPayable.toLocaleString("en-IN")}</b>
-              </div>
-              <p><MapPin /> {bookingRecord.centre?.name ?? "Guntur Market Yard"}</p>
-              <p><Ticket /> {bookingRecord.bookingCode}</p>
-              <small className="text-emerald-700 font-semibold block mt-2">
-                ✓ Credited to farmer via Direct Benefit Transfer (DBT).
-              </small>
-            </>
-          ) : (
-            <p className="section-body">Sign in and load an active booking to view its procurement settlement.</p>
-          )}
+          {(() => {
+            const isPaymentCredited = paymentRecord?.status === "SUCCESS";
+            const isPaymentProcessing = paymentRecord?.status === "PROCESSING" || paymentProcessing;
+            const isPaymentFailed = paymentRecord?.status === "FAILED";
+            return (
+              <>
+                <Pill kind={isPaymentCredited ? "green" : "blue"}>PROCUREMENT SETTLEMENT</Pill>
+                <h3>{isPaymentCredited ? "Amount Credited to Farmer" : "Estimated Settlement Payout"}</h3>
+                {bookingRecord ? (
+                  <>
+                    <div>
+                      <span>Paddy / Crop quantity</span>
+                      <b>{bookingRecord.expectedQuantityQuintals} quintals</b>
+                    </div>
+                    <div>
+                      <span>Govt MSP Rate</span>
+                      <b>₹{bookingRecord.paymentQuote.unitPrice} / quintal</b>
+                    </div>
+                    {bookingRecord.paymentQuote.govtBonus ? (
+                      <div>
+                        <span>Govt Incentive Bonus</span>
+                        <b className="positive">+₹{bookingRecord.paymentQuote.govtBonus}</b>
+                      </div>
+                    ) : null}
+                    <hr />
+                    <div className="payment-total">
+                      <span>{isPaymentCredited ? "Total Amount Credited" : "Total Estimated Payout"}</span>
+                      <b className="text-emerald-800">
+                        ₹{(paymentRecord?.amount ? Number(paymentRecord.amount) : bookingRecord.paymentQuote.demoPayable).toLocaleString("en-IN")}
+                      </b>
+                    </div>
+                    <p><MapPin /> {bookingRecord.centre?.name ?? "Guntur Market Yard"}</p>
+                    <p><Ticket /> {bookingRecord.bookingCode}</p>
+                    <small className={`${isPaymentCredited ? "text-emerald-700" : isPaymentProcessing ? "text-amber-700" : isPaymentFailed ? "text-rose-700" : "text-slate-500"} font-semibold block mt-2`}>
+                      {isPaymentCredited
+                        ? "✓ Credited to farmer via Direct Benefit Transfer (DBT)."
+                        : isPaymentProcessing
+                        ? "⏳ DBT payout transfer in progress with bank network."
+                        : isPaymentFailed
+                        ? "⚠ Payout disbursement failed. Please contact your procurement officer."
+                        : "⏳ Pending Head Officer DBT initiation after quality check verification."}
+                    </small>
+                  </>
+                ) : (
+                  <p className="section-body">Sign in and load an active booking to view its procurement settlement.</p>
+                )}
+              </>
+            );
+          })()}
         </aside>
       </div>
 
@@ -4652,6 +5025,7 @@ export default function Home() {
             { id: "ASSIGNED", label: "Driver Assigned", count: officerLogisticsList.filter(t => t.status === "ASSIGNED").length },
             { id: "REQUESTED", label: "Requested", count: officerLogisticsList.filter(t => t.status === "REQUESTED").length },
             { id: "DELIVERED_AT_CENTRE", label: "Delivered", count: officerLogisticsList.filter(t => t.status === "DELIVERED_AT_CENTRE").length },
+            { id: "CANCELLED", label: "Cancelled", count: officerLogisticsList.filter(t => t.status === "CANCELLED").length },
           ].map(tab => (
             <button
               key={tab.id}
@@ -5961,32 +6335,72 @@ export default function Home() {
                 No active transport bookings yet. Fill the form to book your subsidized vehicle.
               </div>
             ) : (
-              transportBookingsList.map(item => (
-                <div className="transport-item-row" key={item.id}>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <strong className="text-xs font-bold text-[#153828]">{item.transportCode}</strong>
-                      <Pill kind="blue">{item.vehicleName}</Pill>
-                      <Pill kind="green">{item.status}</Pill>
+              transportBookingsList.map(item => {
+                const cStatus = getCancellationStatus(item.createdAt);
+                const isCancelled = item.status === "CANCELLED";
+                const isOngoing = item.status === "IN_TRANSIT" || item.status === "DELIVERED_AT_CENTRE";
+                return (
+                  <div className="transport-item-row flex flex-col gap-2.5" key={item.id}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <strong className="text-xs font-bold text-[#153828]">{item.transportCode}</strong>
+                          <Pill kind="blue">{item.vehicleName}</Pill>
+                          <Pill kind={isCancelled ? "yellow" : isOngoing ? "blue" : "green"}>
+                            {isCancelled ? "CANCELLED" : item.status}
+                          </Pill>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground m-0">
+                          {item.pickupVillage} → {item.destinationCentreName}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          📅 {item.scheduledDate} · {item.timeSlot} · {item.estimatedLoadQuintals} Qtl
+                        </p>
+                        <div className="mt-1 text-xs text-slate-700">
+                          <b>Driver: {item.driverName}</b> ({item.vehicleNumber})
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <strong className="text-sm text-emerald-800">₹{item.netPayable.toFixed(2)}</strong>
+                        {!isCancelled && (
+                          <a className="driver-call-btn" href={`tel:${item.driverPhone}`}>
+                            <PhoneCall size={13} /> Call Driver
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-[11px] text-muted-foreground m-0">
-                      {item.pickupVillage} → {item.destinationCentreName}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      📅 {item.scheduledDate} · {item.timeSlot} · {item.estimatedLoadQuintals} Qtl
-                    </p>
-                    <div className="mt-2 text-xs">
-                      <b>Driver: {item.driverName}</b> ({item.vehicleNumber})
+
+                    {/* 30-Minute Cancellation Notice & Button */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-1 text-[11px]">
+                      {isCancelled ? (
+                        <span className="text-rose-600 font-bold flex items-center gap-1">
+                          <X size={13} /> Transportation Cancelled
+                        </span>
+                      ) : isOngoing ? (
+                        <span className="text-slate-500 font-medium">Trip dispatched / completed</span>
+                      ) : cStatus.expired ? (
+                        <span className="text-slate-400">Cancellation window expired (30m passed)</span>
+                      ) : (
+                        <>
+                          <span className="text-amber-700 font-medium flex items-center gap-1">
+                            <Clock3 size={13} /> Can cancel for: <b className="font-mono">{cStatus.text}</b>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetCancelTransport(item);
+                              setShowCancelTransportModal(true);
+                            }}
+                            className="text-[11px] font-bold text-rose-600 hover:text-rose-800 underline"
+                          >
+                            Cancel booking
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <strong className="text-sm text-emerald-800">₹{item.netPayable.toFixed(2)}</strong>
-                    <a className="driver-call-btn" href={`tel:${item.driverPhone}`}>
-                      <PhoneCall size={13} /> Call Driver
-                    </a>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </aside>

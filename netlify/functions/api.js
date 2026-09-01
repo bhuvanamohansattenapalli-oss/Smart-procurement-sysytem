@@ -65961,24 +65961,34 @@ var prototypeCentres = [
   { name: "Visakhapatnam Anandapuram Yard", place: "Anandapuram Junction", district: "Visakhapatnam", latitude: "17.8864000", longitude: "83.3980000", distanceKm: "18.50", status: "OPEN", queueCapacity: 45, currentToken: "AP-VSP-005" }
 ];
 var prototypeSlots = [
-  ["09:30", "10:00", 12, 6],
-  ["10:00", "10:30", 12, 8],
-  ["10:30", "11:00", 15, 8],
-  ["11:00", "11:30", 12, 10],
-  ["11:30", "12:00", 12, 9],
-  ["12:00", "12:30", 12, 6]
+  ["07:00 AM", "08:00 AM", 25, 7],
+  ["08:00 AM", "09:00 AM", 25, 12],
+  ["09:00 AM", "10:00 AM", 25, 18],
+  ["10:00 AM", "11:00 AM", 25, 22],
+  ["11:00 AM", "12:00 PM", 25, 15],
+  ["02:00 PM", "03:00 PM", 25, 9],
+  ["03:00 PM", "04:00 PM", 25, 14],
+  ["04:00 PM", "05:00 PM", 25, 20]
 ];
 var prototypeCropPrices = [
   { cropName: "Paddy (Common)", variety: "Standard / MTU 1010", category: "Cereals", mspPerQuintal: "2300.00", marketRatePerQuintal: "2280.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "17.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-01" },
   { cropName: "Paddy (Grade A)", variety: "Grade A / BPT 5204", category: "Cereals", mspPerQuintal: "2320.00", marketRatePerQuintal: "2310.00", govtBonusPerQuintal: "50.00", maxMoisturePercent: "17.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-02" },
   { cropName: "Paddy (Parboiled)", variety: "Boiled Grade A", category: "Cereals", mspPerQuintal: "2320.00", marketRatePerQuintal: "2340.00", govtBonusPerQuintal: "30.00", maxMoisturePercent: "15.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-03" },
-  { cropName: "Maize (Makka)", variety: "Hybrid Yellow", category: "Coarse Cereals", mspPerQuintal: "2225.00", marketRatePerQuintal: "2180.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "14.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-04" },
-  { cropName: "Cotton (Medium Staple)", variety: "Medium Staple", category: "Commercial", mspPerQuintal: "7121.00", marketRatePerQuintal: "6950.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "8.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-05" },
-  { cropName: "Cotton (Long Staple)", variety: "BT Cotton / DCH-32", category: "Commercial", mspPerQuintal: "7521.00", marketRatePerQuintal: "7480.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "8.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-06" },
-  { cropName: "Wheat (Gehun)", variety: "Kalyan Sona / Sharbati", category: "Cereals", mspPerQuintal: "2275.00", marketRatePerQuintal: "2250.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "12.0", effectiveSeason: "Rabi 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-07" },
-  { cropName: "Moong (Green Gram)", variety: "Shin Moong", category: "Pulses", mspPerQuintal: "8558.00", marketRatePerQuintal: "8400.00", govtBonusPerQuintal: "200.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-08" },
-  { cropName: "Soyabean (Yellow)", variety: "JS 335", category: "Oilseeds", mspPerQuintal: "4892.00", marketRatePerQuintal: "4650.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-09" },
-  { cropName: "Groundnut (In Shell)", variety: "TMV-2 / Kadiri-6", category: "Oilseeds", mspPerQuintal: "6783.00", marketRatePerQuintal: "6600.00", govtBonusPerQuintal: "150.00", maxMoisturePercent: "8.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-10" }
+  { cropName: "Wheat (Gehun)", variety: "Kalyan Sona / Sharbati", category: "Cereals", mspPerQuintal: "2275.00", marketRatePerQuintal: "2250.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "12.0", effectiveSeason: "Rabi 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-04" },
+  { cropName: "Maize (Makka)", variety: "Hybrid Yellow", category: "Coarse Cereals", mspPerQuintal: "2225.00", marketRatePerQuintal: "2180.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "14.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-05" },
+  { cropName: "Jowar (Sorghum)", variety: "Maldandi / Hybrid", category: "Coarse Cereals", mspPerQuintal: "3371.00", marketRatePerQuintal: "3300.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-06" },
+  { cropName: "Bajra (Pearl Millet)", variety: "Hybrid Pearl", category: "Coarse Cereals", mspPerQuintal: "2625.00", marketRatePerQuintal: "2580.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-07" },
+  { cropName: "Ragi (Finger Millet)", variety: "GPU-28 / Indaf", category: "Coarse Cereals", mspPerQuintal: "4290.00", marketRatePerQuintal: "4210.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-08" },
+  { cropName: "Bengal Gram (Chickpea / Chana)", variety: "Desi / Kabuli", category: "Pulses", mspPerQuintal: "5440.00", marketRatePerQuintal: "5380.00", govtBonusPerQuintal: "100.00", maxMoisturePercent: "12.0", effectiveSeason: "Rabi 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-09" },
+  { cropName: "Red Gram (Tur / Arhar)", variety: "Maruti / Asha", category: "Pulses", mspPerQuintal: "7550.00", marketRatePerQuintal: "7480.00", govtBonusPerQuintal: "200.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-10" },
+  { cropName: "Green Gram (Moong)", variety: "Shin Moong", category: "Pulses", mspPerQuintal: "8558.00", marketRatePerQuintal: "8400.00", govtBonusPerQuintal: "200.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-11" },
+  { cropName: "Black Gram (Urad)", variety: "PU-19 / VBN", category: "Pulses", mspPerQuintal: "7400.00", marketRatePerQuintal: "7320.00", govtBonusPerQuintal: "150.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-12" },
+  { cropName: "Groundnut (In Shell)", variety: "TMV-2 / Kadiri-6", category: "Oilseeds", mspPerQuintal: "6783.00", marketRatePerQuintal: "6600.00", govtBonusPerQuintal: "150.00", maxMoisturePercent: "8.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-13" },
+  { cropName: "Sunflower", variety: "KBSH-44", category: "Oilseeds", mspPerQuintal: "7280.00", marketRatePerQuintal: "7190.00", govtBonusPerQuintal: "100.00", maxMoisturePercent: "9.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-14" },
+  { cropName: "Soybean (Yellow)", variety: "JS 335", category: "Oilseeds", mspPerQuintal: "4892.00", marketRatePerQuintal: "4650.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "12.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-15" },
+  { cropName: "Cotton (Medium Staple)", variety: "Surabhi", category: "Commercial", mspPerQuintal: "7121.00", marketRatePerQuintal: "6950.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "8.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-16" },
+  { cropName: "Cotton (Long Staple)", variety: "BT Cotton / DCH-32", category: "Commercial", mspPerQuintal: "7521.00", marketRatePerQuintal: "7480.00", govtBonusPerQuintal: "0.00", maxMoisturePercent: "8.0", effectiveSeason: "Kharif 2025-26", notificationRef: "MoA&FW/CACP-2025/MSP-17" },
+  { cropName: "Sugarcane", variety: "Co 86032 / Mandya", category: "Commercial", mspPerQuintal: "340.00", marketRatePerQuintal: "335.00", govtBonusPerQuintal: "15.00", maxMoisturePercent: "10.0", effectiveSeason: "Annual 2025-26", notificationRef: "MoA&FW/CACP-2025/FRP-18" }
 ];
 async function ensurePrototypeSeed() {
   if (!seedPromise) seedPromise = seedDatabase();
@@ -65987,9 +65997,16 @@ async function ensurePrototypeSeed() {
 async function seedDatabase() {
   const db = await getDb();
   if (!db) throw new Error("Database connection is unavailable.");
-  const existingCropPrices = await db.select({ id: cropPrices.id }).from(cropPrices).limit(1);
-  if (!existingCropPrices[0]) {
+  const existingCropPrices = await db.select().from(cropPrices);
+  if (existingCropPrices.length === 0) {
     await db.insert(cropPrices).values(prototypeCropPrices);
+  } else {
+    for (const p of prototypeCropPrices) {
+      const found = existingCropPrices.find((e) => e.cropName === p.cropName && e.variety === p.variety);
+      if (!found) {
+        await db.insert(cropPrices).values(p);
+      }
+    }
   }
   const seededOfficers = [
     {
@@ -66077,9 +66094,25 @@ async function seedDatabase() {
   const existingCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres).limit(1);
   if (!existingCentres[0]) {
     await db.insert(procurementCentres).values(prototypeCentres);
-    const createdCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres);
-    for (const centre of createdCentres) {
-      await db.insert(slots).values(prototypeSlots.map(([startTime, endTime, capacity, bookedCount]) => ({ centreId: centre.id, slotDate: "2026-03-18", startTime, endTime, capacity, bookedCount, isActive: 1 })));
+  }
+  const currentCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres);
+  const datesToSeed = ["2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20"];
+  for (const centre of currentCentres) {
+    const existingCentreSlots = await db.select({ id: slots.id }).from(slots).where(eq(slots.centreId, centre.id)).limit(1);
+    if (!existingCentreSlots[0]) {
+      for (const d of datesToSeed) {
+        await db.insert(slots).values(
+          prototypeSlots.map(([startTime, endTime, capacity, bookedCount]) => ({
+            centreId: centre.id,
+            slotDate: d,
+            startTime,
+            endTime,
+            capacity,
+            bookedCount,
+            isActive: 1
+          }))
+        );
+      }
     }
   }
   const existingFarmer = await db.select().from(farmers).where(eq(farmers.phone, "9876543210")).limit(1);
@@ -66304,26 +66337,52 @@ function formatOfficer(officer) {
 function formatCentre(centre, queueCount, availableSlots) {
   return { id: centre.id, name: centre.name, place: centre.place, district: centre.district, latitude: Number(centre.latitude), longitude: Number(centre.longitude), distanceKm: Number(centre.distanceKm), status: centre.status, currentToken: centre.currentToken, currentQueue: queueCount, availableSlots };
 }
-function createPrototypePaymentQuote(paddyVariety, expectedQuantityQuintals, mspPrice) {
+function createPrototypePaymentQuote(cropNameOrVariety, expectedQuantityQuintals, mspPrice) {
   let unitPrice = 2300;
   let bonus = 0;
   if (mspPrice) {
     unitPrice = mspPrice.mspPerQuintal;
     bonus = mspPrice.govtBonusPerQuintal;
   } else {
-    const v = (paddyVariety || "").toLowerCase();
-    if (v.includes("parboiled") || v.includes("boiled")) unitPrice = 2320;
-    else if (v.includes("grade a") || v.includes("bpt 5204") || v.includes("fine")) {
-      unitPrice = 2320;
-      bonus = 50;
-    } else if (v.includes("maize")) unitPrice = 2225;
-    else if (v.includes("cotton")) unitPrice = 7121;
-    else if (v.includes("moong")) {
+    const v = (cropNameOrVariety || "").toLowerCase();
+    const matched = prototypeCropPrices.find(
+      (p) => v.includes(p.cropName.toLowerCase()) || v.includes(p.variety.toLowerCase()) || p.cropName.toLowerCase().includes(v)
+    );
+    if (matched) {
+      unitPrice = Number(matched.mspPerQuintal);
+      bonus = Number(matched.govtBonusPerQuintal || 0);
+    } else if (v.includes("wheat")) unitPrice = 2275;
+    else if (v.includes("maize")) unitPrice = 2225;
+    else if (v.includes("cotton")) unitPrice = 7521;
+    else if (v.includes("jowar")) unitPrice = 3371;
+    else if (v.includes("bajra")) unitPrice = 2625;
+    else if (v.includes("ragi")) unitPrice = 4290;
+    else if (v.includes("bengal gram") || v.includes("chana")) {
+      unitPrice = 5440;
+      bonus = 100;
+    } else if (v.includes("red gram") || v.includes("tur")) {
+      unitPrice = 7550;
+      bonus = 200;
+    } else if (v.includes("moong")) {
       unitPrice = 8558;
       bonus = 200;
+    } else if (v.includes("urad")) {
+      unitPrice = 7400;
+      bonus = 150;
     } else if (v.includes("groundnut")) {
       unitPrice = 6783;
       bonus = 150;
+    } else if (v.includes("sunflower")) {
+      unitPrice = 7280;
+      bonus = 100;
+    } else if (v.includes("soybean") || v.includes("soyabean")) unitPrice = 4892;
+    else if (v.includes("sugarcane")) {
+      unitPrice = 340;
+      bonus = 15;
+    } else if (v.includes("parboiled") || v.includes("boiled")) unitPrice = 2320;
+    else if (v.includes("grade a") || v.includes("bpt 5204") || v.includes("fine")) {
+      unitPrice = 2320;
+      bonus = 50;
     } else unitPrice = 2300;
   }
   const effectiveRate = unitPrice + bonus;
@@ -66342,16 +66401,17 @@ async function getBookingContext(bookingId) {
   if (!db) throw new Error("Database unavailable.");
   const booking = (await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1))[0];
   if (!booking) return void 0;
-  const [farmer, centre, slot, queue, procurement, transport] = await Promise.all([
+  const [farmer, centre, slot, queue, procurement, transport, payment] = await Promise.all([
     db.select().from(farmers).where(eq(farmers.id, booking.farmerId)).limit(1).then((rows) => rows[0]),
     db.select().from(procurementCentres).where(eq(procurementCentres.id, booking.centreId)).limit(1).then((rows) => rows[0]),
     db.select().from(slots).where(eq(slots.id, booking.slotId)).limit(1).then((rows) => rows[0]),
     db.select().from(queueEntries).where(eq(queueEntries.bookingId, booking.id)).limit(1).then((rows) => rows[0]),
     db.select().from(procurements).where(eq(procurements.bookingId, booking.id)).limit(1).then((rows) => rows[0]),
-    db.select().from(transportBookings).where(or(eq(transportBookings.bookingId, booking.id), eq(transportBookings.farmerId, booking.farmerId))).orderBy(desc(transportBookings.createdAt)).limit(1).then((rows) => rows[0])
+    db.select().from(transportBookings).where(or(eq(transportBookings.bookingId, booking.id), eq(transportBookings.farmerId, booking.farmerId))).orderBy(desc(transportBookings.createdAt)).limit(1).then((rows) => rows[0]),
+    db.select().from(payments).where(eq(payments.bookingId, booking.id)).orderBy(desc(payments.createdAt)).limit(1).then((rows) => rows[0])
   ]);
   if (!farmer || !centre || !slot) return void 0;
-  return { booking, farmer, centre, slot, queue, procurement, transport };
+  return { booking, farmer, centre, slot, queue, procurement, transport, payment };
 }
 async function requireBookingAccess(req, res, bookingId) {
   const context = await getBookingContext(bookingId);
@@ -66368,6 +66428,8 @@ async function requireBookingAccess(req, res, bookingId) {
 function publicBooking(context) {
   if (!context) return void 0;
   const quantity = Number(context.booking.expectedQuantityQuintals);
+  const paymentRecord = context.payment;
+  const paymentStatus2 = paymentRecord?.status ?? (context.procurement?.status === "COMPLETED" || context.procurement?.status === "QUALITY_CHECK" ? "READY_FOR_PAYMENT" : "PENDING");
   return {
     id: context.booking.id,
     bookingCode: context.booking.bookingCode,
@@ -66383,6 +66445,8 @@ function publicBooking(context) {
     queue: context.queue ? { position: context.queue.position, peopleAhead: Math.max(0, context.queue.position - 1), estimatedWaitMinutes: context.queue.estimatedWaitMinutes, status: context.queue.status, currentToken: context.centre.currentToken } : null,
     procurement: context.procurement ? { status: context.procurement.status, weighedQuantityQuintals: context.procurement.weighedQuantityQuintals ? Number(context.procurement.weighedQuantityQuintals) : null, qualityGrade: context.procurement.qualityGrade, updatedAt: context.procurement.updatedAt } : null,
     transport: context.transport ? { id: context.transport.id, transportCode: context.transport.transportCode, vehicleType: context.transport.vehicleType, vehicleNumber: context.transport.vehicleNumber, driverName: context.transport.driverName, driverPhone: context.transport.driverPhone, status: context.transport.status } : null,
+    payment: paymentRecord ? paymentView(paymentRecord) : null,
+    paymentStatus: paymentStatus2,
     paymentQuote: createPrototypePaymentQuote(context.booking.paddyVariety, quantity)
   };
 }
@@ -66846,9 +66910,57 @@ function createProcurementApi() {
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const centre = (await db.select().from(procurementCentres).where(eq(procurementCentres.id, id.data)).limit(1))[0];
     if (!centre) return res.status(404).json({ error: "CENTRE_NOT_FOUND" });
-    const date6 = typeof req.query.date === "string" ? req.query.date : void 0;
-    const available = await db.select().from(slots).where(and(eq(slots.centreId, centre.id), eq(slots.isActive, 1), ...date6 ? [eq(slots.slotDate, date6)] : []));
-    return res.json({ centreId: centre.id, slots: available.map((slot) => ({ id: slot.id, date: slot.slotDate, startTime: slot.startTime, endTime: slot.endTime, capacity: slot.capacity, bookedCount: slot.bookedCount, available: Math.max(0, slot.capacity - slot.bookedCount), isFull: slot.bookedCount >= slot.capacity })) });
+    let targetDate = "2026-03-18";
+    const rawDate = typeof req.query.date === "string" ? req.query.date.trim() : void 0;
+    if (rawDate) {
+      if (rawDate.includes("17")) targetDate = "2026-03-17";
+      else if (rawDate.includes("18")) targetDate = "2026-03-18";
+      else if (rawDate.includes("19")) targetDate = "2026-03-19";
+      else if (rawDate.includes("20")) targetDate = "2026-03-20";
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) targetDate = rawDate;
+      else targetDate = rawDate;
+    }
+    let available = await db.select().from(slots).where(
+      and(
+        eq(slots.centreId, centre.id),
+        eq(slots.isActive, 1),
+        or(eq(slots.slotDate, targetDate), eq(slots.slotDate, rawDate || targetDate))
+      )
+    );
+    if (available.length === 0) {
+      available = await db.select().from(slots).where(and(eq(slots.centreId, centre.id), eq(slots.isActive, 1)));
+    }
+    const operationalSlots = available.length > 0 ? available.map((slot) => {
+      const left = Math.max(0, slot.capacity - slot.bookedCount);
+      const isFull = slot.bookedCount >= slot.capacity;
+      return {
+        id: slot.id,
+        date: slot.slotDate,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        capacity: slot.capacity,
+        bookedCount: slot.bookedCount,
+        available: left,
+        isFull,
+        status: isFull ? "FULL" : left <= 5 ? "LIMITED" : "AVAILABLE"
+      };
+    }) : prototypeSlots.map((item, idx) => {
+      const [startTime, endTime, capacity, bookedCount] = item;
+      const left = Math.max(0, capacity - bookedCount);
+      const isFull = bookedCount >= capacity;
+      return {
+        id: idx + 1,
+        date: targetDate,
+        startTime,
+        endTime,
+        capacity,
+        bookedCount,
+        available: left,
+        isFull,
+        status: isFull ? "FULL" : left <= 5 ? "LIMITED" : "AVAILABLE"
+      };
+    });
+    return res.json({ centreId: centre.id, date: targetDate, slots: operationalSlots });
   });
   api.post("/bookings", requireApiAuth, requireRole("farmer"), async (req, res) => {
     const input = respondValidation(res, bookingSchema, req.body);
@@ -67532,6 +67644,8 @@ function createProcurementApi() {
   };
   api.put("/transport/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelTransport);
   api.post("/transport/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelTransport);
+  api.put("/transport/bookings/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelTransport);
+  api.post("/transport/bookings/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelTransport);
   api.put("/transport/:id/status", requireApiAuth, async (req, res) => {
     const rawId = String(req.params.id || "").trim();
     const numId = Number(rawId);
