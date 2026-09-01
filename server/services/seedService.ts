@@ -17,14 +17,94 @@ import { hashPassword } from "./passwordService";
 let seedPromise: Promise<void> | null = null;
 
 const prototypeCentres = [
-  { name: "Guntur Agricultural Market Yard", place: "Collectorate Road, Guntur", district: "Guntur", latitude: "16.2970000", longitude: "80.4350000", distanceKm: "2.40", status: "OPEN" as const, queueCapacity: 60, currentToken: "AP-GNT-024" },
-  { name: "Vijayawada Central Paddy Hub", place: "Gollapudi Market Yard", district: "NTR District", latitude: "16.5417000", longitude: "80.5847000", distanceKm: "4.80", status: "OPEN" as const, queueCapacity: 55, currentToken: "AP-VJA-009" },
-  { name: "Kurnool Rythu Bharosa Kendra", place: "C-Camp Agri Centre", district: "Kurnool", latitude: "15.8281000", longitude: "78.0373000", distanceKm: "6.50", status: "BUSY" as const, queueCapacity: 45, currentToken: "AP-KNL-038" },
-  { name: "Rajahmundry Godavari Collection Point", place: "Katheru Road", district: "East Godavari", latitude: "17.0005000", longitude: "81.8040000", distanceKm: "8.20", status: "LIMITED" as const, queueCapacity: 35, currentToken: "AP-RJY-016" },
-  { name: "Eluru District Procurement Yard", place: "Sanivarapupeta", district: "Eluru", latitude: "16.7107000", longitude: "81.0952000", distanceKm: "10.50", status: "OPEN" as const, queueCapacity: 40, currentToken: "AP-ELR-012" },
-  { name: "Nellore Coastal Paddy Mandi", place: "Podalakur Road", district: "Nellore", latitude: "14.4426000", longitude: "79.9865000", distanceKm: "13.80", status: "OPEN" as const, queueCapacity: 50, currentToken: "AP-NLR-007" },
-  { name: "Tirupati Rayalaseema Grain Yard", place: "Renigunta Road", district: "Tirupati", latitude: "13.6288000", longitude: "79.4192000", distanceKm: "15.20", status: "BUSY" as const, queueCapacity: 40, currentToken: "AP-TPT-019" },
-  { name: "Visakhapatnam Anandapuram Yard", place: "Anandapuram Junction", district: "Visakhapatnam", latitude: "17.8864000", longitude: "83.3980000", distanceKm: "18.50", status: "OPEN" as const, queueCapacity: 45, currentToken: "AP-VSP-005" },
+  // Andhra Pradesh
+  { name: "Guntur Agricultural Market Yard", place: "Collectorate Road, Guntur", district: "Guntur", state: "Andhra Pradesh", latitude: "16.2970000", longitude: "80.4350000", distanceKm: "2.40", status: "OPEN" as const, queueCapacity: 60, currentToken: "AP-GNT-024", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Vijayawada Central Paddy Hub", place: "Gollapudi Market Yard", district: "NTR District", state: "Andhra Pradesh", latitude: "16.5417000", longitude: "80.5847000", distanceKm: "4.80", status: "OPEN" as const, queueCapacity: 55, currentToken: "AP-VJA-009", cropCategories: "Cereals, Pulses" },
+  { name: "Kurnool Rythu Bharosa Kendra", place: "C-Camp Agri Centre", district: "Kurnool", state: "Andhra Pradesh", latitude: "15.8281000", longitude: "78.0373000", distanceKm: "6.50", status: "BUSY" as const, queueCapacity: 45, currentToken: "AP-KNL-038", cropCategories: "Cereals, Coarse Cereals, Pulses" },
+  { name: "Rajahmundry Godavari Collection Point", place: "Katheru Road", district: "East Godavari", state: "Andhra Pradesh", latitude: "17.0005000", longitude: "81.8040000", distanceKm: "8.20", status: "LIMITED" as const, queueCapacity: 35, currentToken: "AP-RJY-016", cropCategories: "Cereals, Oilseeds" },
+  { name: "Eluru District Procurement Yard", place: "Sanivarapupeta", district: "Eluru", state: "Andhra Pradesh", latitude: "16.7107000", longitude: "81.0952000", distanceKm: "10.50", status: "OPEN" as const, queueCapacity: 40, currentToken: "AP-ELR-012", cropCategories: "Cereals, Commercial" },
+  { name: "Nellore Coastal Paddy Mandi", place: "Podalakur Road", district: "Nellore", state: "Andhra Pradesh", latitude: "14.4426000", longitude: "79.9865000", distanceKm: "13.80", status: "OPEN" as const, queueCapacity: 50, currentToken: "AP-NLR-007", cropCategories: "Cereals, Pulses" },
+  { name: "Tirupati Rayalaseema Grain Yard", place: "Renigunta Road", district: "Tirupati", state: "Andhra Pradesh", latitude: "13.6288000", longitude: "79.4192000", distanceKm: "15.20", status: "BUSY" as const, queueCapacity: 40, currentToken: "AP-TPT-019", cropCategories: "Cereals, Oilseeds" },
+  { name: "Visakhapatnam Anandapuram Yard", place: "Anandapuram Junction", district: "Visakhapatnam", state: "Andhra Pradesh", latitude: "17.8864000", longitude: "83.3980000", distanceKm: "18.50", status: "OPEN" as const, queueCapacity: 45, currentToken: "AP-VSP-005", cropCategories: "Cereals, Pulses" },
+
+  // Telangana
+  { name: "Nizamabad Integrated Grain Yard", place: "Dubba Road Market Yard", district: "Nizamabad", state: "Telangana", latitude: "18.6725000", longitude: "78.0941000", distanceKm: "22.40", status: "OPEN" as const, queueCapacity: 65, currentToken: "TS-NZB-018", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Warangal Enumamula Agricultural Market", place: "Enumamula Grain Terminal", district: "Warangal", state: "Telangana", latitude: "17.9689000", longitude: "79.5941000", distanceKm: "26.80", status: "OPEN" as const, queueCapacity: 80, currentToken: "TS-WGL-042", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Karimnagar Rythu Vedika Hub", place: "Manakondur Road", district: "Karimnagar", state: "Telangana", latitude: "18.4386000", longitude: "79.1288000", distanceKm: "28.50", status: "LIMITED" as const, queueCapacity: 45, currentToken: "TS-KNR-011", cropCategories: "Cereals, Oilseeds" },
+  { name: "Nalgonda Miryalaguda Paddy Depot", place: "Sagar Road, Miryalaguda", district: "Nalgonda", state: "Telangana", latitude: "16.8711000", longitude: "79.5638000", distanceKm: "19.00", status: "OPEN" as const, queueCapacity: 70, currentToken: "TS-MLG-031", cropCategories: "Cereals, Pulses" },
+  { name: "Khammam Cotton & Chilli Market Yard", place: "Wyra Road, Khammam", district: "Khammam", state: "Telangana", latitude: "17.2473000", longitude: "80.1514000", distanceKm: "24.50", status: "BUSY" as const, queueCapacity: 50, currentToken: "TS-KHM-025", cropCategories: "Commercial, Pulses, Cereals" },
+
+  // Punjab
+  { name: "Ludhiana Gill Road Grain Mandi", place: "Gill Road Grain Market", district: "Ludhiana", state: "Punjab", latitude: "30.9010000", longitude: "75.8573000", distanceKm: "18.00", status: "OPEN" as const, queueCapacity: 90, currentToken: "PB-LDH-054", cropCategories: "Cereals, Oilseeds" },
+  { name: "Sangrur Central Wheat & Paddy Yard", place: "Dhuri Road Mandi", district: "Sangrur", state: "Punjab", latitude: "30.2447000", longitude: "75.8451000", distanceKm: "21.50", status: "OPEN" as const, queueCapacity: 75, currentToken: "PB-SGR-033", cropCategories: "Cereals" },
+  { name: "Patiala Nabha Gate Procurement Center", place: "Nabha Gate Mandi", district: "Patiala", state: "Punjab", latitude: "30.3398000", longitude: "76.3869000", distanceKm: "24.00", status: "BUSY" as const, queueCapacity: 60, currentToken: "PB-PTL-019", cropCategories: "Cereals, Pulses" },
+  { name: "Bathinda Multania Road Mandi", place: "Multania Road Yard", district: "Bathinda", state: "Punjab", latitude: "30.2110000", longitude: "74.9455000", distanceKm: "28.00", status: "LIMITED" as const, queueCapacity: 55, currentToken: "PB-BTI-028", cropCategories: "Cereals, Commercial" },
+  { name: "Amritsar Bhagtanwala Grain Terminal", place: "Bhagtanwala Dana Mandi", district: "Amritsar", state: "Punjab", latitude: "31.6340000", longitude: "74.8723000", distanceKm: "32.00", status: "OPEN" as const, queueCapacity: 70, currentToken: "PB-ASR-041", cropCategories: "Cereals" },
+
+  // Haryana
+  { name: "Karnal GT Road New Grain Market", place: "GT Road Dana Mandi", district: "Karnal", state: "Haryana", latitude: "29.6857000", longitude: "76.9905000", distanceKm: "15.00", status: "OPEN" as const, queueCapacity: 85, currentToken: "HR-KAR-012", cropCategories: "Cereals, Oilseeds" },
+  { name: "Kurukshetra Pipli Procurement Hub", place: "Pipli Grain Market", district: "Kurukshetra", state: "Haryana", latitude: "29.9695000", longitude: "76.8783000", distanceKm: "20.50", status: "OPEN" as const, queueCapacity: 65, currentToken: "HR-KKR-027", cropCategories: "Cereals, Pulses" },
+  { name: "Sirsa Cotton & Wheat Mandi", place: "Bhavani Road APMC", district: "Sirsa", state: "Haryana", latitude: "29.5349000", longitude: "75.0298000", distanceKm: "30.00", status: "BUSY" as const, queueCapacity: 70, currentToken: "HR-SRS-045", cropCategories: "Cereals, Commercial, Oilseeds" },
+  { name: "Kaithal Agricultural Produce Yard", place: "Jind Road Mandi", district: "Kaithal", state: "Haryana", latitude: "29.8015000", longitude: "76.3996000", distanceKm: "22.00", status: "LIMITED" as const, queueCapacity: 50, currentToken: "HR-KTL-015", cropCategories: "Cereals" },
+
+  // Madhya Pradesh
+  { name: "Indore Laxmibai Nagar Krishi Upaj Mandi", place: "Laxmibai Nagar", district: "Indore", state: "Madhya Pradesh", latitude: "22.7533000", longitude: "75.8617000", distanceKm: "16.00", status: "OPEN" as const, queueCapacity: 80, currentToken: "MP-IND-062", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Ujjain Chimanganj Grain Yard", place: "Chimanganj Mandi", district: "Ujjain", state: "Madhya Pradesh", latitude: "23.1765000", longitude: "75.7885000", distanceKm: "25.00", status: "OPEN" as const, queueCapacity: 65, currentToken: "MP-UJN-034", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Bhopal Karond Mandi Complex", place: "Karond Bypass", district: "Bhopal", state: "Madhya Pradesh", latitude: "23.2989000", longitude: "77.4024000", distanceKm: "19.50", status: "LIMITED" as const, queueCapacity: 55, currentToken: "MP-BPL-021", cropCategories: "Cereals, Pulses" },
+  { name: "Hoshangabad Narmadapuram Wheat Center", place: "Itarsi Road Mandi", district: "Narmadapuram", state: "Madhya Pradesh", latitude: "22.7519000", longitude: "77.7289000", distanceKm: "27.00", status: "OPEN" as const, queueCapacity: 75, currentToken: "MP-NDP-048", cropCategories: "Cereals, Pulses" },
+  { name: "Jabalpur Krishi Mandi Yard", place: "Vijay Nagar Mandi", district: "Jabalpur", state: "Madhya Pradesh", latitude: "23.1815000", longitude: "79.9864000", distanceKm: "31.00", status: "BUSY" as const, queueCapacity: 60, currentToken: "MP-JBP-039", cropCategories: "Cereals, Pulses" },
+
+  // Uttar Pradesh
+  { name: "Varanasi Shivpur Grain Mandi", place: "Shivpur Mandi Samiti", district: "Varanasi", state: "Uttar Pradesh", latitude: "25.3524000", longitude: "82.9621000", distanceKm: "14.50", status: "OPEN" as const, queueCapacity: 70, currentToken: "UP-VNS-022", cropCategories: "Cereals, Pulses" },
+  { name: "Lucknow Dubagga Krishi Upaj Mandi", place: "Dubagga Mandi Yard", district: "Lucknow", state: "Uttar Pradesh", latitude: "26.8622000", longitude: "80.8653000", distanceKm: "17.00", status: "OPEN" as const, queueCapacity: 75, currentToken: "UP-LKO-037", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Bareilly Delapeer Mandi Samiti", place: "Delapeer Crossing", district: "Bareilly", state: "Uttar Pradesh", latitude: "28.3752000", longitude: "79.4312000", distanceKm: "23.00", status: "LIMITED" as const, queueCapacity: 50, currentToken: "UP-BLY-016", cropCategories: "Cereals, Commercial" },
+  { name: "Aligarh G.T. Road Grain Depot", place: "Dhanipur Mandi", district: "Aligarh", state: "Uttar Pradesh", latitude: "27.8974000", longitude: "78.0880000", distanceKm: "26.00", status: "OPEN" as const, queueCapacity: 60, currentToken: "UP-ALG-029", cropCategories: "Cereals, Oilseeds" },
+  { name: "Gorakhpur Sahjanwa Procurement Point", place: "Sahjanwa Industrial Area", district: "Gorakhpur", state: "Uttar Pradesh", latitude: "26.7606000", longitude: "83.3732000", distanceKm: "29.00", status: "BUSY" as const, queueCapacity: 55, currentToken: "UP-GKP-043", cropCategories: "Cereals, Pulses" },
+
+  // Maharashtra
+  { name: "Nagpur Kalamna Grain & Pulse Market", place: "Kalamna Market Yard", district: "Nagpur", state: "Maharashtra", latitude: "21.1719000", longitude: "79.1364000", distanceKm: "18.50", status: "OPEN" as const, queueCapacity: 85, currentToken: "MH-NGP-051", cropCategories: "Cereals, Pulses, Oilseeds, Commercial" },
+  { name: "Akola Cotton & Soybean APMC", place: "Shivaji Nagar APMC", district: "Akola", state: "Maharashtra", latitude: "20.7002000", longitude: "77.0082000", distanceKm: "24.00", status: "OPEN" as const, queueCapacity: 70, currentToken: "MH-AKL-032", cropCategories: "Oilseeds, Commercial, Pulses" },
+  { name: "Nashik Dindori Road Agri Hub", place: "Dindori Naka APMC", district: "Nashik", state: "Maharashtra", latitude: "20.0110000", longitude: "73.7903000", distanceKm: "21.00", status: "BUSY" as const, queueCapacity: 65, currentToken: "MH-NSK-024", cropCategories: "Cereals, Coarse Cereals, Pulses" },
+  { name: "Latur Pulses & Oilseeds Mandi", place: "Market Yard, Latur", district: "Latur", state: "Maharashtra", latitude: "18.4088000", longitude: "76.5604000", distanceKm: "26.50", status: "OPEN" as const, queueCapacity: 75, currentToken: "MH-LTR-047", cropCategories: "Pulses, Oilseeds" },
+  { name: "Solapur Siddheshwar Krishi Kendra", place: "Old Pune Naka", district: "Solapur", state: "Maharashtra", latitude: "17.6599000", longitude: "75.9064000", distanceKm: "29.00", status: "LIMITED" as const, queueCapacity: 50, currentToken: "MH-SLP-018", cropCategories: "Coarse Cereals, Pulses" },
+
+  // Karnataka
+  { name: "Dharwad APMC Amargol Market Yard", place: "Amargol APMC Complex", district: "Dharwad", state: "Karnataka", latitude: "15.3949000", longitude: "75.0935000", distanceKm: "17.50", status: "OPEN" as const, queueCapacity: 70, currentToken: "KA-DHW-035", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Belagavi Central Agricultural Center", place: "Khanapur Road APMC", district: "Belagavi", state: "Karnataka", latitude: "15.8497000", longitude: "74.4977000", distanceKm: "23.00", status: "OPEN" as const, queueCapacity: 60, currentToken: "KA-BGM-022", cropCategories: "Cereals, Commercial" },
+  { name: "Raichur Cotton & Paddy Complex", place: "Lingasugur Road APMC", district: "Raichur", state: "Karnataka", latitude: "16.2120000", longitude: "77.3439000", distanceKm: "20.00", status: "BUSY" as const, queueCapacity: 65, currentToken: "KA-RCR-041", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Davanagere Bathi Maize & Grain Mandi", place: "Bathi APMC Yard", district: "Davanagere", state: "Karnataka", latitude: "14.4644000", longitude: "75.9218000", distanceKm: "25.00", status: "LIMITED" as const, queueCapacity: 50, currentToken: "KA-DVG-014", cropCategories: "Coarse Cereals, Cereals" },
+
+  // Tamil Nadu
+  { name: "Thanjavur Cauvery Delta Paddy Yard", place: "Pillayarpatti DPC", district: "Thanjavur", state: "Tamil Nadu", latitude: "10.7870000", longitude: "79.1378000", distanceKm: "16.00", status: "OPEN" as const, queueCapacity: 75, currentToken: "TN-TNJ-028", cropCategories: "Cereals, Pulses" },
+  { name: "Tiruvarur Direct Purchase Center", place: "Mannargudi Road DPC", district: "Tiruvarur", state: "Tamil Nadu", latitude: "10.7725000", longitude: "79.6365000", distanceKm: "19.50", status: "OPEN" as const, queueCapacity: 60, currentToken: "TN-TVR-033", cropCategories: "Cereals" },
+  { name: "Madurai Mattuthavani Agri Market", place: "Mattuthavani Yard", district: "Madurai", state: "Tamil Nadu", latitude: "9.9391000", longitude: "78.1561000", distanceKm: "22.00", status: "BUSY" as const, queueCapacity: 55, currentToken: "TN-MDU-019", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Tiruchirappalli Gandhi Market Depot", place: "Palakarai Complex", district: "Tiruchirappalli", state: "Tamil Nadu", latitude: "10.7905000", longitude: "78.7047000", distanceKm: "24.50", status: "LIMITED" as const, queueCapacity: 45, currentToken: "TN-TRY-012", cropCategories: "Cereals, Coarse Cereals" },
+
+  // Rajasthan
+  { name: "Kota Bhamashah Krishi Upaj Mandi", place: "Anantpura Bhamashah Mandi", district: "Kota", state: "Rajasthan", latitude: "25.1825000", longitude: "75.8340000", distanceKm: "18.00", status: "OPEN" as const, queueCapacity: 85, currentToken: "RJ-KTA-066", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Sri Ganganagar Grain & Mustard Yard", place: "Suratgarh Road Mandi", district: "Sri Ganganagar", state: "Rajasthan", latitude: "29.9038000", longitude: "73.8772000", distanceKm: "27.00", status: "OPEN" as const, queueCapacity: 70, currentToken: "RJ-SGN-038", cropCategories: "Cereals, Oilseeds, Commercial" },
+  { name: "Hanumangarh Junction Cotton Depot", place: "Junction Dana Mandi", district: "Hanumangarh", state: "Rajasthan", latitude: "29.5819000", longitude: "74.3294000", distanceKm: "29.50", status: "BUSY" as const, queueCapacity: 60, currentToken: "RJ-HNM-029", cropCategories: "Cereals, Commercial" },
+  { name: "Baran Soybean & Pulses Mandi", place: "APMC Yard Baran", district: "Baran", state: "Rajasthan", latitude: "25.1011000", longitude: "76.5132000", distanceKm: "24.00", status: "LIMITED" as const, queueCapacity: 45, currentToken: "RJ-BRN-017", cropCategories: "Oilseeds, Pulses" },
+
+  // Gujarat
+  { name: "Rajkot Bedi Marketing Yard", place: "Bedi Bypass APMC", district: "Rajkot", state: "Gujarat", latitude: "22.3039000", longitude: "70.8022000", distanceKm: "20.00", status: "OPEN" as const, queueCapacity: 80, currentToken: "GJ-RJK-049", cropCategories: "Oilseeds, Commercial, Pulses" },
+  { name: "Junagadh Groundnut & Sesame APMC", place: "Bilkha Road Yard", district: "Junagadh", state: "Gujarat", latitude: "21.5222000", longitude: "70.4579000", distanceKm: "25.50", status: "BUSY" as const, queueCapacity: 60, currentToken: "GJ-JND-032", cropCategories: "Oilseeds, Pulses" },
+  { name: "Gondal Bhuvaneshwari Agri Hub", place: "Gondal Marketing Yard", district: "Rajkot", state: "Gujarat", latitude: "21.9619000", longitude: "70.7985000", distanceKm: "22.50", status: "OPEN" as const, queueCapacity: 75, currentToken: "GJ-GDL-055", cropCategories: "Oilseeds, Commercial" },
+
+  // Bihar
+  { name: "Purnia Gulabbagh Maize & Paddy Mandi", place: "Gulabbagh Mandi", district: "Purnia", state: "Bihar", latitude: "25.7771000", longitude: "87.4753000", distanceKm: "19.00", status: "OPEN" as const, queueCapacity: 75, currentToken: "BR-PUR-034", cropCategories: "Coarse Cereals, Cereals" },
+  { name: "Rohtas Sasaram Grain Collection Depot", place: "Old GT Road, Sasaram", district: "Rohtas", state: "Bihar", latitude: "24.9522000", longitude: "84.0315000", distanceKm: "26.00", status: "LIMITED" as const, queueCapacity: 50, currentToken: "BR-RHT-018", cropCategories: "Cereals, Pulses" },
+  { name: "Begusarai Agricultural Procurement Yard", place: "Harhar Mahadev Chowk", district: "Begusarai", state: "Bihar", latitude: "25.4182000", longitude: "86.1272000", distanceKm: "23.50", status: "OPEN" as const, queueCapacity: 55, currentToken: "BR-BGS-027", cropCategories: "Cereals, Coarse Cereals" },
+
+  // Odisha
+  { name: "Bargarh Paddy Procurement Terminal", place: "Bargarh RMC Mandi", district: "Bargarh", state: "Odisha", latitude: "21.3340000", longitude: "83.6212000", distanceKm: "17.00", status: "OPEN" as const, queueCapacity: 80, currentToken: "OD-BGR-044", cropCategories: "Cereals, Pulses" },
+  { name: "Sambalpur Hirakud Basin Grain Hub", place: "Khetrajpur Market Yard", district: "Sambalpur", state: "Odisha", latitude: "21.4669000", longitude: "83.9812000", distanceKm: "22.00", status: "BUSY" as const, queueCapacity: 60, currentToken: "OD-SBP-029", cropCategories: "Cereals" },
+  { name: "Cuttack Malgodown Agri Mandi", place: "Malgodown Terminal", district: "Cuttack", state: "Odisha", latitude: "20.4625000", longitude: "85.8828000", distanceKm: "25.50", status: "LIMITED" as const, queueCapacity: 50, currentToken: "OD-CTC-015", cropCategories: "Cereals, Pulses" },
+
+  // West Bengal
+  { name: "Bardhaman Memari Paddy Hub", place: "Memari CPC Mandi", district: "Purba Bardhaman", state: "West Bengal", latitude: "23.2324000", longitude: "87.8615000", distanceKm: "18.00", status: "OPEN" as const, queueCapacity: 75, currentToken: "WB-BDN-038", cropCategories: "Cereals, Pulses" },
+  { name: "Murshidabad Berhampore Grain Mandi", place: "Cossimbazar Road", district: "Murshidabad", state: "West Bengal", latitude: "24.0988000", longitude: "88.2679000", distanceKm: "24.00", status: "BUSY" as const, queueCapacity: 55, currentToken: "WB-MSD-021", cropCategories: "Cereals, Oilseeds" },
+  { name: "Hooghly Arambagh Agricultural Centre", place: "Arambagh Link Road", district: "Hooghly", state: "West Bengal", latitude: "22.8804000", longitude: "87.7816000", distanceKm: "21.50", status: "OPEN" as const, queueCapacity: 60, currentToken: "WB-HGL-026", cropCategories: "Cereals, Commercial" },
 ];
 
 export const prototypeSlots = [
@@ -166,9 +246,11 @@ async function seedDatabase(): Promise<void> {
     }
   }
 
-  const existingCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres).limit(1);
-  if (!existingCentres[0]) {
-    await db.insert(procurementCentres).values(prototypeCentres);
+  for (const centre of prototypeCentres) {
+    const existing = await db.select({ id: procurementCentres.id }).from(procurementCentres).where(eq(procurementCentres.name, centre.name)).limit(1);
+    if (!existing[0]) {
+      await db.insert(procurementCentres).values(centre);
+    }
   }
   const currentCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres);
   const datesToSeed = ["2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20"];

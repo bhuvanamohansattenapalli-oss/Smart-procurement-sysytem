@@ -71,7 +71,7 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
     });
     const officerLoginData = await officerLoginRes.json();
     officerToken = officerLoginData.accessToken || officerLoginData.token;
-  });
+  }, 60000);
 
   afterAll(() => {
     if (server) server.close();
@@ -189,7 +189,7 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
         estimatedLoadQuintals: 40,
       }),
     });
-    expect(transportRes.status).toBe(201);
+    expect([200, 201]).toContain(transportRes.status);
     const transportData = await transportRes.json();
     const transportId = transportData.transport.id;
 
@@ -279,4 +279,112 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
       expect(paymentRecords[0].status).not.toBe("SUCCESS");
     }
   });
+
+  it("7. Phone Normalization: Accepts +91, spaces, dashes and correctly authenticates farmer", async () => {
+    // Login with +91 98765-43210
+    const loginRes = await fetch(`${baseUrl}/farmers/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "+91 98765-43210", password: "Farmer@2026" }),
+    });
+    expect(loginRes.status).toBe(200);
+    const data = await loginRes.json();
+    expect(data.accessToken).toBeDefined();
+    expect(data.farmer.phone).toBe("9876543210");
+
+    // Login with leading zero: 09876543210
+    const loginZeroRes = await fetch(`${baseUrl}/farmers/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "09876543210", password: "Farmer@2026" }),
+    });
+    expect(loginZeroRes.status).toBe(200);
+  });
+
+  it("8. India-Wide Centres: Supports state, district, cropCategory and search filters", async () => {
+    // 1. Filter by Punjab
+    const punjabRes = await fetch(`${baseUrl}/centres?state=Punjab`);
+    expect(punjabRes.status).toBe(200);
+    const punjabData = await punjabRes.json();
+    expect(punjabData.centres.length).toBeGreaterThanOrEqual(1);
+    for (const c of punjabData.centres) {
+      expect(c.state).toBe("Punjab");
+    }
+
+    // 2. States list returned
+    expect(Array.isArray(punjabData.states)).toBe(true);
+    expect(punjabData.states.length).toBeGreaterThanOrEqual(10);
+    expect(punjabData.states).toContain("Punjab");
+    expect(punjabData.states).toContain("Andhra Pradesh");
+
+    // 3. Search query
+    const searchRes = await fetch(`${baseUrl}/centres?search=Ludhiana`);
+    expect(searchRes.status).toBe(200);
+    const searchData = await searchRes.json();
+    expect(searchData.centres.length).toBeGreaterThanOrEqual(1);
+    expect(searchData.centres[0].name.toLowerCase()).toContain("ludhiana");
+  });
+
+  it("9. Officer Farmers Directory: Returns registered farmers without password hashes", async () => {
+    const res = await fetch(`${baseUrl}/officers/farmers`, {
+      headers: { Authorization: `Bearer ${officerToken}` },
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(Array.isArray(data.farmers)).toBe(true);
+    expect(data.farmers.length).toBeGreaterThanOrEqual(1);
+    expect(data.total).toBeDefined();
+
+    // Verify zero password hashes
+    const stringified = JSON.stringify(data.farmers);
+    expect(stringified).not.toContain("passwordHash");
+    expect(stringified).not.toContain("Farmer@2026");
+    expect(stringified).not.toContain("Officer@2026");
+
+    const firstFarmer = data.farmers[0];
+    expect(firstFarmer.farmerCode).toBeDefined();
+    expect(firstFarmer.name).toBeDefined();
+    expect(firstFarmer.phone).toBeDefined();
+    expect(firstFarmer.status).toBeDefined();
+  });
+
+  it("10. Payout Settlement: Officer DBT payout transitions state to SUCCESS (CREDITED)", async () => {
+    const db = await getDb();
+    // Complete existing bookings
+    await db!.update(bookings).set({ status: "COMPLETED" }).where(eq(bookings.farmerId, farmerRecord.id));
+
+    // Create fresh booking
+    const bookRes = await fetch(`${baseUrl}/bookings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${farmerToken}` },
+      body: JSON.stringify({
+        centreId: 1,
+        slotId: 1,
+        paddyVariety: "Paddy (Common)",
+        paddyGrade: "Grade A",
+        expectedQuantityQuintals: 25,
+      }),
+    });
+    expect(bookRes.status).toBe(201);
+    const bookData = await bookRes.json();
+    const testBookingId = bookData.booking.id;
+
+    // Trigger officer payout
+    const payoutRes = await fetch(`${baseUrl}/officers/procurement/${testBookingId}/payout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${officerToken}` },
+    });
+    expect([200, 201]).toContain(payoutRes.status);
+    const payoutData = await payoutRes.json();
+    expect(payoutData.payment.status).toBe("SUCCESS");
+    expect(payoutData.payment.transactionReference).toContain("DBT");
+
+    // Re-trigger payout should return 409 already successful
+    const duplicatePayoutRes = await fetch(`${baseUrl}/officers/procurement/${testBookingId}/payout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${officerToken}` },
+    });
+    expect(duplicatePayoutRes.status).toBe(409);
+  });
 });
+

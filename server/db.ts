@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { eq, desc, asc, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
@@ -20,6 +22,14 @@ import {
   type InsertUser,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+
+export function normalizePhone(raw: string | undefined | null): string {
+  if (!raw) return "";
+  const digits = String(raw).replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
 
 let _db: any = null;
 
@@ -128,9 +138,11 @@ function evaluateCondition(row: Record<string, any>, condition: any): boolean {
 class LocalDatabaseStore {
   private tables = new Map<string, Record<string, any>[]>();
   private autoIncrements = new Map<string, number>();
+  private storageFilePath = path.resolve(process.cwd(), ".data", "procureflow_db.json");
 
   constructor() {
     this.initTables();
+    this.loadFromDisk();
   }
 
   private initTables() {
@@ -160,6 +172,51 @@ class LocalDatabaseStore {
     }
   }
 
+  private loadFromDisk() {
+    try {
+      if (fs.existsSync(this.storageFilePath)) {
+        const raw = fs.readFileSync(this.storageFilePath, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (parsed.tables && typeof parsed.tables === "object") {
+            for (const [table, rows] of Object.entries(parsed.tables)) {
+              if (Array.isArray(rows)) {
+                this.tables.set(table, rows);
+              }
+            }
+          }
+          if (parsed.autoIncrements && typeof parsed.autoIncrements === "object") {
+            for (const [table, nextId] of Object.entries(parsed.autoIncrements)) {
+              if (typeof nextId === "number") {
+                this.autoIncrements.set(table, nextId);
+              }
+            }
+          }
+          console.log(`[Database] Loaded persistent local store from ${this.storageFilePath} (${this.tables.get("farmers")?.length ?? 0} farmers, ${this.tables.get("bookings")?.length ?? 0} bookings).`);
+        }
+      }
+    } catch (err) {
+      console.warn("[Database] Failed to read persistent local store from disk:", err);
+    }
+  }
+
+  saveToDisk() {
+    try {
+      const dir = path.dirname(this.storageFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const data = {
+        tables: Object.fromEntries(this.tables.entries()),
+        autoIncrements: Object.fromEntries(this.autoIncrements.entries()),
+        lastSaved: new Date().toISOString(),
+      };
+      fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), "utf-8");
+    } catch (err) {
+      console.warn("[Database] Failed to persist local store to disk:", err);
+    }
+  }
+
   getTableData(tableName: string): Record<string, any>[] {
     if (!this.tables.has(tableName)) {
       this.tables.set(tableName, []);
@@ -171,6 +228,7 @@ class LocalDatabaseStore {
   getNextId(tableName: string): number {
     const current = this.autoIncrements.get(tableName) || 1;
     this.autoIncrements.set(tableName, current + 1);
+    this.saveToDisk();
     return current;
   }
 
@@ -184,7 +242,7 @@ class LocalDatabaseStore {
         let limitCount: number | null = null;
 
         const runQuery = () => {
-          let rows = self.getTableData(tableName).slice();
+          let rows = [...self.getTableData(tableName)];
 
           if (whereCond) {
             rows = rows.filter((r) => evaluateCondition(r, whereCond));
@@ -209,6 +267,11 @@ class LocalDatabaseStore {
                 }
               } else if (ord && ord.name) {
                 colName = ord.name;
+              } else if (ord && ord.column?.name) {
+                colName = ord.column.name;
+              }
+              if (ord && (ord.type === "desc" || ord.direction === "desc")) {
+                isDesc = true;
               }
 
               if (colName) {
@@ -229,14 +292,12 @@ class LocalDatabaseStore {
             rows = rows.slice(0, limitCount);
           }
 
-          // Apply field selection if specified
-          if (selection && typeof selection === "object" && !Array.isArray(selection)) {
-            const keys = Object.keys(selection);
-            rows = rows.map((r) => {
+          if (selection && typeof selection === "object" && !("queryChunks" in selection)) {
+            return rows.map((r) => {
               const projected: Record<string, any> = {};
-              for (const key of keys) {
-                const col = selection[key];
-                const colName = col?.name || key;
+              for (const key of Object.keys(selection)) {
+                const colDef = selection[key];
+                const colName = colDef?.name || key;
                 projected[key] = r[colName];
               }
               return projected;
@@ -307,6 +368,7 @@ class LocalDatabaseStore {
 
             tableRows.push(newRow);
           }
+          self.saveToDisk();
           return { insertId: rowsToInsert[0]?.id || 1 };
         };
 
@@ -349,6 +411,7 @@ class LocalDatabaseStore {
               affectedRows++;
             }
           }
+          self.saveToDisk();
           return { affectedRows };
         };
 
@@ -380,6 +443,7 @@ class LocalDatabaseStore {
           const remaining = tableRows.filter((r) => !evaluateCondition(r, whereCond));
           const affectedRows = tableRows.length - remaining.length;
           self.tables.set(tableName, remaining);
+          self.saveToDisk();
           return { affectedRows };
         };
 
@@ -402,9 +466,11 @@ export async function getDb(): Promise<ReturnType<typeof drizzle>> {
   if (!_db) {
     if (process.env.DATABASE_URL) {
       try {
+        const masked = process.env.DATABASE_URL.replace(/:\/\/[^:]+:[^@]+@/, "://***:***@");
+        console.log(`[Database] Connecting to production MySQL database at ${masked}...`);
         _db = drizzle(process.env.DATABASE_URL);
       } catch (error) {
-        console.warn("[Database] MySQL connection failed, using local store fallback:", error);
+        console.warn("[Database] MySQL connection failed, using persistent local store fallback:", error);
         _db = localStore as any;
       }
     } else {

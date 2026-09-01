@@ -34,6 +34,371 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
+// node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/lib/main.js
+var require_main = __commonJS({
+  "node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/lib/main.js"(exports, module) {
+    var fs2 = __require("fs");
+    var path2 = __require("path");
+    var os = __require("os");
+    var crypto3 = __require("crypto");
+    var TIPS = [
+      "\u25C8 encrypted .env [www.dotenvx.com]",
+      "\u25C8 secrets for agents [www.dotenvx.com]",
+      "\u2301 auth for agents [www.vestauth.com]",
+      "\u2318 custom filepath { path: '/custom/path/.env' }",
+      "\u2318 enable debugging { debug: true }",
+      "\u2318 override existing { override: true }",
+      "\u2318 suppress logs { quiet: true }",
+      "\u2318 multiple files { path: ['.env.local', '.env'] }"
+    ];
+    function _getRandomTip() {
+      return TIPS[Math.floor(Math.random() * TIPS.length)];
+    }
+    function parseBoolean(value) {
+      if (typeof value === "string") {
+        return !["false", "0", "no", "off", ""].includes(value.toLowerCase());
+      }
+      return Boolean(value);
+    }
+    function supportsAnsi() {
+      return process.stdout.isTTY;
+    }
+    function dim(text2) {
+      return supportsAnsi() ? `\x1B[2m${text2}\x1B[0m` : text2;
+    }
+    var LINE = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg;
+    function parse3(src) {
+      const obj = {};
+      let lines = src.toString();
+      lines = lines.replace(/\r\n?/mg, "\n");
+      let match;
+      while ((match = LINE.exec(lines)) != null) {
+        const key = match[1];
+        let value = match[2] || "";
+        value = value.trim();
+        const maybeQuote = value[0];
+        value = value.replace(/^(['"`])([\s\S]*)\1$/mg, "$2");
+        if (maybeQuote === '"') {
+          value = value.replace(/\\n/g, "\n");
+          value = value.replace(/\\r/g, "\r");
+        }
+        obj[key] = value;
+      }
+      return obj;
+    }
+    function _parseVault(options) {
+      options = options || {};
+      const vaultPath = _vaultPath(options);
+      options.path = vaultPath;
+      const result = DotenvModule.configDotenv(options);
+      if (!result.parsed) {
+        const err = new Error(`MISSING_DATA: Cannot parse ${vaultPath} for an unknown reason`);
+        err.code = "MISSING_DATA";
+        throw err;
+      }
+      const keys = _dotenvKey(options).split(",");
+      const length = keys.length;
+      let decrypted;
+      for (let i = 0; i < length; i++) {
+        try {
+          const key = keys[i].trim();
+          const attrs = _instructions(result, key);
+          decrypted = DotenvModule.decrypt(attrs.ciphertext, attrs.key);
+          break;
+        } catch (error46) {
+          if (i + 1 >= length) {
+            throw error46;
+          }
+        }
+      }
+      return DotenvModule.parse(decrypted);
+    }
+    function _warn(message2) {
+      console.error(`\u26A0 ${message2}`);
+    }
+    function _debug(message2) {
+      console.log(`\u2506 ${message2}`);
+    }
+    function _log(message2) {
+      console.log(`\u25C7 ${message2}`);
+    }
+    function _dotenvKey(options) {
+      if (options && options.DOTENV_KEY && options.DOTENV_KEY.length > 0) {
+        return options.DOTENV_KEY;
+      }
+      if (process.env.DOTENV_KEY && process.env.DOTENV_KEY.length > 0) {
+        return process.env.DOTENV_KEY;
+      }
+      return "";
+    }
+    function _instructions(result, dotenvKey) {
+      let uri;
+      try {
+        uri = new URL(dotenvKey);
+      } catch (error46) {
+        if (error46.code === "ERR_INVALID_URL") {
+          const err = new Error("INVALID_DOTENV_KEY: Wrong format. Must be in valid uri format like dotenv://:key_1234@dotenvx.com/vault/.env.vault?environment=development");
+          err.code = "INVALID_DOTENV_KEY";
+          throw err;
+        }
+        throw error46;
+      }
+      const key = uri.password;
+      if (!key) {
+        const err = new Error("INVALID_DOTENV_KEY: Missing key part");
+        err.code = "INVALID_DOTENV_KEY";
+        throw err;
+      }
+      const environment = uri.searchParams.get("environment");
+      if (!environment) {
+        const err = new Error("INVALID_DOTENV_KEY: Missing environment part");
+        err.code = "INVALID_DOTENV_KEY";
+        throw err;
+      }
+      const environmentKey = `DOTENV_VAULT_${environment.toUpperCase()}`;
+      const ciphertext = result.parsed[environmentKey];
+      if (!ciphertext) {
+        const err = new Error(`NOT_FOUND_DOTENV_ENVIRONMENT: Cannot locate environment ${environmentKey} in your .env.vault file.`);
+        err.code = "NOT_FOUND_DOTENV_ENVIRONMENT";
+        throw err;
+      }
+      return { ciphertext, key };
+    }
+    function _vaultPath(options) {
+      let possibleVaultPath = null;
+      if (options && options.path && options.path.length > 0) {
+        if (Array.isArray(options.path)) {
+          for (const filepath of options.path) {
+            if (fs2.existsSync(filepath)) {
+              possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
+            }
+          }
+        } else {
+          possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
+        }
+      } else {
+        possibleVaultPath = path2.resolve(process.cwd(), ".env.vault");
+      }
+      if (fs2.existsSync(possibleVaultPath)) {
+        return possibleVaultPath;
+      }
+      return null;
+    }
+    function _resolveHome(envPath) {
+      return envPath[0] === "~" ? path2.join(os.homedir(), envPath.slice(1)) : envPath;
+    }
+    function _configVault(options) {
+      const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
+      const quiet = parseBoolean(process.env.DOTENV_CONFIG_QUIET || options && options.quiet);
+      if (debug || !quiet) {
+        _log("loading env from encrypted .env.vault");
+      }
+      const parsed = DotenvModule._parseVault(options);
+      let processEnv = process.env;
+      if (options && options.processEnv != null) {
+        processEnv = options.processEnv;
+      }
+      DotenvModule.populate(processEnv, parsed, options);
+      return { parsed };
+    }
+    function configDotenv(options) {
+      const dotenvPath = path2.resolve(process.cwd(), ".env");
+      let encoding = "utf8";
+      let processEnv = process.env;
+      if (options && options.processEnv != null) {
+        processEnv = options.processEnv;
+      }
+      let debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || options && options.debug);
+      let quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || options && options.quiet);
+      if (options && options.encoding) {
+        encoding = options.encoding;
+      } else {
+        if (debug) {
+          _debug("no encoding is specified (UTF-8 is used by default)");
+        }
+      }
+      let optionPaths = [dotenvPath];
+      if (options && options.path) {
+        if (!Array.isArray(options.path)) {
+          optionPaths = [_resolveHome(options.path)];
+        } else {
+          optionPaths = [];
+          for (const filepath of options.path) {
+            optionPaths.push(_resolveHome(filepath));
+          }
+        }
+      }
+      let lastError;
+      const parsedAll = {};
+      for (const path3 of optionPaths) {
+        try {
+          const parsed = DotenvModule.parse(fs2.readFileSync(path3, { encoding }));
+          DotenvModule.populate(parsedAll, parsed, options);
+        } catch (e) {
+          if (debug) {
+            _debug(`failed to load ${path3} ${e.message}`);
+          }
+          lastError = e;
+        }
+      }
+      const populated = DotenvModule.populate(processEnv, parsedAll, options);
+      debug = parseBoolean(processEnv.DOTENV_CONFIG_DEBUG || debug);
+      quiet = parseBoolean(processEnv.DOTENV_CONFIG_QUIET || quiet);
+      if (debug || !quiet) {
+        const keysCount = Object.keys(populated).length;
+        const shortPaths = [];
+        for (const filePath of optionPaths) {
+          try {
+            const relative = path2.relative(process.cwd(), filePath);
+            shortPaths.push(relative);
+          } catch (e) {
+            if (debug) {
+              _debug(`failed to load ${filePath} ${e.message}`);
+            }
+            lastError = e;
+          }
+        }
+        _log(`injected env (${keysCount}) from ${shortPaths.join(",")} ${dim(`// tip: ${_getRandomTip()}`)}`);
+      }
+      if (lastError) {
+        return { parsed: parsedAll, error: lastError };
+      } else {
+        return { parsed: parsedAll };
+      }
+    }
+    function config2(options) {
+      if (_dotenvKey(options).length === 0) {
+        return DotenvModule.configDotenv(options);
+      }
+      const vaultPath = _vaultPath(options);
+      if (!vaultPath) {
+        _warn(`you set DOTENV_KEY but you are missing a .env.vault file at ${vaultPath}`);
+        return DotenvModule.configDotenv(options);
+      }
+      return DotenvModule._configVault(options);
+    }
+    function decrypt(encrypted, keyStr) {
+      const key = Buffer.from(keyStr.slice(-64), "hex");
+      let ciphertext = Buffer.from(encrypted, "base64");
+      const nonce = ciphertext.subarray(0, 12);
+      const authTag = ciphertext.subarray(-16);
+      ciphertext = ciphertext.subarray(12, -16);
+      try {
+        const aesgcm = crypto3.createDecipheriv("aes-256-gcm", key, nonce);
+        aesgcm.setAuthTag(authTag);
+        return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
+      } catch (error46) {
+        const isRange = error46 instanceof RangeError;
+        const invalidKeyLength = error46.message === "Invalid key length";
+        const decryptionFailed = error46.message === "Unsupported state or unable to authenticate data";
+        if (isRange || invalidKeyLength) {
+          const err = new Error("INVALID_DOTENV_KEY: It must be 64 characters long (or more)");
+          err.code = "INVALID_DOTENV_KEY";
+          throw err;
+        } else if (decryptionFailed) {
+          const err = new Error("DECRYPTION_FAILED: Please check your DOTENV_KEY");
+          err.code = "DECRYPTION_FAILED";
+          throw err;
+        } else {
+          throw error46;
+        }
+      }
+    }
+    function populate(processEnv, parsed, options = {}) {
+      const debug = Boolean(options && options.debug);
+      const override = Boolean(options && options.override);
+      const populated = {};
+      if (typeof parsed !== "object") {
+        const err = new Error("OBJECT_REQUIRED: Please check the processEnv argument being passed to populate");
+        err.code = "OBJECT_REQUIRED";
+        throw err;
+      }
+      for (const key of Object.keys(parsed)) {
+        if (Object.prototype.hasOwnProperty.call(processEnv, key)) {
+          if (override === true) {
+            processEnv[key] = parsed[key];
+            populated[key] = parsed[key];
+          }
+          if (debug) {
+            if (override === true) {
+              _debug(`"${key}" is already defined and WAS overwritten`);
+            } else {
+              _debug(`"${key}" is already defined and was NOT overwritten`);
+            }
+          }
+        } else {
+          processEnv[key] = parsed[key];
+          populated[key] = parsed[key];
+        }
+      }
+      return populated;
+    }
+    var DotenvModule = {
+      configDotenv,
+      _configVault,
+      _parseVault,
+      config: config2,
+      decrypt,
+      parse: parse3,
+      populate
+    };
+    module.exports.configDotenv = DotenvModule.configDotenv;
+    module.exports._configVault = DotenvModule._configVault;
+    module.exports._parseVault = DotenvModule._parseVault;
+    module.exports.config = DotenvModule.config;
+    module.exports.decrypt = DotenvModule.decrypt;
+    module.exports.parse = DotenvModule.parse;
+    module.exports.populate = DotenvModule.populate;
+    module.exports = DotenvModule;
+  }
+});
+
+// node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/lib/env-options.js
+var require_env_options = __commonJS({
+  "node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/lib/env-options.js"(exports, module) {
+    var options = {};
+    if (process.env.DOTENV_CONFIG_ENCODING != null) {
+      options.encoding = process.env.DOTENV_CONFIG_ENCODING;
+    }
+    if (process.env.DOTENV_CONFIG_PATH != null) {
+      options.path = process.env.DOTENV_CONFIG_PATH;
+    }
+    if (process.env.DOTENV_CONFIG_QUIET != null) {
+      options.quiet = process.env.DOTENV_CONFIG_QUIET;
+    }
+    if (process.env.DOTENV_CONFIG_DEBUG != null) {
+      options.debug = process.env.DOTENV_CONFIG_DEBUG;
+    }
+    if (process.env.DOTENV_CONFIG_OVERRIDE != null) {
+      options.override = process.env.DOTENV_CONFIG_OVERRIDE;
+    }
+    if (process.env.DOTENV_CONFIG_DOTENV_KEY != null) {
+      options.DOTENV_KEY = process.env.DOTENV_CONFIG_DOTENV_KEY;
+    }
+    module.exports = options;
+  }
+});
+
+// node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/lib/cli-options.js
+var require_cli_options = __commonJS({
+  "node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/lib/cli-options.js"(exports, module) {
+    var re = /^dotenv_config_(encoding|path|quiet|debug|override|DOTENV_KEY)=(.+)$/;
+    module.exports = function optionMatcher(args) {
+      const options = args.reduce(function(acc, cur) {
+        const matches = cur.match(re);
+        if (matches) {
+          acc[matches[1]] = matches[2];
+        }
+        return acc;
+      }, {});
+      if (!("quiet" in options)) {
+        options.quiet = "true";
+      }
+      return options;
+    };
+  }
+});
+
 // node_modules/.pnpm/depd@2.0.0/node_modules/depd/index.js
 var require_depd = __commonJS({
   "node_modules/.pnpm/depd@2.0.0/node_modules/depd/index.js"(exports, module) {
@@ -1294,8 +1659,8 @@ var require_node = __commonJS({
           }
           break;
         case "FILE":
-          var fs = __require("fs");
-          stream2 = new fs.SyncWriteStream(fd2, { autoClose: false });
+          var fs2 = __require("fs");
+          stream2 = new fs2.SyncWriteStream(fd2, { autoClose: false });
           stream2._type = "fs";
           break;
         case "PIPE":
@@ -14082,11 +14447,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path) {
-      if (!path || typeof path !== "string") {
+    function lookup(path2) {
+      if (!path2 || typeof path2 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path).toLowerCase().substr(1);
+      var extension2 = extname("x." + path2).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -17473,7 +17838,7 @@ var require_path_to_regexp = __commonJS({
   "node_modules/.pnpm/path-to-regexp@0.1.12/node_modules/path-to-regexp/index.js"(exports, module) {
     module.exports = pathToRegexp;
     var MATCHING_GROUP_REGEXP = /\\.|\((?:\?<(.*?)>)?(?!\?)/g;
-    function pathToRegexp(path, keys, options) {
+    function pathToRegexp(path2, keys, options) {
       options = options || {};
       keys = keys || [];
       var strict = options.strict;
@@ -17487,8 +17852,8 @@ var require_path_to_regexp = __commonJS({
       var pos = 0;
       var backtrack = "";
       var m;
-      if (path instanceof RegExp) {
-        while (m = MATCHING_GROUP_REGEXP.exec(path.source)) {
+      if (path2 instanceof RegExp) {
+        while (m = MATCHING_GROUP_REGEXP.exec(path2.source)) {
           if (m[0][0] === "\\") continue;
           keys.push({
             name: m[1] || name++,
@@ -17496,18 +17861,18 @@ var require_path_to_regexp = __commonJS({
             offset: m.index
           });
         }
-        return path;
+        return path2;
       }
-      if (Array.isArray(path)) {
-        path = path.map(function(value) {
+      if (Array.isArray(path2)) {
+        path2 = path2.map(function(value) {
           return pathToRegexp(value, keys, options).source;
         });
-        return new RegExp(path.join("|"), flags);
+        return new RegExp(path2.join("|"), flags);
       }
-      if (typeof path !== "string") {
+      if (typeof path2 !== "string") {
         throw new TypeError("path must be a string, array of strings, or regular expression");
       }
-      path = path.replace(
+      path2 = path2.replace(
         /\\.|(\/)?(\.)?:(\w+)(\(.*?\))?(\*)?(\?)?|[.*]|\/\(/g,
         function(match, slash, format, key, capture, star, optional2, offset) {
           if (match[0] === "\\") {
@@ -17524,7 +17889,7 @@ var require_path_to_regexp = __commonJS({
           if (slash || format) {
             backtrack = "";
           } else {
-            backtrack += path.slice(pos, offset);
+            backtrack += path2.slice(pos, offset);
           }
           pos = offset + match.length;
           if (match === "*") {
@@ -17552,7 +17917,7 @@ var require_path_to_regexp = __commonJS({
           return result;
         }
       );
-      while (m = MATCHING_GROUP_REGEXP.exec(path)) {
+      while (m = MATCHING_GROUP_REGEXP.exec(path2)) {
         if (m[0][0] === "\\") continue;
         if (keysOffset + i === keys.length || keys[keysOffset + i].offset > m.index) {
           keys.splice(keysOffset + i, 0, {
@@ -17564,13 +17929,13 @@ var require_path_to_regexp = __commonJS({
         }
         i++;
       }
-      path += strict ? "" : path[path.length - 1] === "/" ? "?" : "/?";
+      path2 += strict ? "" : path2[path2.length - 1] === "/" ? "?" : "/?";
       if (end) {
-        path += "$";
-      } else if (path[path.length - 1] !== "/") {
-        path += lookahead ? "(?=/|$)" : "(?:/|$)";
+        path2 += "$";
+      } else if (path2[path2.length - 1] !== "/") {
+        path2 += lookahead ? "(?=/|$)" : "(?:/|$)";
       }
-      return new RegExp("^" + path, flags);
+      return new RegExp("^" + path2, flags);
     }
   }
 });
@@ -17583,19 +17948,19 @@ var require_layer = __commonJS({
     var debug = require_src()("express:router:layer");
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     module.exports = Layer;
-    function Layer(path, options, fn) {
+    function Layer(path2, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path, options, fn);
+        return new Layer(path2, options, fn);
       }
-      debug("new %o", path);
+      debug("new %o", path2);
       var opts = options || {};
       this.handle = fn;
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.regexp = pathRegexp(path, this.keys = [], opts);
-      this.regexp.fast_star = path === "*";
-      this.regexp.fast_slash = path === "/" && opts.end === false;
+      this.regexp = pathRegexp(path2, this.keys = [], opts);
+      this.regexp.fast_star = path2 === "*";
+      this.regexp.fast_slash = path2 === "/" && opts.end === false;
     }
     Layer.prototype.handle_error = function handle_error(error46, req, res, next) {
       var fn = this.handle;
@@ -17619,20 +17984,20 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match(path) {
+    Layer.prototype.match = function match(path2) {
       var match2;
-      if (path != null) {
+      if (path2 != null) {
         if (this.regexp.fast_slash) {
           this.params = {};
           this.path = "";
           return true;
         }
         if (this.regexp.fast_star) {
-          this.params = { "0": decode_param(path) };
-          this.path = path;
+          this.params = { "0": decode_param(path2) };
+          this.path = path2;
           return true;
         }
-        match2 = this.regexp.exec(path);
+        match2 = this.regexp.exec(path2);
       }
       if (!match2) {
         this.params = void 0;
@@ -17725,10 +18090,10 @@ var require_route = __commonJS({
     var slice = Array.prototype.slice;
     var toString = Object.prototype.toString;
     module.exports = Route;
-    function Route(path) {
-      this.path = path;
+    function Route(path2) {
+      this.path = path2;
       this.stack = [];
-      debug("new %o", path);
+      debug("new %o", path2);
       this.methods = {};
     }
     Route.prototype._handles_method = function _handles_method(method) {
@@ -17940,8 +18305,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        var path = getPathname(req);
-        if (path == null) {
+        var path2 = getPathname(req);
+        if (path2 == null) {
           return done(layerError);
         }
         var layer;
@@ -17949,7 +18314,7 @@ var require_router = __commonJS({
         var route;
         while (match !== true && idx < stack.length) {
           layer = stack[idx++];
-          match = matchLayer(layer, path);
+          match = matchLayer(layer, path2);
           route = layer.route;
           if (typeof match !== "boolean") {
             layerError = layerError || match;
@@ -17987,18 +18352,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handle_request(req, res, next);
           } else {
-            trim_prefix(layer, layerError, layerPath, path);
+            trim_prefix(layer, layerError, layerPath, path2);
           }
           sync = 0;
         });
       }
-      function trim_prefix(layer, layerError, layerPath, path) {
+      function trim_prefix(layer, layerError, layerPath, path2) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path.slice(0, layerPath.length)) {
+          if (layerPath !== path2.slice(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          var c = path[layerPath.length];
+          var c = path2[layerPath.length];
           if (c && c !== "/" && c !== ".") return next(layerError);
           debug("trim prefix (%s) from url %s", layerPath, req.url);
           removed = layerPath;
@@ -18076,7 +18441,7 @@ var require_router = __commonJS({
     };
     proto.use = function use(fn) {
       var offset = 0;
-      var path = "/";
+      var path2 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -18084,7 +18449,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path = fn;
+          path2 = fn;
         }
       }
       var callbacks = flatten(slice.call(arguments, offset));
@@ -18096,8 +18461,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("Router.use() requires a middleware function but got a " + gettype(fn));
         }
-        debug("use %o %s", path, fn.name || "<anonymous>");
-        var layer = new Layer(path, {
+        debug("use %o %s", path2, fn.name || "<anonymous>");
+        var layer = new Layer(path2, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -18107,9 +18472,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    proto.route = function route(path) {
-      var route2 = new Route(path);
-      var layer = new Layer(path, {
+    proto.route = function route(path2) {
+      var route2 = new Route(path2);
+      var layer = new Layer(path2, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -18119,8 +18484,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      proto[method] = function(path) {
-        var route = this.route(path);
+      proto[method] = function(path2) {
+        var route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -18156,9 +18521,9 @@ var require_router = __commonJS({
       }
       return toString.call(obj).replace(objectRegExp, "$1");
     }
-    function matchLayer(layer, path) {
+    function matchLayer(layer, path2) {
       try {
-        return layer.match(path);
+        return layer.match(path2);
       } catch (err) {
         return err;
       }
@@ -18276,13 +18641,13 @@ var require_view = __commonJS({
   "node_modules/.pnpm/express@4.21.2/node_modules/express/lib/view.js"(exports, module) {
     "use strict";
     var debug = require_src()("express:view");
-    var path = __require("path");
-    var fs = __require("fs");
-    var dirname = path.dirname;
-    var basename = path.basename;
-    var extname = path.extname;
-    var join = path.join;
-    var resolve = path.resolve;
+    var path2 = __require("path");
+    var fs2 = __require("fs");
+    var dirname = path2.dirname;
+    var basename = path2.basename;
+    var extname = path2.extname;
+    var join = path2.join;
+    var resolve = path2.resolve;
     module.exports = View2;
     function View2(name, options) {
       var opts = options || {};
@@ -18311,17 +18676,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View2.prototype.lookup = function lookup(name) {
-      var path2;
+      var path3;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name);
-      for (var i = 0; i < roots.length && !path2; i++) {
+      for (var i = 0; i < roots.length && !path3; i++) {
         var root = roots[i];
         var loc = resolve(root, name);
         var dir = dirname(loc);
         var file2 = basename(loc);
-        path2 = this.resolve(dir, file2);
+        path3 = this.resolve(dir, file2);
       }
-      return path2;
+      return path3;
     };
     View2.prototype.render = function render(options, callback) {
       debug('render "%s"', this.path);
@@ -18329,21 +18694,21 @@ var require_view = __commonJS({
     };
     View2.prototype.resolve = function resolve2(dir, file2) {
       var ext = this.ext;
-      var path2 = join(dir, file2);
-      var stat = tryStat(path2);
+      var path3 = join(dir, file2);
+      var stat = tryStat(path3);
       if (stat && stat.isFile()) {
-        return path2;
+        return path3;
       }
-      path2 = join(dir, basename(file2, ext), "index" + ext);
-      stat = tryStat(path2);
+      path3 = join(dir, basename(file2, ext), "index" + ext);
+      stat = tryStat(path3);
       if (stat && stat.isFile()) {
-        return path2;
+        return path3;
       }
     };
-    function tryStat(path2) {
-      debug('stat "%s"', path2);
+    function tryStat(path3) {
+      debug('stat "%s"', path3);
       try {
-        return fs.statSync(path2);
+        return fs2.statSync(path3);
       } catch (e) {
         return void 0;
       }
@@ -18711,8 +19076,8 @@ var require_types = __commonJS({
 // node_modules/.pnpm/mime@1.6.0/node_modules/mime/mime.js
 var require_mime = __commonJS({
   "node_modules/.pnpm/mime@1.6.0/node_modules/mime/mime.js"(exports, module) {
-    var path = __require("path");
-    var fs = __require("fs");
+    var path2 = __require("path");
+    var fs2 = __require("fs");
     function Mime() {
       this.types = /* @__PURE__ */ Object.create(null);
       this.extensions = /* @__PURE__ */ Object.create(null);
@@ -18733,7 +19098,7 @@ var require_mime = __commonJS({
     };
     Mime.prototype.load = function(file2) {
       this._loading = file2;
-      var map2 = {}, content = fs.readFileSync(file2, "ascii"), lines = content.split(/[\r\n]+/);
+      var map2 = {}, content = fs2.readFileSync(file2, "ascii"), lines = content.split(/[\r\n]+/);
       lines.forEach(function(line) {
         var fields = line.replace(/\s*#.*|^\s*|\s*$/g, "").split(/\s+/);
         map2[fields.shift()] = fields;
@@ -18741,8 +19106,8 @@ var require_mime = __commonJS({
       this.define(map2);
       this._loading = null;
     };
-    Mime.prototype.lookup = function(path2, fallback) {
-      var ext = path2.replace(/^.*[\.\/\\]/, "").toLowerCase();
+    Mime.prototype.lookup = function(path3, fallback) {
+      var ext = path3.replace(/^.*[\.\/\\]/, "").toLowerCase();
       return this.types[ext] || fallback || this.default_type;
     };
     Mime.prototype.extension = function(mimeType) {
@@ -18971,33 +19336,33 @@ var require_send = __commonJS({
     var escapeHtml = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs = __require("fs");
+    var fs2 = __require("fs");
     var mime = require_mime();
     var ms = require_ms2();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path = __require("path");
+    var path2 = __require("path");
     var statuses = require_statuses();
     var Stream = __require("stream");
     var util = __require("util");
-    var extname = path.extname;
-    var join = path.join;
-    var normalize = path.normalize;
-    var resolve = path.resolve;
-    var sep = path.sep;
+    var extname = path2.extname;
+    var join = path2.join;
+    var normalize = path2.normalize;
+    var resolve = path2.resolve;
+    var sep = path2.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module.exports = send;
     module.exports.mime = mime;
-    function send(req, path2, options) {
-      return new SendStream(req, path2, options);
+    function send(req, path3, options) {
+      return new SendStream(req, path3, options);
     }
-    function SendStream(req, path2, options) {
+    function SendStream(req, path3, options) {
       Stream.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path2;
+      this.path = path3;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -19043,8 +19408,8 @@ var require_send = __commonJS({
       this._index = index2;
       return this;
     }, "send.index: pass index as option");
-    SendStream.prototype.root = function root(path2) {
-      this._root = resolve(String(path2));
+    SendStream.prototype.root = function root(path3) {
+      this._root = resolve(String(path3));
       debug("root %s", this._root);
       return this;
     };
@@ -19157,10 +19522,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path2) {
+    SendStream.prototype.redirect = function redirect(path3) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path2);
+        this.emit("directory", res, path3);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -19180,42 +19545,42 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe2(res) {
       var root = this._root;
       this.res = res;
-      var path2 = decode4(this.path);
-      if (path2 === -1) {
+      var path3 = decode4(this.path);
+      if (path3 === -1) {
         this.error(400);
         return res;
       }
-      if (~path2.indexOf("\0")) {
+      if (~path3.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path2) {
-          path2 = normalize("." + sep + path2);
+        if (path3) {
+          path3 = normalize("." + sep + path3);
         }
-        if (UP_PATH_REGEXP.test(path2)) {
-          debug('malicious path "%s"', path2);
+        if (UP_PATH_REGEXP.test(path3)) {
+          debug('malicious path "%s"', path3);
           this.error(403);
           return res;
         }
-        parts = path2.split(sep);
-        path2 = normalize(join(root, path2));
+        parts = path3.split(sep);
+        path3 = normalize(join(root, path3));
       } else {
-        if (UP_PATH_REGEXP.test(path2)) {
-          debug('malicious path "%s"', path2);
+        if (UP_PATH_REGEXP.test(path3)) {
+          debug('malicious path "%s"', path3);
           this.error(403);
           return res;
         }
-        parts = normalize(path2).split(sep);
-        path2 = resolve(path2);
+        parts = normalize(path3).split(sep);
+        path3 = resolve(path3);
       }
       if (containsDotFile(parts)) {
         var access = this._dotfiles;
         if (access === void 0) {
           access = parts[parts.length - 1][0] === "." ? this._hidden ? "allow" : "ignore" : "allow";
         }
-        debug('%s dotfile "%s"', access, path2);
+        debug('%s dotfile "%s"', access, path3);
         switch (access) {
           case "allow":
             break;
@@ -19229,13 +19594,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path2);
+        this.sendIndex(path3);
         return res;
       }
-      this.sendFile(path2);
+      this.sendFile(path3);
       return res;
     };
-    SendStream.prototype.send = function send2(path2, stat) {
+    SendStream.prototype.send = function send2(path3, stat) {
       var len = stat.size;
       var options = this.options;
       var opts = {};
@@ -19247,9 +19612,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path2);
-      this.setHeader(path2, stat);
-      this.type(path2);
+      debug('pipe "%s"', path3);
+      this.setHeader(path3, stat);
+      this.type(path3);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -19298,28 +19663,28 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path2, opts);
+      this.stream(path3, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path2) {
+    SendStream.prototype.sendFile = function sendFile(path3) {
       var i = 0;
       var self2 = this;
-      debug('stat "%s"', path2);
-      fs.stat(path2, function onstat(err, stat) {
-        if (err && err.code === "ENOENT" && !extname(path2) && path2[path2.length - 1] !== sep) {
+      debug('stat "%s"', path3);
+      fs2.stat(path3, function onstat(err, stat) {
+        if (err && err.code === "ENOENT" && !extname(path3) && path3[path3.length - 1] !== sep) {
           return next(err);
         }
         if (err) return self2.onStatError(err);
-        if (stat.isDirectory()) return self2.redirect(path2);
-        self2.emit("file", path2, stat);
-        self2.send(path2, stat);
+        if (stat.isDirectory()) return self2.redirect(path3);
+        self2.emit("file", path3, stat);
+        self2.send(path3, stat);
       });
       function next(err) {
         if (self2._extensions.length <= i) {
           return err ? self2.onStatError(err) : self2.error(404);
         }
-        var p = path2 + "." + self2._extensions[i++];
+        var p = path3 + "." + self2._extensions[i++];
         debug('stat "%s"', p);
-        fs.stat(p, function(err2, stat) {
+        fs2.stat(p, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self2.emit("file", p, stat);
@@ -19327,7 +19692,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path2) {
+    SendStream.prototype.sendIndex = function sendIndex(path3) {
       var i = -1;
       var self2 = this;
       function next(err) {
@@ -19335,9 +19700,9 @@ var require_send = __commonJS({
           if (err) return self2.onStatError(err);
           return self2.error(404);
         }
-        var p = join(path2, self2._index[i]);
+        var p = join(path3, self2._index[i]);
         debug('stat "%s"', p);
-        fs.stat(p, function(err2, stat) {
+        fs2.stat(p, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self2.emit("file", p, stat);
@@ -19346,10 +19711,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream(path2, options) {
+    SendStream.prototype.stream = function stream(path3, options) {
       var self2 = this;
       var res = this.res;
-      var stream2 = fs.createReadStream(path2, options);
+      var stream2 = fs2.createReadStream(path3, options);
       this.emit("stream", stream2);
       stream2.pipe(res);
       function cleanup() {
@@ -19364,10 +19729,10 @@ var require_send = __commonJS({
         self2.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path2) {
+    SendStream.prototype.type = function type(path3) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var type2 = mime.lookup(path2);
+      var type2 = mime.lookup(path3);
       if (!type2) {
         debug("no content-type");
         return;
@@ -19376,9 +19741,9 @@ var require_send = __commonJS({
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2 + (charset ? "; charset=" + charset : ""));
     };
-    SendStream.prototype.setHeader = function setHeader(path2, stat) {
+    SendStream.prototype.setHeader = function setHeader(path3, stat) {
       var res = this.res;
-      this.emit("headers", res, path2, stat);
+      this.emit("headers", res, path3, stat);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -19437,9 +19802,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode4(path2) {
+    function decode4(path3) {
       try {
-        return decodeURIComponent(path2);
+        return decodeURIComponent(path3);
       } catch (err) {
         return -1;
       }
@@ -20348,10 +20713,10 @@ var require_utils2 = __commonJS({
     var querystring = __require("querystring");
     exports.etag = createETagGenerator({ weak: false });
     exports.wetag = createETagGenerator({ weak: true });
-    exports.isAbsolute = function(path) {
-      if ("/" === path[0]) return true;
-      if (":" === path[1] && ("\\" === path[2] || "/" === path[2])) return true;
-      if ("\\\\" === path.substring(0, 2)) return true;
+    exports.isAbsolute = function(path2) {
+      if ("/" === path2[0]) return true;
+      if (":" === path2[1] && ("\\" === path2[2] || "/" === path2[2])) return true;
+      if ("\\\\" === path2.substring(0, 2)) return true;
     };
     exports.flatten = deprecate.function(
       flatten,
@@ -20562,7 +20927,7 @@ var require_application = __commonJS({
     };
     app2.use = function use(fn) {
       var offset = 0;
-      var path = "/";
+      var path2 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -20570,7 +20935,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path = fn;
+          path2 = fn;
         }
       }
       var fns = flatten(slice.call(arguments, offset));
@@ -20581,12 +20946,12 @@ var require_application = __commonJS({
       var router2 = this._router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router2.use(path, fn2);
+          return router2.use(path2, fn2);
         }
-        debug(".use app under %s", path);
-        fn2.mountpath = path;
+        debug(".use app under %s", path2);
+        fn2.mountpath = path2;
         fn2.parent = this;
-        router2.use(path, function mounted_app(req, res, next) {
+        router2.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             setPrototypeOf(req, orig.request);
@@ -20598,9 +20963,9 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path) {
+    app2.route = function route(path2) {
       this.lazyrouter();
-      return this._router.route(path);
+      return this._router.route(path2);
     };
     app2.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -20651,7 +21016,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path() {
+    app2.path = function path2() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app2.enabled = function enabled(setting) {
@@ -20667,19 +21032,19 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path) {
+      app2[method] = function(path2) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path);
+          return this.set(path2);
         }
         this.lazyrouter();
-        var route = this._router.route(path);
+        var route = this._router.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app2.all = function all(path) {
+    app2.all = function all(path2) {
       this.lazyrouter();
-      var route = this._router.route(path);
+      var route = this._router.route(path2);
       var args = slice.call(arguments, 1);
       for (var i = 0; i < methods.length; i++) {
         route[methods[i]].apply(route, args);
@@ -21438,7 +21803,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP(hostname3) ? hostname3.split(".").reverse() : [hostname3];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path() {
+    defineGetter(req, "path", function path2() {
       return parse3(this).pathname;
     });
     defineGetter(req, "hostname", function hostname3() {
@@ -21759,7 +22124,7 @@ var require_response = __commonJS({
     var http = __require("http");
     var isAbsolute = require_utils2().isAbsolute;
     var onFinished = require_on_finished();
-    var path = __require("path");
+    var path2 = __require("path");
     var statuses = require_statuses();
     var merge2 = require_utils_merge();
     var sign = require_cookie_signature().sign;
@@ -21768,9 +22133,9 @@ var require_response = __commonJS({
     var setCharset = require_utils2().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path.extname;
+    var extname = path2.extname;
     var mime = send.mime;
-    var resolve = path.resolve;
+    var resolve = path2.resolve;
     var vary = require_vary();
     var res = Object.create(http.ServerResponse.prototype);
     module.exports = res;
@@ -21947,26 +22312,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path2, options, callback) {
+    res.sendFile = function sendFile(path3, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path2) {
+      if (!path3) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path2 !== "string") {
+      if (typeof path3 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !isAbsolute(path2)) {
+      if (!opts.root && !isAbsolute(path3)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path2);
+      var pathname = encodeURI(path3);
       var file2 = send(req, pathname, opts);
       sendfile(res2, file2, opts, function(err) {
         if (done) return done(err);
@@ -21976,7 +22341,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.sendfile = function(path2, options, callback) {
+    res.sendfile = function(path3, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
@@ -21986,7 +22351,7 @@ var require_response = __commonJS({
         done = options;
         opts = {};
       }
-      var file2 = send(req, path2, opts);
+      var file2 = send(req, path3, opts);
       sendfile(res2, file2, opts, function(err) {
         if (done) return done(err);
         if (err && err.code === "EISDIR") return next();
@@ -21999,7 +22364,7 @@ var require_response = __commonJS({
       res.sendfile,
       "res.sendfile: Use res.sendFile instead"
     );
-    res.download = function download(path2, filename, options, callback) {
+    res.download = function download(path3, filename, options, callback) {
       var done = callback;
       var name = filename;
       var opts = options || null;
@@ -22016,7 +22381,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name || path2)
+        "Content-Disposition": contentDisposition(name || path3)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -22029,7 +22394,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve(path2) : path2;
+      var fullPath = !opts.root ? resolve(path3) : path3;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -22330,11 +22695,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl.original(req);
-        var path = parseUrl(req).pathname;
-        if (path === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path = "";
+        var path2 = parseUrl(req).pathname;
+        if (path2 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path2 = "";
         }
-        var stream = send(req, path, opts);
+        var stream = send(req, path2, opts);
         stream.on("directory", onDirectory);
         if (setHeaders) {
           stream.on("headers", setHeaders);
@@ -22685,14 +23050,14 @@ var require_get_framework = __commonJS({
 var require_clean_up_event = __commonJS({
   "node_modules/.pnpm/serverless-http@4.0.0/node_modules/serverless-http/lib/provider/aws/clean-up-event.js"(exports, module) {
     "use strict";
-    function removeBasePath(path = "/", basePath) {
+    function removeBasePath(path2 = "/", basePath) {
       if (basePath) {
-        const basePathIndex = path.indexOf(basePath);
+        const basePathIndex = path2.indexOf(basePath);
         if (basePathIndex > -1) {
-          return path.substr(basePathIndex + basePath.length) || "/";
+          return path2.substr(basePathIndex + basePath.length) || "/";
         }
       }
-      return path;
+      return path2;
     }
     function isString(value) {
       return typeof value === "string" || value instanceof String;
@@ -39496,12 +39861,12 @@ var require_query3 = __commonJS({
         this._fields.push(this._currentFields);
         return this.readField;
       }
-      _streamLocalInfile(connection, path) {
+      _streamLocalInfile(connection, path2) {
         if (this._streamFactory) {
-          this._localStream = this._streamFactory(path);
+          this._localStream = this._streamFactory(path2);
         } else {
           this._localStreamError = new Error(
-            `As a result of LOCAL INFILE command server wants to read ${path} file, but as of v2.0 you must provide streamFactory option returning ReadStream.`
+            `As a result of LOCAL INFILE command server wants to read ${path2} file, but as of v2.0 you must provide streamFactory option returning ReadStream.`
           );
           connection.writePacket(EmptyPacket);
           return this.infileOk;
@@ -43921,8 +44286,8 @@ var require_pathstringifier = __commonJS({
       return key.replace(/\./g, "\\.");
     };
     exports.escapeKey = escapeKey;
-    var stringifyPath = function(path) {
-      return path.map(String).map(exports.escapeKey).join(".");
+    var stringifyPath = function(path2) {
+      return path2.map(String).map(exports.escapeKey).join(".");
     };
     exports.stringifyPath = stringifyPath;
     var parsePath = function(string4) {
@@ -44249,26 +44614,26 @@ var require_accessDeep = __commonJS({
       }
       return keys.next().value;
     };
-    function validatePath(path) {
-      if (util_1.includes(path, "__proto__")) {
+    function validatePath(path2) {
+      if (util_1.includes(path2, "__proto__")) {
         throw new Error("__proto__ is not allowed as a property");
       }
-      if (util_1.includes(path, "prototype")) {
+      if (util_1.includes(path2, "prototype")) {
         throw new Error("prototype is not allowed as a property");
       }
-      if (util_1.includes(path, "constructor")) {
+      if (util_1.includes(path2, "constructor")) {
         throw new Error("constructor is not allowed as a property");
       }
     }
-    var getDeep = function(object2, path) {
-      validatePath(path);
-      for (var i = 0; i < path.length; i++) {
-        var key = path[i];
+    var getDeep = function(object2, path2) {
+      validatePath(path2);
+      for (var i = 0; i < path2.length; i++) {
+        var key = path2[i];
         if (is_1.isSet(object2)) {
           object2 = getNthKey(object2, +key);
         } else if (is_1.isMap(object2)) {
           var row = +key;
-          var type = +path[++i] === 0 ? "key" : "value";
+          var type = +path2[++i] === 0 ? "key" : "value";
           var keyOfRow = getNthKey(object2, row);
           switch (type) {
             case "key":
@@ -44285,14 +44650,14 @@ var require_accessDeep = __commonJS({
       return object2;
     };
     exports.getDeep = getDeep;
-    var setDeep = function(object2, path, mapper) {
-      validatePath(path);
-      if (path.length === 0) {
+    var setDeep = function(object2, path2, mapper) {
+      validatePath(path2);
+      if (path2.length === 0) {
         return mapper(object2);
       }
       var parent = object2;
-      for (var i = 0; i < path.length - 1; i++) {
-        var key = path[i];
+      for (var i = 0; i < path2.length - 1; i++) {
+        var key = path2[i];
         if (is_1.isArray(parent)) {
           var index = +key;
           parent = parent[index];
@@ -44302,12 +44667,12 @@ var require_accessDeep = __commonJS({
           var row = +key;
           parent = getNthKey(parent, row);
         } else if (is_1.isMap(parent)) {
-          var isEnd = i === path.length - 2;
+          var isEnd = i === path2.length - 2;
           if (isEnd) {
             break;
           }
           var row = +key;
-          var type = +path[++i] === 0 ? "key" : "value";
+          var type = +path2[++i] === 0 ? "key" : "value";
           var keyOfRow = getNthKey(parent, row);
           switch (type) {
             case "key":
@@ -44319,7 +44684,7 @@ var require_accessDeep = __commonJS({
           }
         }
       }
-      var lastKey = path[path.length - 1];
+      var lastKey = path2[path2.length - 1];
       if (is_1.isArray(parent)) {
         parent[+lastKey] = mapper(parent[+lastKey]);
       } else if (is_1.isPlainObject(parent)) {
@@ -44334,7 +44699,7 @@ var require_accessDeep = __commonJS({
         }
       }
       if (is_1.isMap(parent)) {
-        var row = +path[path.length - 2];
+        var row = +path2[path2.length - 2];
         var keyToRow = getNthKey(parent, row);
         var type = +lastKey === 0 ? "key" : "value";
         switch (type) {
@@ -44414,8 +44779,8 @@ var require_plainer = __commonJS({
       walker2(nodeValue, origin);
     }
     function applyValueAnnotations(plain, annotations, superJson) {
-      traverse(annotations, function(type, path) {
-        plain = accessDeep_1.setDeep(plain, path, function(v) {
+      traverse(annotations, function(type, path2) {
+        plain = accessDeep_1.setDeep(plain, path2, function(v) {
           return transformer_1.untransformValue(v, type, superJson);
         });
       });
@@ -44423,8 +44788,8 @@ var require_plainer = __commonJS({
     }
     exports.applyValueAnnotations = applyValueAnnotations;
     function applyReferentialEqualityAnnotations(plain, annotations) {
-      function apply(identicalPaths, path) {
-        var object2 = accessDeep_1.getDeep(plain, pathstringifier_2.parsePath(path));
+      function apply(identicalPaths, path2) {
+        var object2 = accessDeep_1.getDeep(plain, pathstringifier_2.parsePath(path2));
         identicalPaths.map(pathstringifier_2.parsePath).forEach(function(identicalObjectPath) {
           plain = accessDeep_1.setDeep(plain, identicalObjectPath, function() {
             return object2;
@@ -44450,12 +44815,12 @@ var require_plainer = __commonJS({
     var isDeep = function(object2, superJson) {
       return is_1.isPlainObject(object2) || is_1.isArray(object2) || is_1.isMap(object2) || is_1.isSet(object2) || transformer_1.isInstanceOfRegisteredClass(object2, superJson);
     };
-    function addIdentity(object2, path, identities) {
+    function addIdentity(object2, path2, identities) {
       var existingSet = identities.get(object2);
       if (existingSet) {
-        existingSet.push(path);
+        existingSet.push(path2);
       } else {
-        identities.set(object2, [path]);
+        identities.set(object2, [path2]);
       }
     }
     function generateReferentialEqualityAnnotations(identitites, dedupe) {
@@ -44466,8 +44831,8 @@ var require_plainer = __commonJS({
           return;
         }
         if (!dedupe) {
-          paths = paths.map(function(path) {
-            return path.map(String);
+          paths = paths.map(function(path2) {
+            return path2.map(String);
           }).sort(function(a, b) {
             return a.length - b.length;
           });
@@ -44490,10 +44855,10 @@ var require_plainer = __commonJS({
       }
     }
     exports.generateReferentialEqualityAnnotations = generateReferentialEqualityAnnotations;
-    var walker = function(object2, identities, superJson, dedupe, path, objectsInThisPath, seenObjects) {
+    var walker = function(object2, identities, superJson, dedupe, path2, objectsInThisPath, seenObjects) {
       var _a;
-      if (path === void 0) {
-        path = [];
+      if (path2 === void 0) {
+        path2 = [];
       }
       if (objectsInThisPath === void 0) {
         objectsInThisPath = [];
@@ -44503,7 +44868,7 @@ var require_plainer = __commonJS({
       }
       var primitive = is_1.isPrimitive(object2);
       if (!primitive) {
-        addIdentity(object2, path, identities);
+        addIdentity(object2, path2, identities);
         var seen = seenObjects.get(object2);
         if (seen) {
           return dedupe ? {
@@ -44534,7 +44899,7 @@ var require_plainer = __commonJS({
       var transformedValue = is_1.isArray(transformed) ? [] : {};
       var innerAnnotations = {};
       util_1.forEach(transformed, function(value, index) {
-        var recursiveResult = exports.walker(value, identities, superJson, dedupe, __spreadArray(__spreadArray([], __read(path)), [index]), __spreadArray(__spreadArray([], __read(objectsInThisPath)), [object2]), seenObjects);
+        var recursiveResult = exports.walker(value, identities, superJson, dedupe, __spreadArray(__spreadArray([], __read(path2)), [index]), __spreadArray(__spreadArray([], __read(objectsInThisPath)), [object2]), seenObjects);
         transformedValue[index] = recursiveResult.transformedValue;
         if (is_1.isArray(recursiveResult.annotations)) {
           innerAnnotations[index] = recursiveResult.annotations;
@@ -44909,6 +45274,17 @@ var require_dist = __commonJS({
     exports.allowErrorProps = SuperJSON.allowErrorProps;
   }
 });
+
+// node_modules/.pnpm/dotenv@17.4.2/node_modules/dotenv/config.js
+(function() {
+  require_main().config(
+    Object.assign(
+      {},
+      require_env_options(),
+      require_cli_options()(process.argv)
+    )
+  );
+})();
 
 // netlify/functions/api.ts
 var import_express2 = __toESM(require_express2(), 1);
@@ -46228,7 +46604,7 @@ var QueryPromise = class {
 function mapResultRow(columns, row, joinsNotNullableMap) {
   const nullifyMap = {};
   const result = columns.reduce(
-    (result2, { path, field }, columnIndex) => {
+    (result2, { path: path2, field }, columnIndex) => {
       let decoder2;
       if (is(field, Column)) {
         decoder2 = field;
@@ -46238,8 +46614,8 @@ function mapResultRow(columns, row, joinsNotNullableMap) {
         decoder2 = field.sql.decoder;
       }
       let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path.entries()) {
-        if (pathChunkIndex < path.length - 1) {
+      for (const [pathChunkIndex, pathChunk] of path2.entries()) {
+        if (pathChunkIndex < path2.length - 1) {
           if (!(pathChunk in node)) {
             node[pathChunk] = {};
           }
@@ -46247,8 +46623,8 @@ function mapResultRow(columns, row, joinsNotNullableMap) {
         } else {
           const rawValue = row[columnIndex];
           const value = node[pathChunk] = rawValue === null ? null : decoder2.mapFromDriverValue(rawValue);
-          if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
-            const objectName = path[0];
+          if (joinsNotNullableMap && is(field, Column) && path2.length === 2) {
+            const objectName = path2[0];
             if (!(objectName in nullifyMap)) {
               nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
             } else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) {
@@ -47541,10 +47917,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path) {
-  if (!path)
+function getElementAtPath(obj, path2) {
+  if (!path2)
     return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
+  return path2.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -47905,11 +48281,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path, issues) {
+function prefixIssues(path2, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path);
+    iss.path.unshift(path2);
     return iss;
   });
 }
@@ -48071,7 +48447,7 @@ function formatError(error46, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error46, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error47, path = []) => {
+  const processError = (error47, path2 = []) => {
     var _a, _b;
     for (const issue2 of error47.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
@@ -48081,7 +48457,7 @@ function treeifyError(error46, mapper = (issue2) => issue2.message) {
       } else if (issue2.code === "invalid_element") {
         processError({ issues: issue2.issues }, issue2.path);
       } else {
-        const fullpath = [...path, ...issue2.path];
+        const fullpath = [...path2, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -48113,8 +48489,8 @@ function treeifyError(error46, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path) {
+  const path2 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path2) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -63467,11 +63843,13 @@ var procurementCentres = mysqlTable("procurementCentres", {
   name: varchar("name", { length: 180 }).notNull(),
   place: varchar("place", { length: 180 }).notNull(),
   district: varchar("district", { length: 160 }).notNull(),
+  state: varchar("state", { length: 100 }).default("Andhra Pradesh").notNull(),
   latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
   longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
   distanceKm: decimal("distanceKm", { precision: 5, scale: 2 }).notNull(),
   status: mysqlEnum("status", ["OPEN", "BUSY", "LIMITED", "CLOSED"]).default("OPEN").notNull(),
   queueCapacity: int2("queueCapacity").notNull().default(50),
+  cropCategories: varchar("cropCategories", { length: 255 }).default("Cereals, Pulses, Oilseeds"),
   currentToken: varchar("currentToken", { length: 32 }).default("P-001"),
   createdAt: timestamp("createdAt").defaultNow().notNull()
 });
@@ -63588,6 +63966,10 @@ var transportBookings = mysqlTable("transportBookings", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull()
 });
+
+// server/db.ts
+import fs from "fs";
+import path from "path";
 
 // node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.24.2_@types+node@24.7.0_/node_modules/drizzle-orm/mysql2/driver.js
 var import_mysql2 = __toESM(require_mysql2(), 1);
@@ -63929,6 +64311,13 @@ var ENV = {
 };
 
 // server/db.ts
+function normalizePhone(raw) {
+  if (!raw) return "";
+  const digits = String(raw).replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
 var _db = null;
 function getTableName2(table) {
   if (!table) return "unknown";
@@ -64014,8 +64403,10 @@ function evaluateCondition(row, condition) {
 var LocalDatabaseStore = class {
   tables = /* @__PURE__ */ new Map();
   autoIncrements = /* @__PURE__ */ new Map();
+  storageFilePath = path.resolve(process.cwd(), ".data", "procureflow_db.json");
   constructor() {
     this.initTables();
+    this.loadFromDisk();
   }
   initTables() {
     const tableList = [
@@ -64043,6 +64434,49 @@ var LocalDatabaseStore = class {
       }
     }
   }
+  loadFromDisk() {
+    try {
+      if (fs.existsSync(this.storageFilePath)) {
+        const raw = fs.readFileSync(this.storageFilePath, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (parsed.tables && typeof parsed.tables === "object") {
+            for (const [table, rows] of Object.entries(parsed.tables)) {
+              if (Array.isArray(rows)) {
+                this.tables.set(table, rows);
+              }
+            }
+          }
+          if (parsed.autoIncrements && typeof parsed.autoIncrements === "object") {
+            for (const [table, nextId] of Object.entries(parsed.autoIncrements)) {
+              if (typeof nextId === "number") {
+                this.autoIncrements.set(table, nextId);
+              }
+            }
+          }
+          console.log(`[Database] Loaded persistent local store from ${this.storageFilePath} (${this.tables.get("farmers")?.length ?? 0} farmers, ${this.tables.get("bookings")?.length ?? 0} bookings).`);
+        }
+      }
+    } catch (err) {
+      console.warn("[Database] Failed to read persistent local store from disk:", err);
+    }
+  }
+  saveToDisk() {
+    try {
+      const dir = path.dirname(this.storageFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const data = {
+        tables: Object.fromEntries(this.tables.entries()),
+        autoIncrements: Object.fromEntries(this.autoIncrements.entries()),
+        lastSaved: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), "utf-8");
+    } catch (err) {
+      console.warn("[Database] Failed to persist local store to disk:", err);
+    }
+  }
   getTableData(tableName) {
     if (!this.tables.has(tableName)) {
       this.tables.set(tableName, []);
@@ -64053,6 +64487,7 @@ var LocalDatabaseStore = class {
   getNextId(tableName) {
     const current = this.autoIncrements.get(tableName) || 1;
     this.autoIncrements.set(tableName, current + 1);
+    this.saveToDisk();
     return current;
   }
   select(selection) {
@@ -64064,7 +64499,7 @@ var LocalDatabaseStore = class {
         let orderConfigs = [];
         let limitCount = null;
         const runQuery = () => {
-          let rows = self2.getTableData(tableName).slice();
+          let rows = [...self2.getTableData(tableName)];
           if (whereCond) {
             rows = rows.filter((r) => evaluateCondition(r, whereCond));
           }
@@ -64081,6 +64516,11 @@ var LocalDatabaseStore = class {
                 }
               } else if (ord && ord.name) {
                 colName = ord.name;
+              } else if (ord && ord.column?.name) {
+                colName = ord.column.name;
+              }
+              if (ord && (ord.type === "desc" || ord.direction === "desc")) {
+                isDesc = true;
               }
               if (colName) {
                 rows.sort((a, b) => {
@@ -64098,13 +64538,12 @@ var LocalDatabaseStore = class {
           if (limitCount !== null) {
             rows = rows.slice(0, limitCount);
           }
-          if (selection && typeof selection === "object" && !Array.isArray(selection)) {
-            const keys = Object.keys(selection);
-            rows = rows.map((r) => {
+          if (selection && typeof selection === "object" && !("queryChunks" in selection)) {
+            return rows.map((r) => {
               const projected = {};
-              for (const key of keys) {
-                const col = selection[key];
-                const colName = col?.name || key;
+              for (const key of Object.keys(selection)) {
+                const colDef = selection[key];
+                const colName = colDef?.name || key;
                 projected[key] = r[colName];
               }
               return projected;
@@ -64167,6 +64606,7 @@ var LocalDatabaseStore = class {
             }
             tableRows.push(newRow);
           }
+          self2.saveToDisk();
           return { insertId: rowsToInsert[0]?.id || 1 };
         };
         const executor = {
@@ -64204,6 +64644,7 @@ var LocalDatabaseStore = class {
               affectedRows++;
             }
           }
+          self2.saveToDisk();
           return { affectedRows };
         };
         const executor = {
@@ -64232,6 +64673,7 @@ var LocalDatabaseStore = class {
           const remaining = tableRows.filter((r) => !evaluateCondition(r, whereCond));
           const affectedRows = tableRows.length - remaining.length;
           self2.tables.set(tableName, remaining);
+          self2.saveToDisk();
           return { affectedRows };
         };
         return {
@@ -64251,9 +64693,11 @@ async function getDb() {
   if (!_db) {
     if (process.env.DATABASE_URL) {
       try {
+        const masked = process.env.DATABASE_URL.replace(/:\/\/[^:]+:[^@]+@/, "://***:***@");
+        console.log(`[Database] Connecting to production MySQL database at ${masked}...`);
         _db = drizzle(process.env.DATABASE_URL);
       } catch (error46) {
-        console.warn("[Database] MySQL connection failed, using local store fallback:", error46);
+        console.warn("[Database] MySQL connection failed, using persistent local store fallback:", error46);
         _db = localStore;
       }
     } else {
@@ -65951,14 +66395,81 @@ function verifyPassword(password, hash2) {
 // server/services/seedService.ts
 var seedPromise = null;
 var prototypeCentres = [
-  { name: "Guntur Agricultural Market Yard", place: "Collectorate Road, Guntur", district: "Guntur", latitude: "16.2970000", longitude: "80.4350000", distanceKm: "2.40", status: "OPEN", queueCapacity: 60, currentToken: "AP-GNT-024" },
-  { name: "Vijayawada Central Paddy Hub", place: "Gollapudi Market Yard", district: "NTR District", latitude: "16.5417000", longitude: "80.5847000", distanceKm: "4.80", status: "OPEN", queueCapacity: 55, currentToken: "AP-VJA-009" },
-  { name: "Kurnool Rythu Bharosa Kendra", place: "C-Camp Agri Centre", district: "Kurnool", latitude: "15.8281000", longitude: "78.0373000", distanceKm: "6.50", status: "BUSY", queueCapacity: 45, currentToken: "AP-KNL-038" },
-  { name: "Rajahmundry Godavari Collection Point", place: "Katheru Road", district: "East Godavari", latitude: "17.0005000", longitude: "81.8040000", distanceKm: "8.20", status: "LIMITED", queueCapacity: 35, currentToken: "AP-RJY-016" },
-  { name: "Eluru District Procurement Yard", place: "Sanivarapupeta", district: "Eluru", latitude: "16.7107000", longitude: "81.0952000", distanceKm: "10.50", status: "OPEN", queueCapacity: 40, currentToken: "AP-ELR-012" },
-  { name: "Nellore Coastal Paddy Mandi", place: "Podalakur Road", district: "Nellore", latitude: "14.4426000", longitude: "79.9865000", distanceKm: "13.80", status: "OPEN", queueCapacity: 50, currentToken: "AP-NLR-007" },
-  { name: "Tirupati Rayalaseema Grain Yard", place: "Renigunta Road", district: "Tirupati", latitude: "13.6288000", longitude: "79.4192000", distanceKm: "15.20", status: "BUSY", queueCapacity: 40, currentToken: "AP-TPT-019" },
-  { name: "Visakhapatnam Anandapuram Yard", place: "Anandapuram Junction", district: "Visakhapatnam", latitude: "17.8864000", longitude: "83.3980000", distanceKm: "18.50", status: "OPEN", queueCapacity: 45, currentToken: "AP-VSP-005" }
+  // Andhra Pradesh
+  { name: "Guntur Agricultural Market Yard", place: "Collectorate Road, Guntur", district: "Guntur", state: "Andhra Pradesh", latitude: "16.2970000", longitude: "80.4350000", distanceKm: "2.40", status: "OPEN", queueCapacity: 60, currentToken: "AP-GNT-024", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Vijayawada Central Paddy Hub", place: "Gollapudi Market Yard", district: "NTR District", state: "Andhra Pradesh", latitude: "16.5417000", longitude: "80.5847000", distanceKm: "4.80", status: "OPEN", queueCapacity: 55, currentToken: "AP-VJA-009", cropCategories: "Cereals, Pulses" },
+  { name: "Kurnool Rythu Bharosa Kendra", place: "C-Camp Agri Centre", district: "Kurnool", state: "Andhra Pradesh", latitude: "15.8281000", longitude: "78.0373000", distanceKm: "6.50", status: "BUSY", queueCapacity: 45, currentToken: "AP-KNL-038", cropCategories: "Cereals, Coarse Cereals, Pulses" },
+  { name: "Rajahmundry Godavari Collection Point", place: "Katheru Road", district: "East Godavari", state: "Andhra Pradesh", latitude: "17.0005000", longitude: "81.8040000", distanceKm: "8.20", status: "LIMITED", queueCapacity: 35, currentToken: "AP-RJY-016", cropCategories: "Cereals, Oilseeds" },
+  { name: "Eluru District Procurement Yard", place: "Sanivarapupeta", district: "Eluru", state: "Andhra Pradesh", latitude: "16.7107000", longitude: "81.0952000", distanceKm: "10.50", status: "OPEN", queueCapacity: 40, currentToken: "AP-ELR-012", cropCategories: "Cereals, Commercial" },
+  { name: "Nellore Coastal Paddy Mandi", place: "Podalakur Road", district: "Nellore", state: "Andhra Pradesh", latitude: "14.4426000", longitude: "79.9865000", distanceKm: "13.80", status: "OPEN", queueCapacity: 50, currentToken: "AP-NLR-007", cropCategories: "Cereals, Pulses" },
+  { name: "Tirupati Rayalaseema Grain Yard", place: "Renigunta Road", district: "Tirupati", state: "Andhra Pradesh", latitude: "13.6288000", longitude: "79.4192000", distanceKm: "15.20", status: "BUSY", queueCapacity: 40, currentToken: "AP-TPT-019", cropCategories: "Cereals, Oilseeds" },
+  { name: "Visakhapatnam Anandapuram Yard", place: "Anandapuram Junction", district: "Visakhapatnam", state: "Andhra Pradesh", latitude: "17.8864000", longitude: "83.3980000", distanceKm: "18.50", status: "OPEN", queueCapacity: 45, currentToken: "AP-VSP-005", cropCategories: "Cereals, Pulses" },
+  // Telangana
+  { name: "Nizamabad Integrated Grain Yard", place: "Dubba Road Market Yard", district: "Nizamabad", state: "Telangana", latitude: "18.6725000", longitude: "78.0941000", distanceKm: "22.40", status: "OPEN", queueCapacity: 65, currentToken: "TS-NZB-018", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Warangal Enumamula Agricultural Market", place: "Enumamula Grain Terminal", district: "Warangal", state: "Telangana", latitude: "17.9689000", longitude: "79.5941000", distanceKm: "26.80", status: "OPEN", queueCapacity: 80, currentToken: "TS-WGL-042", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Karimnagar Rythu Vedika Hub", place: "Manakondur Road", district: "Karimnagar", state: "Telangana", latitude: "18.4386000", longitude: "79.1288000", distanceKm: "28.50", status: "LIMITED", queueCapacity: 45, currentToken: "TS-KNR-011", cropCategories: "Cereals, Oilseeds" },
+  { name: "Nalgonda Miryalaguda Paddy Depot", place: "Sagar Road, Miryalaguda", district: "Nalgonda", state: "Telangana", latitude: "16.8711000", longitude: "79.5638000", distanceKm: "19.00", status: "OPEN", queueCapacity: 70, currentToken: "TS-MLG-031", cropCategories: "Cereals, Pulses" },
+  { name: "Khammam Cotton & Chilli Market Yard", place: "Wyra Road, Khammam", district: "Khammam", state: "Telangana", latitude: "17.2473000", longitude: "80.1514000", distanceKm: "24.50", status: "BUSY", queueCapacity: 50, currentToken: "TS-KHM-025", cropCategories: "Commercial, Pulses, Cereals" },
+  // Punjab
+  { name: "Ludhiana Gill Road Grain Mandi", place: "Gill Road Grain Market", district: "Ludhiana", state: "Punjab", latitude: "30.9010000", longitude: "75.8573000", distanceKm: "18.00", status: "OPEN", queueCapacity: 90, currentToken: "PB-LDH-054", cropCategories: "Cereals, Oilseeds" },
+  { name: "Sangrur Central Wheat & Paddy Yard", place: "Dhuri Road Mandi", district: "Sangrur", state: "Punjab", latitude: "30.2447000", longitude: "75.8451000", distanceKm: "21.50", status: "OPEN", queueCapacity: 75, currentToken: "PB-SGR-033", cropCategories: "Cereals" },
+  { name: "Patiala Nabha Gate Procurement Center", place: "Nabha Gate Mandi", district: "Patiala", state: "Punjab", latitude: "30.3398000", longitude: "76.3869000", distanceKm: "24.00", status: "BUSY", queueCapacity: 60, currentToken: "PB-PTL-019", cropCategories: "Cereals, Pulses" },
+  { name: "Bathinda Multania Road Mandi", place: "Multania Road Yard", district: "Bathinda", state: "Punjab", latitude: "30.2110000", longitude: "74.9455000", distanceKm: "28.00", status: "LIMITED", queueCapacity: 55, currentToken: "PB-BTI-028", cropCategories: "Cereals, Commercial" },
+  { name: "Amritsar Bhagtanwala Grain Terminal", place: "Bhagtanwala Dana Mandi", district: "Amritsar", state: "Punjab", latitude: "31.6340000", longitude: "74.8723000", distanceKm: "32.00", status: "OPEN", queueCapacity: 70, currentToken: "PB-ASR-041", cropCategories: "Cereals" },
+  // Haryana
+  { name: "Karnal GT Road New Grain Market", place: "GT Road Dana Mandi", district: "Karnal", state: "Haryana", latitude: "29.6857000", longitude: "76.9905000", distanceKm: "15.00", status: "OPEN", queueCapacity: 85, currentToken: "HR-KAR-012", cropCategories: "Cereals, Oilseeds" },
+  { name: "Kurukshetra Pipli Procurement Hub", place: "Pipli Grain Market", district: "Kurukshetra", state: "Haryana", latitude: "29.9695000", longitude: "76.8783000", distanceKm: "20.50", status: "OPEN", queueCapacity: 65, currentToken: "HR-KKR-027", cropCategories: "Cereals, Pulses" },
+  { name: "Sirsa Cotton & Wheat Mandi", place: "Bhavani Road APMC", district: "Sirsa", state: "Haryana", latitude: "29.5349000", longitude: "75.0298000", distanceKm: "30.00", status: "BUSY", queueCapacity: 70, currentToken: "HR-SRS-045", cropCategories: "Cereals, Commercial, Oilseeds" },
+  { name: "Kaithal Agricultural Produce Yard", place: "Jind Road Mandi", district: "Kaithal", state: "Haryana", latitude: "29.8015000", longitude: "76.3996000", distanceKm: "22.00", status: "LIMITED", queueCapacity: 50, currentToken: "HR-KTL-015", cropCategories: "Cereals" },
+  // Madhya Pradesh
+  { name: "Indore Laxmibai Nagar Krishi Upaj Mandi", place: "Laxmibai Nagar", district: "Indore", state: "Madhya Pradesh", latitude: "22.7533000", longitude: "75.8617000", distanceKm: "16.00", status: "OPEN", queueCapacity: 80, currentToken: "MP-IND-062", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Ujjain Chimanganj Grain Yard", place: "Chimanganj Mandi", district: "Ujjain", state: "Madhya Pradesh", latitude: "23.1765000", longitude: "75.7885000", distanceKm: "25.00", status: "OPEN", queueCapacity: 65, currentToken: "MP-UJN-034", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Bhopal Karond Mandi Complex", place: "Karond Bypass", district: "Bhopal", state: "Madhya Pradesh", latitude: "23.2989000", longitude: "77.4024000", distanceKm: "19.50", status: "LIMITED", queueCapacity: 55, currentToken: "MP-BPL-021", cropCategories: "Cereals, Pulses" },
+  { name: "Hoshangabad Narmadapuram Wheat Center", place: "Itarsi Road Mandi", district: "Narmadapuram", state: "Madhya Pradesh", latitude: "22.7519000", longitude: "77.7289000", distanceKm: "27.00", status: "OPEN", queueCapacity: 75, currentToken: "MP-NDP-048", cropCategories: "Cereals, Pulses" },
+  { name: "Jabalpur Krishi Mandi Yard", place: "Vijay Nagar Mandi", district: "Jabalpur", state: "Madhya Pradesh", latitude: "23.1815000", longitude: "79.9864000", distanceKm: "31.00", status: "BUSY", queueCapacity: 60, currentToken: "MP-JBP-039", cropCategories: "Cereals, Pulses" },
+  // Uttar Pradesh
+  { name: "Varanasi Shivpur Grain Mandi", place: "Shivpur Mandi Samiti", district: "Varanasi", state: "Uttar Pradesh", latitude: "25.3524000", longitude: "82.9621000", distanceKm: "14.50", status: "OPEN", queueCapacity: 70, currentToken: "UP-VNS-022", cropCategories: "Cereals, Pulses" },
+  { name: "Lucknow Dubagga Krishi Upaj Mandi", place: "Dubagga Mandi Yard", district: "Lucknow", state: "Uttar Pradesh", latitude: "26.8622000", longitude: "80.8653000", distanceKm: "17.00", status: "OPEN", queueCapacity: 75, currentToken: "UP-LKO-037", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Bareilly Delapeer Mandi Samiti", place: "Delapeer Crossing", district: "Bareilly", state: "Uttar Pradesh", latitude: "28.3752000", longitude: "79.4312000", distanceKm: "23.00", status: "LIMITED", queueCapacity: 50, currentToken: "UP-BLY-016", cropCategories: "Cereals, Commercial" },
+  { name: "Aligarh G.T. Road Grain Depot", place: "Dhanipur Mandi", district: "Aligarh", state: "Uttar Pradesh", latitude: "27.8974000", longitude: "78.0880000", distanceKm: "26.00", status: "OPEN", queueCapacity: 60, currentToken: "UP-ALG-029", cropCategories: "Cereals, Oilseeds" },
+  { name: "Gorakhpur Sahjanwa Procurement Point", place: "Sahjanwa Industrial Area", district: "Gorakhpur", state: "Uttar Pradesh", latitude: "26.7606000", longitude: "83.3732000", distanceKm: "29.00", status: "BUSY", queueCapacity: 55, currentToken: "UP-GKP-043", cropCategories: "Cereals, Pulses" },
+  // Maharashtra
+  { name: "Nagpur Kalamna Grain & Pulse Market", place: "Kalamna Market Yard", district: "Nagpur", state: "Maharashtra", latitude: "21.1719000", longitude: "79.1364000", distanceKm: "18.50", status: "OPEN", queueCapacity: 85, currentToken: "MH-NGP-051", cropCategories: "Cereals, Pulses, Oilseeds, Commercial" },
+  { name: "Akola Cotton & Soybean APMC", place: "Shivaji Nagar APMC", district: "Akola", state: "Maharashtra", latitude: "20.7002000", longitude: "77.0082000", distanceKm: "24.00", status: "OPEN", queueCapacity: 70, currentToken: "MH-AKL-032", cropCategories: "Oilseeds, Commercial, Pulses" },
+  { name: "Nashik Dindori Road Agri Hub", place: "Dindori Naka APMC", district: "Nashik", state: "Maharashtra", latitude: "20.0110000", longitude: "73.7903000", distanceKm: "21.00", status: "BUSY", queueCapacity: 65, currentToken: "MH-NSK-024", cropCategories: "Cereals, Coarse Cereals, Pulses" },
+  { name: "Latur Pulses & Oilseeds Mandi", place: "Market Yard, Latur", district: "Latur", state: "Maharashtra", latitude: "18.4088000", longitude: "76.5604000", distanceKm: "26.50", status: "OPEN", queueCapacity: 75, currentToken: "MH-LTR-047", cropCategories: "Pulses, Oilseeds" },
+  { name: "Solapur Siddheshwar Krishi Kendra", place: "Old Pune Naka", district: "Solapur", state: "Maharashtra", latitude: "17.6599000", longitude: "75.9064000", distanceKm: "29.00", status: "LIMITED", queueCapacity: 50, currentToken: "MH-SLP-018", cropCategories: "Coarse Cereals, Pulses" },
+  // Karnataka
+  { name: "Dharwad APMC Amargol Market Yard", place: "Amargol APMC Complex", district: "Dharwad", state: "Karnataka", latitude: "15.3949000", longitude: "75.0935000", distanceKm: "17.50", status: "OPEN", queueCapacity: 70, currentToken: "KA-DHW-035", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Belagavi Central Agricultural Center", place: "Khanapur Road APMC", district: "Belagavi", state: "Karnataka", latitude: "15.8497000", longitude: "74.4977000", distanceKm: "23.00", status: "OPEN", queueCapacity: 60, currentToken: "KA-BGM-022", cropCategories: "Cereals, Commercial" },
+  { name: "Raichur Cotton & Paddy Complex", place: "Lingasugur Road APMC", district: "Raichur", state: "Karnataka", latitude: "16.2120000", longitude: "77.3439000", distanceKm: "20.00", status: "BUSY", queueCapacity: 65, currentToken: "KA-RCR-041", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Davanagere Bathi Maize & Grain Mandi", place: "Bathi APMC Yard", district: "Davanagere", state: "Karnataka", latitude: "14.4644000", longitude: "75.9218000", distanceKm: "25.00", status: "LIMITED", queueCapacity: 50, currentToken: "KA-DVG-014", cropCategories: "Coarse Cereals, Cereals" },
+  // Tamil Nadu
+  { name: "Thanjavur Cauvery Delta Paddy Yard", place: "Pillayarpatti DPC", district: "Thanjavur", state: "Tamil Nadu", latitude: "10.7870000", longitude: "79.1378000", distanceKm: "16.00", status: "OPEN", queueCapacity: 75, currentToken: "TN-TNJ-028", cropCategories: "Cereals, Pulses" },
+  { name: "Tiruvarur Direct Purchase Center", place: "Mannargudi Road DPC", district: "Tiruvarur", state: "Tamil Nadu", latitude: "10.7725000", longitude: "79.6365000", distanceKm: "19.50", status: "OPEN", queueCapacity: 60, currentToken: "TN-TVR-033", cropCategories: "Cereals" },
+  { name: "Madurai Mattuthavani Agri Market", place: "Mattuthavani Yard", district: "Madurai", state: "Tamil Nadu", latitude: "9.9391000", longitude: "78.1561000", distanceKm: "22.00", status: "BUSY", queueCapacity: 55, currentToken: "TN-MDU-019", cropCategories: "Cereals, Pulses, Commercial" },
+  { name: "Tiruchirappalli Gandhi Market Depot", place: "Palakarai Complex", district: "Tiruchirappalli", state: "Tamil Nadu", latitude: "10.7905000", longitude: "78.7047000", distanceKm: "24.50", status: "LIMITED", queueCapacity: 45, currentToken: "TN-TRY-012", cropCategories: "Cereals, Coarse Cereals" },
+  // Rajasthan
+  { name: "Kota Bhamashah Krishi Upaj Mandi", place: "Anantpura Bhamashah Mandi", district: "Kota", state: "Rajasthan", latitude: "25.1825000", longitude: "75.8340000", distanceKm: "18.00", status: "OPEN", queueCapacity: 85, currentToken: "RJ-KTA-066", cropCategories: "Cereals, Pulses, Oilseeds" },
+  { name: "Sri Ganganagar Grain & Mustard Yard", place: "Suratgarh Road Mandi", district: "Sri Ganganagar", state: "Rajasthan", latitude: "29.9038000", longitude: "73.8772000", distanceKm: "27.00", status: "OPEN", queueCapacity: 70, currentToken: "RJ-SGN-038", cropCategories: "Cereals, Oilseeds, Commercial" },
+  { name: "Hanumangarh Junction Cotton Depot", place: "Junction Dana Mandi", district: "Hanumangarh", state: "Rajasthan", latitude: "29.5819000", longitude: "74.3294000", distanceKm: "29.50", status: "BUSY", queueCapacity: 60, currentToken: "RJ-HNM-029", cropCategories: "Cereals, Commercial" },
+  { name: "Baran Soybean & Pulses Mandi", place: "APMC Yard Baran", district: "Baran", state: "Rajasthan", latitude: "25.1011000", longitude: "76.5132000", distanceKm: "24.00", status: "LIMITED", queueCapacity: 45, currentToken: "RJ-BRN-017", cropCategories: "Oilseeds, Pulses" },
+  // Gujarat
+  { name: "Rajkot Bedi Marketing Yard", place: "Bedi Bypass APMC", district: "Rajkot", state: "Gujarat", latitude: "22.3039000", longitude: "70.8022000", distanceKm: "20.00", status: "OPEN", queueCapacity: 80, currentToken: "GJ-RJK-049", cropCategories: "Oilseeds, Commercial, Pulses" },
+  { name: "Junagadh Groundnut & Sesame APMC", place: "Bilkha Road Yard", district: "Junagadh", state: "Gujarat", latitude: "21.5222000", longitude: "70.4579000", distanceKm: "25.50", status: "BUSY", queueCapacity: 60, currentToken: "GJ-JND-032", cropCategories: "Oilseeds, Pulses" },
+  { name: "Gondal Bhuvaneshwari Agri Hub", place: "Gondal Marketing Yard", district: "Rajkot", state: "Gujarat", latitude: "21.9619000", longitude: "70.7985000", distanceKm: "22.50", status: "OPEN", queueCapacity: 75, currentToken: "GJ-GDL-055", cropCategories: "Oilseeds, Commercial" },
+  // Bihar
+  { name: "Purnia Gulabbagh Maize & Paddy Mandi", place: "Gulabbagh Mandi", district: "Purnia", state: "Bihar", latitude: "25.7771000", longitude: "87.4753000", distanceKm: "19.00", status: "OPEN", queueCapacity: 75, currentToken: "BR-PUR-034", cropCategories: "Coarse Cereals, Cereals" },
+  { name: "Rohtas Sasaram Grain Collection Depot", place: "Old GT Road, Sasaram", district: "Rohtas", state: "Bihar", latitude: "24.9522000", longitude: "84.0315000", distanceKm: "26.00", status: "LIMITED", queueCapacity: 50, currentToken: "BR-RHT-018", cropCategories: "Cereals, Pulses" },
+  { name: "Begusarai Agricultural Procurement Yard", place: "Harhar Mahadev Chowk", district: "Begusarai", state: "Bihar", latitude: "25.4182000", longitude: "86.1272000", distanceKm: "23.50", status: "OPEN", queueCapacity: 55, currentToken: "BR-BGS-027", cropCategories: "Cereals, Coarse Cereals" },
+  // Odisha
+  { name: "Bargarh Paddy Procurement Terminal", place: "Bargarh RMC Mandi", district: "Bargarh", state: "Odisha", latitude: "21.3340000", longitude: "83.6212000", distanceKm: "17.00", status: "OPEN", queueCapacity: 80, currentToken: "OD-BGR-044", cropCategories: "Cereals, Pulses" },
+  { name: "Sambalpur Hirakud Basin Grain Hub", place: "Khetrajpur Market Yard", district: "Sambalpur", state: "Odisha", latitude: "21.4669000", longitude: "83.9812000", distanceKm: "22.00", status: "BUSY", queueCapacity: 60, currentToken: "OD-SBP-029", cropCategories: "Cereals" },
+  { name: "Cuttack Malgodown Agri Mandi", place: "Malgodown Terminal", district: "Cuttack", state: "Odisha", latitude: "20.4625000", longitude: "85.8828000", distanceKm: "25.50", status: "LIMITED", queueCapacity: 50, currentToken: "OD-CTC-015", cropCategories: "Cereals, Pulses" },
+  // West Bengal
+  { name: "Bardhaman Memari Paddy Hub", place: "Memari CPC Mandi", district: "Purba Bardhaman", state: "West Bengal", latitude: "23.2324000", longitude: "87.8615000", distanceKm: "18.00", status: "OPEN", queueCapacity: 75, currentToken: "WB-BDN-038", cropCategories: "Cereals, Pulses" },
+  { name: "Murshidabad Berhampore Grain Mandi", place: "Cossimbazar Road", district: "Murshidabad", state: "West Bengal", latitude: "24.0988000", longitude: "88.2679000", distanceKm: "24.00", status: "BUSY", queueCapacity: 55, currentToken: "WB-MSD-021", cropCategories: "Cereals, Oilseeds" },
+  { name: "Hooghly Arambagh Agricultural Centre", place: "Arambagh Link Road", district: "Hooghly", state: "West Bengal", latitude: "22.8804000", longitude: "87.7816000", distanceKm: "21.50", status: "OPEN", queueCapacity: 60, currentToken: "WB-HGL-026", cropCategories: "Cereals, Commercial" }
 ];
 var prototypeSlots = [
   ["07:00 AM", "08:00 AM", 25, 7],
@@ -66091,9 +66602,11 @@ async function seedDatabase() {
       await db.insert(officers).values(off);
     }
   }
-  const existingCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres).limit(1);
-  if (!existingCentres[0]) {
-    await db.insert(procurementCentres).values(prototypeCentres);
+  for (const centre of prototypeCentres) {
+    const existing = await db.select({ id: procurementCentres.id }).from(procurementCentres).where(eq(procurementCentres.name, centre.name)).limit(1);
+    if (!existing[0]) {
+      await db.insert(procurementCentres).values(centre);
+    }
   }
   const currentCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres);
   const datesToSeed = ["2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20"];
@@ -66223,7 +66736,9 @@ function verifyRazorpaySignature(input) {
 }
 
 // server/routes/procurementApi.ts
-var phoneSchema = external_exports.string().trim().regex(/^\d{10}$/, "Phone must be a 10-digit Indian mobile number.");
+var phoneSchema = external_exports.string().trim().transform(normalizePhone).pipe(
+  external_exports.string().regex(/^\d{10}$/, "Phone must be a valid 10-digit Indian mobile number.")
+);
 var passwordSchema = external_exports.string().min(8, "Password must contain at least 8 characters.");
 var idSchema = external_exports.coerce.number().int().positive();
 var registrationSchema = external_exports.object({ name: external_exports.string().trim().min(2).max(160), phone: phoneSchema, password: passwordSchema, village: external_exports.string().trim().min(2).max(160), district: external_exports.string().trim().min(2).max(160), primaryCrop: external_exports.string().trim().min(2).max(80), aadhaarMasked: external_exports.string().trim().regex(/^X{4}\sX{4}\s\d{4}$|^\d{4}\s\d{4}\s\d{4}$/, "Provide masked Aadhaar as XXXX XXXX 1234."), declarationAccepted: external_exports.literal(true) });
@@ -66335,7 +66850,23 @@ function formatOfficer(officer) {
   };
 }
 function formatCentre(centre, queueCount, availableSlots) {
-  return { id: centre.id, name: centre.name, place: centre.place, district: centre.district, latitude: Number(centre.latitude), longitude: Number(centre.longitude), distanceKm: Number(centre.distanceKm), status: centre.status, currentToken: centre.currentToken, currentQueue: queueCount, availableSlots };
+  return {
+    id: centre.id,
+    name: centre.name,
+    place: centre.place,
+    district: centre.district,
+    state: centre.state || "Andhra Pradesh",
+    cropCategories: centre.cropCategories || "Cereals, Pulses, Oilseeds",
+    address: centre.place,
+    latitude: Number(centre.latitude),
+    longitude: Number(centre.longitude),
+    distanceKm: Number(centre.distanceKm),
+    status: centre.status,
+    queueCapacity: centre.queueCapacity,
+    currentToken: centre.currentToken,
+    currentQueue: queueCount,
+    availableSlots
+  };
 }
 function createPrototypePaymentQuote(cropNameOrVariety, expectedQuantityQuintals, mspPrice) {
   let unitPrice = 2300;
@@ -66489,21 +67020,22 @@ function createProcurementApi() {
     if (!input) return;
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    if ((await db.select().from(farmers).where(eq(farmers.phone, input.phone)).limit(1))[0]) {
+    const cleanPhone = normalizePhone(input.phone);
+    if ((await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0]) {
       return res.status(409).json({ error: "PHONE_EXISTS", message: "A farmer is already registered with this mobile number." });
     }
     const farmerCode = `FMR-${(/* @__PURE__ */ new Date()).getUTCFullYear()}-${String(Date.now()).slice(-6)}`;
     await db.insert(farmers).values({
       farmerCode,
       name: input.name,
-      phone: input.phone,
+      phone: cleanPhone,
       passwordHash: hashPassword(input.password),
       village: input.village,
       district: input.district,
       primaryCrop: input.primaryCrop,
       status: "PENDING"
     });
-    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, input.phone)).limit(1))[0];
+    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
     if (!farmer) return res.status(500).json({ error: "REGISTRATION_FAILED" });
     await db.insert(registrations).values({
       farmerId: farmer.id,
@@ -66521,9 +67053,10 @@ function createProcurementApi() {
     await db.insert(notifications).values({
       farmerId: farmer.id,
       title: "New farmer registration submitted",
-      message: `Farmer ${farmer.name} (${farmer.phone}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
+      message: `Farmer ${farmer.name} (${cleanPhone}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
       category: "REGISTRATION"
     });
+    console.info(`[Auth Audit] Farmer registered: id=${farmer.id} phone=${cleanPhone} code=${farmerCode}`);
     return res.status(201).json({
       message: "Registration submitted \u2014 awaiting officer verification.",
       registrationId: registration?.id,
@@ -66536,10 +67069,22 @@ function createProcurementApi() {
     if (!input) return;
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, input.phone)).limit(1))[0];
-    if (!farmer || !verifyPassword(input.password, farmer.passwordHash)) return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
-    if (farmer.status !== "APPROVED") return res.status(403).json({ error: "REGISTRATION_NOT_APPROVED", message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`, status: farmer.status });
+    const cleanPhone = normalizePhone(input.phone);
+    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+    if (!farmer) {
+      console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=FARMER_NOT_FOUND`);
+      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
+    }
+    if (!verifyPassword(input.password, farmer.passwordHash)) {
+      console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=PASSWORD_MISMATCH`);
+      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
+    }
+    if (farmer.status !== "APPROVED") {
+      console.info(`[Auth Audit] Farmer login deferred: phone=${cleanPhone} status=${farmer.status}`);
+      return res.status(403).json({ error: "REGISTRATION_NOT_APPROVED", message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`, status: farmer.status });
+    }
     const token = await issueAccessToken({ id: farmer.id, role: "farmer", code: farmer.farmerCode, name: farmer.name });
+    console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${cleanPhone} code=${farmer.farmerCode}`);
     return res.json({ accessToken: token, tokenType: "Bearer", expiresInSeconds: 28800, farmer: formatFarmer(farmer) });
   });
   api.post("/officers/login", async (req, res) => {
@@ -66852,6 +67397,55 @@ function createProcurementApi() {
     const farmer = (await db.select().from(farmers).where(eq(farmers.id, registration.farmerId)).limit(1))[0];
     return res.json({ registration, farmer: farmer && formatFarmer(farmer) });
   });
+  api.get("/officers/farmers", requireApiAuth, requireRole("officer"), async (_req, res) => {
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    const allFarmers = await db.select().from(farmers).orderBy(desc(farmers.createdAt));
+    const allRegistrations = await db.select().from(registrations);
+    const allBookings = await db.select().from(bookings);
+    const allCentres = await db.select().from(procurementCentres);
+    const centreMap = new Map(allCentres.map((c) => [c.id, c.name]));
+    const regMap = new Map(allRegistrations.map((r) => [r.farmerId, r]));
+    const rows = allFarmers.map((f) => {
+      const reg = regMap.get(f.id);
+      const farmerBookings = allBookings.filter((b) => b.farmerId === f.id);
+      const latestBooking = farmerBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      return {
+        id: f.id,
+        farmerCode: f.farmerCode,
+        name: f.name,
+        phone: f.phone,
+        village: f.village,
+        district: f.district,
+        primaryCrop: f.primaryCrop,
+        status: f.status,
+        createdAt: f.createdAt instanceof Date ? f.createdAt.toISOString() : String(f.createdAt),
+        updatedAt: f.updatedAt instanceof Date ? f.updatedAt.toISOString() : String(f.updatedAt),
+        registration: reg ? {
+          id: reg.id,
+          aadhaarMasked: reg.aadhaarMasked,
+          status: reg.status,
+          reviewedAt: reg.reviewedAt ? reg.reviewedAt instanceof Date ? reg.reviewedAt.toISOString() : String(reg.reviewedAt) : null,
+          rejectionReason: reg.rejectionReason ?? null
+        } : null,
+        activeBooking: latestBooking ? {
+          id: latestBooking.id,
+          bookingCode: latestBooking.bookingCode,
+          status: latestBooking.status,
+          centreName: centreMap.get(latestBooking.centreId) || "Procurement Centre",
+          paddyVariety: latestBooking.paddyVariety,
+          expectedQuantityQuintals: Number(latestBooking.expectedQuantityQuintals)
+        } : null
+      };
+    });
+    return res.json({
+      farmers: rows,
+      total: rows.length,
+      approvedCount: rows.filter((r) => r.status === "APPROVED").length,
+      pendingCount: rows.filter((r) => r.status === "PENDING").length,
+      rejectedCount: rows.filter((r) => r.status === "REJECTED").length
+    });
+  });
   const handleApproveRegistration = async (req, res) => {
     const id = idSchema.safeParse(req.params.id);
     if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
@@ -66883,15 +67477,44 @@ function createProcurementApi() {
   api.post("/officers/registrations/:id/approve", requireApiAuth, requireRole("officer"), handleApproveRegistration);
   api.put("/officers/registrations/:id/reject", requireApiAuth, requireRole("officer"), handleRejectRegistration);
   api.post("/officers/registrations/:id/reject", requireApiAuth, requireRole("officer"), handleRejectRegistration);
-  api.get("/centres", async (_req, res) => {
+  api.get("/centres", async (req, res) => {
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const centres = await db.select().from(procurementCentres);
-    const response = await Promise.all(centres.map(async (centre) => {
-      const [waiting, centreSlots] = await Promise.all([db.select().from(queueEntries).where(and(eq(queueEntries.centreId, centre.id), eq(queueEntries.status, "WAITING"))), db.select().from(slots).where(and(eq(slots.centreId, centre.id), eq(slots.isActive, 1)))]);
+    const allCentres = await db.select().from(procurementCentres);
+    const filterState = typeof req.query.state === "string" ? req.query.state.trim() : void 0;
+    const filterDistrict = typeof req.query.district === "string" ? req.query.district.trim() : void 0;
+    const filterCrop = typeof req.query.cropCategory === "string" ? req.query.cropCategory.trim() : void 0;
+    const searchQuery = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : void 0;
+    let filtered = allCentres;
+    if (filterState && filterState !== "ALL" && filterState !== "All India") {
+      filtered = filtered.filter((c) => (c.state || "").toLowerCase() === filterState.toLowerCase());
+    }
+    if (filterDistrict && filterDistrict !== "ALL" && filterDistrict !== "All Districts") {
+      filtered = filtered.filter((c) => (c.district || "").toLowerCase() === filterDistrict.toLowerCase());
+    }
+    if (filterCrop && filterCrop !== "ALL") {
+      filtered = filtered.filter((c) => (c.cropCategories || "").toLowerCase().includes(filterCrop.toLowerCase()));
+    }
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (c) => c.name.toLowerCase().includes(searchQuery) || c.place.toLowerCase().includes(searchQuery) || c.district.toLowerCase().includes(searchQuery) || (c.state || "").toLowerCase().includes(searchQuery)
+      );
+    }
+    const response = await Promise.all(filtered.map(async (centre) => {
+      const [waiting, centreSlots] = await Promise.all([
+        db.select().from(queueEntries).where(and(eq(queueEntries.centreId, centre.id), eq(queueEntries.status, "WAITING"))),
+        db.select().from(slots).where(and(eq(slots.centreId, centre.id), eq(slots.isActive, 1)))
+      ]);
       return formatCentre(centre, waiting.length, centreSlots.reduce((sum, slot) => sum + Math.max(0, slot.capacity - slot.bookedCount), 0));
     }));
-    return res.json({ centres: response, prototypeData: true });
+    const states = Array.from(new Set(allCentres.map((c) => c.state || "Andhra Pradesh"))).sort();
+    return res.json({
+      centres: response,
+      states,
+      total: allCentres.length,
+      filteredTotal: response.length,
+      prototypeData: true
+    });
   });
   api.get("/centres/:id", async (req, res) => {
     const id = idSchema.safeParse(req.params.id);
@@ -68363,31 +68986,31 @@ var noop = () => {
 var freezeIfAvailable = (obj) => {
   if (Object.freeze) Object.freeze(obj);
 };
-function createInnerProxy(callback, path, memo2) {
+function createInnerProxy(callback, path2, memo2) {
   var _memo$cacheKey;
-  const cacheKey = path.join(".");
+  const cacheKey = path2.join(".");
   (_memo$cacheKey = memo2[cacheKey]) !== null && _memo$cacheKey !== void 0 || (memo2[cacheKey] = new Proxy(noop, {
     get(_obj, key) {
       if (typeof key !== "string" || key === "then") return void 0;
-      return createInnerProxy(callback, [...path, key], memo2);
+      return createInnerProxy(callback, [...path2, key], memo2);
     },
     apply(_1, _2, args) {
-      const lastOfPath = path[path.length - 1];
+      const lastOfPath = path2[path2.length - 1];
       if (lastOfPath === "valueOf" || lastOfPath === "toString" || lastOfPath === "toJSON") {
-        const debugPath = path.slice(0, -1).join(".");
+        const debugPath = path2.slice(0, -1).join(".");
         return `tRPC.proxy(${debugPath})`;
       }
       let opts = {
         args,
-        path
+        path: path2
       };
       if (lastOfPath === "call") opts = {
         args: args.length >= 2 ? [args[1]] : [],
-        path: path.slice(0, -1)
+        path: path2.slice(0, -1)
       };
       else if (lastOfPath === "apply") opts = {
         args: args.length >= 2 ? args[1] : [],
-        path: path.slice(0, -1)
+        path: path2.slice(0, -1)
       };
       freezeIfAvailable(opts.args);
       freezeIfAvailable(opts.path);
@@ -68515,7 +69138,7 @@ var require_objectSpread2 = __commonJS2({ "../../node_modules/.pnpm/@oxc-project
 } });
 var import_objectSpread2 = __toESM2(require_objectSpread2(), 1);
 function getErrorShape(opts) {
-  const { path, error: error46, config: config2 } = opts;
+  const { path: path2, error: error46, config: config2 } = opts;
   const { code } = opts.error;
   const shape = {
     message: error46.message,
@@ -68526,7 +69149,7 @@ function getErrorShape(opts) {
     }
   };
   if (config2.isDev && typeof opts.error.stack === "string") shape.data.stack = opts.error.stack;
-  if (typeof path === "string") shape.data.path = path;
+  if (typeof path2 === "string") shape.data.path = path2;
   return config2.errorFormatter((0, import_objectSpread2.default)((0, import_objectSpread2.default)({}, opts), {}, { shape }));
 }
 
@@ -68660,12 +69283,12 @@ function createRouterFactory(config2) {
         })
       };
     }
-    function step(from, path = []) {
+    function step(from, path2 = []) {
       const aggregate = emptyObject();
       for (const [key, item] of Object.entries(from !== null && from !== void 0 ? from : {})) {
         if (isLazy(item)) {
-          lazy$1[[...path, key].join(".")] = createLazyLoader({
-            path,
+          lazy$1[[...path2, key].join(".")] = createLazyLoader({
+            path: path2,
             ref: item,
             key,
             aggregate
@@ -68673,14 +69296,14 @@ function createRouterFactory(config2) {
           continue;
         }
         if (isRouter(item)) {
-          aggregate[key] = step(item._def.record, [...path, key]);
+          aggregate[key] = step(item._def.record, [...path2, key]);
           continue;
         }
         if (!isProcedure(item)) {
-          aggregate[key] = step(item, [...path, key]);
+          aggregate[key] = step(item, [...path2, key]);
           continue;
         }
-        const newPath = [...path, key].join(".");
+        const newPath = [...path2, key].join(".");
         if (procedures[newPath]) throw new Error(`Duplicate key: ${newPath}`);
         procedures[newPath] = item;
         aggregate[key] = item;
@@ -68705,15 +69328,15 @@ function createRouterFactory(config2) {
 function isProcedure(procedureOrRouter) {
   return typeof procedureOrRouter === "function";
 }
-async function getProcedureAtPath(router2, path) {
+async function getProcedureAtPath(router2, path2) {
   const { _def } = router2;
-  let procedure = _def.procedures[path];
+  let procedure = _def.procedures[path2];
   while (!procedure) {
-    const key = Object.keys(_def.lazy).find((key$1) => path.startsWith(key$1));
+    const key = Object.keys(_def.lazy).find((key$1) => path2.startsWith(key$1));
     if (!key) return null;
     const lazyRouter = _def.lazy[key];
     await lazyRouter.load();
-    procedure = _def.procedures[path];
+    procedure = _def.procedures[path2];
   }
   return procedure;
 }
@@ -68722,15 +69345,15 @@ function createCallerFactory() {
     const { _def } = router2;
     return function createCaller(ctxOrCallback, opts) {
       return createRecursiveProxy(async (innerOpts) => {
-        const { path, args } = innerOpts;
-        const fullPath = path.join(".");
-        if (path.length === 1 && path[0] === "_def") return _def;
+        const { path: path2, args } = innerOpts;
+        const fullPath = path2.join(".");
+        if (path2.length === 1 && path2[0] === "_def") return _def;
         const procedure = await getProcedureAtPath(router2, fullPath);
         let ctx = void 0;
         try {
           if (!procedure) throw new TRPCError({
             code: "NOT_FOUND",
-            message: `No procedure found on path "${path}"`
+            message: `No procedure found on path "${path2}"`
           });
           ctx = isFunction(ctxOrCallback) ? await Promise.resolve(ctxOrCallback()) : ctxOrCallback;
           return await procedure({
@@ -68955,11 +69578,11 @@ var jsonContentTypeHandler = {
       }
       return acc;
     });
-    const calls = await Promise.all(paths.map(async (path, index) => {
-      const procedure = await getProcedureAtPath(opts.router, path);
+    const calls = await Promise.all(paths.map(async (path2, index) => {
+      const procedure = await getProcedureAtPath(opts.router, path2);
       return {
         batchIndex: index,
-        path,
+        path: path2,
         procedure,
         getRawInput: async () => {
           const inputs = await getInputs.read();
@@ -69767,9 +70390,9 @@ function isPromise(value) {
   return (isObject2(value) || isFunction(value)) && typeof (value === null || value === void 0 ? void 0 : value["then"]) === "function" && typeof (value === null || value === void 0 ? void 0 : value["catch"]) === "function";
 }
 var MaxDepthError = class extends Error {
-  constructor(path) {
-    super("Max depth reached at path: " + path.join("."));
-    this.path = path;
+  constructor(path2) {
+    super("Max depth reached at path: " + path2.join("."));
+    this.path = path2;
   }
 };
 function createBatchStreamProducer(_x3) {
@@ -69787,16 +70410,16 @@ function _createBatchStreamProducer() {
       mergedIterables.add(iterable$1);
       return idx;
     }
-    function encodePromise(promise2, path) {
+    function encodePromise(promise2, path2) {
       return registerAsync(/* @__PURE__ */ (function() {
         var _ref = (0, import_wrapAsyncGenerator$2.default)(function* (idx) {
-          const error46 = checkMaxDepth(path);
+          const error46 = checkMaxDepth(path2);
           if (error46) {
             promise2.catch((cause) => {
               var _opts$onError;
               (_opts$onError = opts.onError) === null || _opts$onError === void 0 || _opts$onError.call(opts, {
                 error: cause,
-                path
+                path: path2
               });
             });
             promise2 = Promise.reject(error46);
@@ -69806,20 +70429,20 @@ function _createBatchStreamProducer() {
             yield [
               idx,
               PROMISE_STATUS_FULFILLED,
-              encode4(next, path)
+              encode4(next, path2)
             ];
           } catch (cause) {
             var _opts$onError2, _opts$formatError;
             (_opts$onError2 = opts.onError) === null || _opts$onError2 === void 0 || _opts$onError2.call(opts, {
               error: cause,
-              path
+              path: path2
             });
             yield [
               idx,
               PROMISE_STATUS_REJECTED,
               (_opts$formatError = opts.formatError) === null || _opts$formatError === void 0 ? void 0 : _opts$formatError.call(opts, {
                 error: cause,
-                path
+                path: path2
               })
             ];
           }
@@ -69829,12 +70452,12 @@ function _createBatchStreamProducer() {
         };
       })());
     }
-    function encodeAsyncIterable(iterable$1, path) {
+    function encodeAsyncIterable(iterable$1, path2) {
       return registerAsync(/* @__PURE__ */ (function() {
         var _ref2 = (0, import_wrapAsyncGenerator$2.default)(function* (idx) {
           try {
             var _usingCtx$1 = (0, import_usingCtx$1.default)();
-            const error46 = checkMaxDepth(path);
+            const error46 = checkMaxDepth(path2);
             if (error46) throw error46;
             const iterator = _usingCtx$1.a(iteratorResource(iterable$1));
             try {
@@ -69844,28 +70467,28 @@ function _createBatchStreamProducer() {
                   yield [
                     idx,
                     ASYNC_ITERABLE_STATUS_RETURN,
-                    encode4(next.value, path)
+                    encode4(next.value, path2)
                   ];
                   break;
                 }
                 yield [
                   idx,
                   ASYNC_ITERABLE_STATUS_YIELD,
-                  encode4(next.value, path)
+                  encode4(next.value, path2)
                 ];
               }
             } catch (cause) {
               var _opts$onError3, _opts$formatError2;
               (_opts$onError3 = opts.onError) === null || _opts$onError3 === void 0 || _opts$onError3.call(opts, {
                 error: cause,
-                path
+                path: path2
               });
               yield [
                 idx,
                 ASYNC_ITERABLE_STATUS_ERROR,
                 (_opts$formatError2 = opts.formatError) === null || _opts$formatError2 === void 0 ? void 0 : _opts$formatError2.call(opts, {
                   error: cause,
-                  path
+                  path: path2
                 })
               ];
             }
@@ -69880,27 +70503,27 @@ function _createBatchStreamProducer() {
         };
       })());
     }
-    function checkMaxDepth(path) {
-      if (opts.maxDepth && path.length > opts.maxDepth) return new MaxDepthError(path);
+    function checkMaxDepth(path2) {
+      if (opts.maxDepth && path2.length > opts.maxDepth) return new MaxDepthError(path2);
       return null;
     }
-    function encodeAsync3(value, path) {
-      if (isPromise(value)) return [CHUNK_VALUE_TYPE_PROMISE, encodePromise(value, path)];
+    function encodeAsync3(value, path2) {
+      if (isPromise(value)) return [CHUNK_VALUE_TYPE_PROMISE, encodePromise(value, path2)];
       if (isAsyncIterable(value)) {
-        if (opts.maxDepth && path.length >= opts.maxDepth) throw new Error("Max depth reached");
-        return [CHUNK_VALUE_TYPE_ASYNC_ITERABLE, encodeAsyncIterable(value, path)];
+        if (opts.maxDepth && path2.length >= opts.maxDepth) throw new Error("Max depth reached");
+        return [CHUNK_VALUE_TYPE_ASYNC_ITERABLE, encodeAsyncIterable(value, path2)];
       }
       return null;
     }
-    function encode4(value, path) {
+    function encode4(value, path2) {
       if (value === void 0) return [[]];
-      const reg = encodeAsync3(value, path);
+      const reg = encodeAsync3(value, path2);
       if (reg) return [[placeholder], [null, ...reg]];
       if (!isPlainObject2(value)) return [[value]];
       const newObj = emptyObject();
       const asyncValues = [];
       for (const [key, item] of Object.entries(value)) {
-        const transformed = encodeAsync3(item, [...path, key]);
+        const transformed = encodeAsync3(item, [...path2, key]);
         if (!transformed) {
           newObj[key] = item;
           continue;
@@ -70344,11 +70967,11 @@ async function resolveResponse(opts) {
               var _call$procedure$_def$2, _call$procedure3, _opts$onError2;
               const error$1 = getTRPCErrorFromUnknown(errorOpts.error);
               const input = call === null || call === void 0 ? void 0 : call.result();
-              const path = call === null || call === void 0 ? void 0 : call.path;
+              const path2 = call === null || call === void 0 ? void 0 : call.path;
               const type = (_call$procedure$_def$2 = call === null || call === void 0 || (_call$procedure3 = call.procedure) === null || _call$procedure3 === void 0 ? void 0 : _call$procedure3._def.type) !== null && _call$procedure$_def$2 !== void 0 ? _call$procedure$_def$2 : "unknown";
               (_opts$onError2 = opts.onError) === null || _opts$onError2 === void 0 || _opts$onError2.call(opts, {
                 error: error$1,
-                path,
+                path: path2,
                 input,
                 ctx: ctxManager.valueOrUndefined(),
                 req: opts.req,
@@ -70359,7 +70982,7 @@ async function resolveResponse(opts) {
                 ctx: ctxManager.valueOrUndefined(),
                 error: error$1,
                 input,
-                path,
+                path: path2,
                 type
               });
               return shape;
@@ -70449,14 +71072,14 @@ async function resolveResponse(opts) {
           const call = info === null || info === void 0 ? void 0 : info.calls[errorOpts.path[0]];
           const error46 = getTRPCErrorFromUnknown(errorOpts.error);
           const input = call === null || call === void 0 ? void 0 : call.result();
-          const path = call === null || call === void 0 ? void 0 : call.path;
+          const path2 = call === null || call === void 0 ? void 0 : call.path;
           const type = (_call$procedure$_def$3 = call === null || call === void 0 || (_call$procedure4 = call.procedure) === null || _call$procedure4 === void 0 ? void 0 : _call$procedure4._def.type) !== null && _call$procedure$_def$3 !== void 0 ? _call$procedure$_def$3 : "unknown";
           const shape = getErrorShape({
             config: config2,
             ctx: ctxManager.valueOrUndefined(),
             error: error46,
             input,
-            path,
+            path: path2,
             type
           });
           return shape;
@@ -71040,18 +71663,18 @@ async function nodeHTTPRequestHandler(opts) {
 var import_objectSpread26 = __toESM2(require_objectSpread2(), 1);
 function createExpressMiddleware(opts) {
   return (req, res) => {
-    let path = "";
+    let path2 = "";
     run(async () => {
-      path = req.path.slice(req.path.lastIndexOf("/") + 1);
+      path2 = req.path.slice(req.path.lastIndexOf("/") + 1);
       await nodeHTTPRequestHandler((0, import_objectSpread26.default)((0, import_objectSpread26.default)({}, opts), {}, {
         req,
         res,
-        path
+        path: path2
       }));
     }).catch(internal_exceptionHandler((0, import_objectSpread26.default)({
       req,
       res,
-      path
+      path: path2
     }, opts)));
   };
 }

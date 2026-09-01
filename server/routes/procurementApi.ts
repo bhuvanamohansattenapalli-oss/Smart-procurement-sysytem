@@ -18,7 +18,7 @@ import {
   staffAuditLogs,
   staffNotifications,
 } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { getDb, normalizePhone } from "../db";
 import { requireApiAuth, requireRole } from "../middleware/apiAuth";
 import { createMockAssistantReply } from "../services/mockAiService";
 import { hashPassword, verifyPassword } from "../services/passwordService";
@@ -29,7 +29,9 @@ import { paymentGateway, type PaymentOutcome } from "../services/paymentGatewayS
 import { createRazorpayOrder, getRazorpayPublicConfig, isRazorpayConfigured, verifyRazorpaySignature } from "../services/razorpayService";
 import type { AuthenticatedRequest, BookingContext, StaffRole } from "../types/api";
 
-const phoneSchema = z.string().trim().regex(/^\d{10}$/, "Phone must be a 10-digit Indian mobile number.");
+const phoneSchema = z.string().trim().transform(normalizePhone).pipe(
+  z.string().regex(/^\d{10}$/, "Phone must be a valid 10-digit Indian mobile number.")
+);
 const passwordSchema = z.string().min(8, "Password must contain at least 8 characters.");
 const idSchema = z.coerce.number().int().positive();
 const registrationSchema = z.object({ name: z.string().trim().min(2).max(160), phone: phoneSchema, password: passwordSchema, village: z.string().trim().min(2).max(160), district: z.string().trim().min(2).max(160), primaryCrop: z.string().trim().min(2).max(80), aadhaarMasked: z.string().trim().regex(/^X{4}\sX{4}\s\d{4}$|^\d{4}\s\d{4}\s\d{4}$/, "Provide masked Aadhaar as XXXX XXXX 1234."), declarationAccepted: z.literal(true) });
@@ -146,7 +148,23 @@ function formatOfficer(officer: typeof officers.$inferSelect) {
 }
 
 function formatCentre(centre: typeof procurementCentres.$inferSelect, queueCount: number, availableSlots: number) {
-  return { id: centre.id, name: centre.name, place: centre.place, district: centre.district, latitude: Number(centre.latitude), longitude: Number(centre.longitude), distanceKm: Number(centre.distanceKm), status: centre.status, currentToken: centre.currentToken, currentQueue: queueCount, availableSlots };
+  return {
+    id: centre.id,
+    name: centre.name,
+    place: centre.place,
+    district: centre.district,
+    state: (centre as any).state || "Andhra Pradesh",
+    cropCategories: (centre as any).cropCategories || "Cereals, Pulses, Oilseeds",
+    address: centre.place,
+    latitude: Number(centre.latitude),
+    longitude: Number(centre.longitude),
+    distanceKm: Number(centre.distanceKm),
+    status: centre.status,
+    queueCapacity: centre.queueCapacity,
+    currentToken: centre.currentToken,
+    currentQueue: queueCount,
+    availableSlots,
+  };
 }
 
 function createPrototypePaymentQuote(cropNameOrVariety: string, expectedQuantityQuintals: number, mspPrice?: { mspPerQuintal: number; govtBonusPerQuintal: number }) {
@@ -288,21 +306,22 @@ export function createProcurementApi() {
     if (!input) return;
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    if ((await db.select().from(farmers).where(eq(farmers.phone, input.phone)).limit(1))[0]) {
+    const cleanPhone = normalizePhone(input.phone);
+    if ((await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0]) {
       return res.status(409).json({ error: "PHONE_EXISTS", message: "A farmer is already registered with this mobile number." });
     }
     const farmerCode = `FMR-${new Date().getUTCFullYear()}-${String(Date.now()).slice(-6)}`;
     await db.insert(farmers).values({
       farmerCode,
       name: input.name,
-      phone: input.phone,
+      phone: cleanPhone,
       passwordHash: hashPassword(input.password),
       village: input.village,
       district: input.district,
       primaryCrop: input.primaryCrop,
       status: "PENDING",
     });
-    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, input.phone)).limit(1))[0];
+    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
     if (!farmer) return res.status(500).json({ error: "REGISTRATION_FAILED" });
     await db.insert(registrations).values({
       farmerId: farmer.id,
@@ -322,9 +341,10 @@ export function createProcurementApi() {
     await db.insert(notifications).values({
       farmerId: farmer.id,
       title: "New farmer registration submitted",
-      message: `Farmer ${farmer.name} (${farmer.phone}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
+      message: `Farmer ${farmer.name} (${cleanPhone}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
       category: "REGISTRATION",
     });
+    console.info(`[Auth Audit] Farmer registered: id=${farmer.id} phone=${cleanPhone} code=${farmerCode}`);
     return res.status(201).json({
       message: "Registration submitted — awaiting officer verification.",
       registrationId: registration?.id,
@@ -336,10 +356,22 @@ export function createProcurementApi() {
   api.post("/farmers/login", async (req, res) => {
     const input = respondValidation(res, loginSchema, req.body); if (!input) return;
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, input.phone)).limit(1))[0];
-    if (!farmer || !verifyPassword(input.password, farmer.passwordHash)) return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
-    if (farmer.status !== "APPROVED") return res.status(403).json({ error: "REGISTRATION_NOT_APPROVED", message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`, status: farmer.status });
+    const cleanPhone = normalizePhone(input.phone);
+    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+    if (!farmer) {
+      console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=FARMER_NOT_FOUND`);
+      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
+    }
+    if (!verifyPassword(input.password, farmer.passwordHash)) {
+      console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=PASSWORD_MISMATCH`);
+      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
+    }
+    if (farmer.status !== "APPROVED") {
+      console.info(`[Auth Audit] Farmer login deferred: phone=${cleanPhone} status=${farmer.status}`);
+      return res.status(403).json({ error: "REGISTRATION_NOT_APPROVED", message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`, status: farmer.status });
+    }
     const token = await issueAccessToken({ id: farmer.id, role: "farmer", code: farmer.farmerCode, name: farmer.name });
+    console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${cleanPhone} code=${farmer.farmerCode}`);
     return res.json({ accessToken: token, tokenType: "Bearer", expiresInSeconds: 28800, farmer: formatFarmer(farmer) });
   });
 
@@ -713,6 +745,61 @@ export function createProcurementApi() {
     return res.json({ registration, farmer: farmer && formatFarmer(farmer) });
   });
 
+  api.get("/officers/farmers", requireApiAuth, requireRole("officer"), async (_req: AuthenticatedRequest, res) => {
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const allFarmers = await db.select().from(farmers).orderBy(desc(farmers.createdAt));
+    const allRegistrations = await db.select().from(registrations);
+    const allBookings = await db.select().from(bookings);
+    const allCentres = await db.select().from(procurementCentres);
+
+    const centreMap = new Map(allCentres.map(c => [c.id, c.name]));
+    const regMap = new Map(allRegistrations.map(r => [r.farmerId, r]));
+
+    const rows = allFarmers.map(f => {
+      const reg = regMap.get(f.id);
+      const farmerBookings = allBookings.filter(b => b.farmerId === f.id);
+      const latestBooking = farmerBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+      return {
+        id: f.id,
+        farmerCode: f.farmerCode,
+        name: f.name,
+        phone: f.phone,
+        village: f.village,
+        district: f.district,
+        primaryCrop: f.primaryCrop,
+        status: f.status,
+        createdAt: f.createdAt instanceof Date ? f.createdAt.toISOString() : String(f.createdAt),
+        updatedAt: f.updatedAt instanceof Date ? f.updatedAt.toISOString() : String(f.updatedAt),
+        registration: reg ? {
+          id: reg.id,
+          aadhaarMasked: reg.aadhaarMasked,
+          status: reg.status,
+          reviewedAt: reg.reviewedAt ? (reg.reviewedAt instanceof Date ? reg.reviewedAt.toISOString() : String(reg.reviewedAt)) : null,
+          rejectionReason: reg.rejectionReason ?? null,
+        } : null,
+        activeBooking: latestBooking ? {
+          id: latestBooking.id,
+          bookingCode: latestBooking.bookingCode,
+          status: latestBooking.status,
+          centreName: centreMap.get(latestBooking.centreId) || "Procurement Centre",
+          paddyVariety: latestBooking.paddyVariety,
+          expectedQuantityQuintals: Number(latestBooking.expectedQuantityQuintals),
+        } : null,
+      };
+    });
+
+    return res.json({
+      farmers: rows,
+      total: rows.length,
+      approvedCount: rows.filter(r => r.status === "APPROVED").length,
+      pendingCount: rows.filter(r => r.status === "PENDING").length,
+      rejectedCount: rows.filter(r => r.status === "REJECTED").length,
+    });
+  });
+
   const handleApproveRegistration = async (req: AuthenticatedRequest, res: Response) => {
     const id = idSchema.safeParse(req.params.id); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
@@ -743,14 +830,55 @@ export function createProcurementApi() {
   api.post("/officers/registrations/:id/reject", requireApiAuth, requireRole("officer"), handleRejectRegistration);
 
 
-  api.get("/centres", async (_req, res) => {
+  api.get("/centres", async (req, res) => {
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const centres = await db.select().from(procurementCentres);
-    const response = await Promise.all(centres.map(async centre => {
-      const [waiting, centreSlots] = await Promise.all([db.select().from(queueEntries).where(and(eq(queueEntries.centreId, centre.id), eq(queueEntries.status, "WAITING"))), db.select().from(slots).where(and(eq(slots.centreId, centre.id), eq(slots.isActive, 1)))]);
+    const allCentres = await db.select().from(procurementCentres);
+
+    const filterState = typeof req.query.state === "string" ? req.query.state.trim() : undefined;
+    const filterDistrict = typeof req.query.district === "string" ? req.query.district.trim() : undefined;
+    const filterCrop = typeof req.query.cropCategory === "string" ? req.query.cropCategory.trim() : undefined;
+    const searchQuery = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : undefined;
+
+    let filtered = allCentres;
+
+    if (filterState && filterState !== "ALL" && filterState !== "All India") {
+      filtered = filtered.filter(c => ((c as any).state || "").toLowerCase() === filterState.toLowerCase());
+    }
+
+    if (filterDistrict && filterDistrict !== "ALL" && filterDistrict !== "All Districts") {
+      filtered = filtered.filter(c => (c.district || "").toLowerCase() === filterDistrict.toLowerCase());
+    }
+
+    if (filterCrop && filterCrop !== "ALL") {
+      filtered = filtered.filter(c => ((c as any).cropCategories || "").toLowerCase().includes(filterCrop.toLowerCase()));
+    }
+
+    if (searchQuery) {
+      filtered = filtered.filter(c =>
+        c.name.toLowerCase().includes(searchQuery) ||
+        c.place.toLowerCase().includes(searchQuery) ||
+        c.district.toLowerCase().includes(searchQuery) ||
+        ((c as any).state || "").toLowerCase().includes(searchQuery)
+      );
+    }
+
+    const response = await Promise.all(filtered.map(async centre => {
+      const [waiting, centreSlots] = await Promise.all([
+        db.select().from(queueEntries).where(and(eq(queueEntries.centreId, centre.id), eq(queueEntries.status, "WAITING"))),
+        db.select().from(slots).where(and(eq(slots.centreId, centre.id), eq(slots.isActive, 1)))
+      ]);
       return formatCentre(centre, waiting.length, centreSlots.reduce((sum, slot) => sum + Math.max(0, slot.capacity - slot.bookedCount), 0));
     }));
-    return res.json({ centres: response, prototypeData: true });
+
+    const states = Array.from(new Set(allCentres.map(c => (c as any).state || "Andhra Pradesh"))).sort();
+
+    return res.json({
+      centres: response,
+      states,
+      total: allCentres.length,
+      filteredTotal: response.length,
+      prototypeData: true
+    });
   });
 
   api.get("/centres/:id", async (req, res) => {

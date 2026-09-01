@@ -74,6 +74,7 @@ import {
   History,
   Shield,
   RefreshCw,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +82,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { apiUrl } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { MapView } from "@/components/Map";
 
 import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language } from "@/lib/translations";
@@ -769,6 +771,36 @@ export default function Home() {
   const [paymentHistory, setPaymentHistory] = useState<Array<PaymentRecord & { bookingCode: string; bookingId: number }>>([]);
   const [receipt, setReceipt] = useState<{ receiptNumber: string; issuedAt: string; payment: PaymentRecord } | null>(null);
   const [officerPayments, setOfficerPayments] = useState<Array<PaymentRecord & { bookingCode: string; farmer: { name: string; farmerCode: string }; centre: { name: string } }>>([]);
+  const [officerFarmersList, setOfficerFarmersList] = useState<Array<{
+    id: number;
+    farmerCode: string;
+    name: string;
+    phone: string;
+    village: string;
+    district: string;
+    primaryCrop: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    registration: {
+      id: number;
+      aadhaarMasked: string;
+      status: string;
+      reviewedAt: string | null;
+      rejectionReason: string | null;
+    } | null;
+    activeBooking: {
+      id: number;
+      bookingCode: string;
+      status: string;
+      centreName: string;
+      paddyVariety: string;
+      expectedQuantityQuintals: number;
+    } | null;
+  }>>([]);
+  const [officerFarmersLoading, setOfficerFarmersLoading] = useState<boolean>(false);
+  const [officerFarmersFilter, setOfficerFarmersFilter] = useState<string>("ALL");
+  const [officerFarmersSearch, setOfficerFarmersSearch] = useState<string>("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [farmerStats, setFarmerStats] = useState<FarmerStats | null>(null);
   const [officerStats, setOfficerStats] = useState<OfficerStats | null>(null);
@@ -1245,13 +1277,16 @@ export default function Home() {
   useEffect(() => {
     void fetch(apiUrl("/centres"))
       .then(response => response.ok ? response.json() : Promise.reject(new Error("Centres unavailable")))
-      .then((data: { centres?: Array<{ id: number; name?: string; place?: string; distanceKm?: number; currentQueue?: number; availableSlots?: number; status?: string; latitude?: number; longitude?: number }> }) => {
+      .then((data: { centres?: Array<{ id: number; name?: string; place?: string; district?: string; state?: string; cropCategories?: string; distanceKm?: number; currentQueue?: number; availableSlots?: number; status?: string; latitude?: number; longitude?: number }> }) => {
         if (data && Array.isArray(data.centres) && data.centres.length > 0) {
           const statusMap: Record<string, Centre["status"]> = { OPEN: "Open", BUSY: "Busy", LIMITED: "Limited", CLOSED: "Limited" };
           setApiCentres(data.centres.map((centre, index) => ({
             id: centre.id ?? (index + 1),
             name: centre.name ?? centres[index]?.name ?? "Procurement Centre",
             place: centre.place ?? centres[index]?.place ?? "Market Yard",
+            district: centre.district ?? (centres[index] as any)?.district,
+            state: centre.state ?? (centres[index] as any)?.state ?? "Andhra Pradesh",
+            cropCategories: centre.cropCategories ?? "Cereals, Pulses, Oilseeds",
             distance: `${centre.distanceKm ?? 3.2} km`,
             queue: centre.currentQueue ?? 12,
             wait: `${Math.max(2, (centre.currentQueue ?? 12) * 2)} min`,
@@ -1295,25 +1330,39 @@ export default function Home() {
   }, [selectedCentre?.id, selectedDate]);
 
   useEffect(() => {
-    const rawSession = sessionStorage.getItem("procureflow.farmer.session");
+    const rawSession = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
     if (!rawSession) return;
     try {
       const saved = JSON.parse(rawSession) as { token: string; farmer: FarmerProfile };
       if (!saved.token || !saved.farmer?.id) throw new Error("Invalid session");
-      setFarmerToken(saved.token); setFarmerId(saved.farmer.id); setProfileRecord(saved.farmer); setApproved(saved.farmer.status === "APPROVED");
+      setFarmerToken(saved.token);
+      setFarmerId(saved.farmer.id);
+      setProfileRecord(saved.farmer);
+      setApproved(saved.farmer.status === "APPROVED");
       void loadNotifications(saved.token, saved.farmer.id);
       void loadFarmerStats(saved.token);
       void loadFarmerAnalytics(saved.token);
       void loadFarmerTransportBookings(saved.token, saved.farmer.id);
       void fetch(apiUrl(`/farmers/${saved.farmer.id}/bookings`), { headers: { Authorization: `Bearer ${saved.token}` } })
-        .then(response => response.ok ? response.json() : Promise.reject())
-        .then(data => data.bookings?.[0] ? loadBooking(saved.token, data.bookings[0].id) : undefined)
-        .catch(() => sessionStorage.removeItem("procureflow.farmer.session"));
-    } catch { sessionStorage.removeItem("procureflow.farmer.session"); }
+        .then(response => {
+          if (response.status === 401) {
+            localStorage.removeItem("procureflow.farmer.session");
+            sessionStorage.removeItem("procureflow.farmer.session");
+            return;
+          }
+          if (!response.ok) return;
+          return response.json();
+        })
+        .then(data => data?.bookings?.[0] ? loadBooking(saved.token, data.bookings[0].id) : undefined)
+        .catch(() => undefined);
+    } catch {
+      localStorage.removeItem("procureflow.farmer.session");
+      sessionStorage.removeItem("procureflow.farmer.session");
+    }
   }, []);
 
   useEffect(() => {
-    const rawOfficerSession = sessionStorage.getItem("procureflow.officer.session");
+    const rawOfficerSession = localStorage.getItem("procureflow.officer.session") || sessionStorage.getItem("procureflow.officer.session");
     if (!rawOfficerSession) return;
     try {
       const saved = JSON.parse(rawOfficerSession) as { token: string; officer?: StaffRecord };
@@ -1321,6 +1370,7 @@ export default function Home() {
         setOfficerToken(saved.token);
         if (saved.officer) setOfficerProfile(saved.officer);
         void loadPendingRegistrations(saved.token);
+        void loadOfficerFarmers(saved.token);
         void loadOfficerBookings(saved.token);
         void loadOfficerAnalytics(saved.token);
         void loadOfficerStats(saved.token);
@@ -1329,7 +1379,10 @@ export default function Home() {
         void loadStaffAuditLogs(saved.token);
         void loadOfficerNotifications(saved.token);
       }
-    } catch { sessionStorage.removeItem("procureflow.officer.session"); }
+    } catch {
+      localStorage.removeItem("procureflow.officer.session");
+      sessionStorage.removeItem("procureflow.officer.session");
+    }
   }, []);
 
   useEffect(() => {
@@ -1445,6 +1498,24 @@ export default function Home() {
         setOfficerNotificationsList(data.notifications || []);
       }
     } catch {}
+  };
+
+  const loadOfficerFarmers = async (token?: string) => {
+    const t = token || officerToken;
+    if (!t) return;
+    setOfficerFarmersLoading(true);
+    try {
+      const response = await fetch(apiUrl("/officers/farmers"), {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setOfficerFarmersList(data.farmers || []);
+      }
+    } catch {}
+    finally {
+      setOfficerFarmersLoading(false);
+    }
   };
 
   const submitAddStaff = async () => {
@@ -1861,6 +1932,7 @@ export default function Home() {
       setFarmerId(data.farmer.id);
       setProfileRecord(data.farmer);
       setApproved(true);
+      localStorage.setItem("procureflow.farmer.session", JSON.stringify({ token: data.accessToken, farmer: data.farmer }));
       sessionStorage.setItem("procureflow.farmer.session", JSON.stringify({ token: data.accessToken, farmer: data.farmer }));
       
       const bookingResponse = await fetch(apiUrl(`/farmers/${data.farmer.id}/bookings`), { headers: { Authorization: `Bearer ${data.accessToken}` } });
@@ -1898,6 +1970,7 @@ export default function Home() {
       
       setOfficerToken(data.accessToken);
       setOfficerProfile(data.officer);
+      localStorage.setItem("procureflow.officer.session", JSON.stringify({ token: data.accessToken, officer: data.officer }));
       sessionStorage.setItem("procureflow.officer.session", JSON.stringify({ token: data.accessToken, officer: data.officer }));
 
       const role = data.officer?.role || "HEAD_OFFICER";
@@ -1906,6 +1979,7 @@ export default function Home() {
         await loadStaffList(data.accessToken);
         await loadStaffAuditLogs(data.accessToken);
         await loadPendingRegistrations(data.accessToken);
+        await loadOfficerFarmers(data.accessToken);
         await loadOfficerBookings(data.accessToken);
         await loadOfficerAnalytics(data.accessToken);
         await loadOfficerStats(data.accessToken);
@@ -1927,6 +2001,7 @@ export default function Home() {
         navigate("officerPayments");
       } else { // PROCUREMENT_OFFICER
         await loadPendingRegistrations(data.accessToken);
+        await loadOfficerFarmers(data.accessToken);
         await loadOfficerBookings(data.accessToken);
         setOfficerView("pending");
         navigate("registrations");
@@ -1940,6 +2015,7 @@ export default function Home() {
   };
 
   const logoutFarmer = () => {
+    localStorage.removeItem("procureflow.farmer.session");
     sessionStorage.removeItem("procureflow.farmer.session");
     setFarmerToken(null); setFarmerId(null); setBookingId(null); setBookingRecord(null); setProfileRecord(null); setApiNotifications([]); setPaymentRecord(null); setPaymentHistory([]); setReceipt(null); setPaymentDone(false); setApproved(false); setAuthError(null);
     navigate("landing");
@@ -1947,6 +2023,7 @@ export default function Home() {
   };
 
   const logoutOfficer = () => {
+    localStorage.removeItem("procureflow.officer.session");
     sessionStorage.removeItem("procureflow.officer.session");
     setOfficerToken(null);
     navigate("landing");
@@ -3840,7 +3917,7 @@ export default function Home() {
         { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
         { key: "staff", label: "Staff Management", icon: Users, target: "staffManagement" as Screen, badge: staffList.filter(s => s.status === "PENDING_VERIFICATION").length },
         { key: "pending", label: "Pending farmers", icon: UserCheck, target: "registrations" as Screen, badge: pendingRegistrations.length },
-        { key: "approved", label: "Approved farmers", icon: CheckCircle2, target: "approved" as Screen, badge: 0 },
+        { key: "approved", label: "Registered Farmers", icon: Users, target: "approved" as Screen, badge: officerFarmersList.length },
         { key: "bookings", label: "Bookings & queue", icon: CalendarDays, target: "bookings" as Screen, badge: 0 },
         { key: "quality", label: "Quality Control", icon: ShieldCheck, target: "quality" as Screen, badge: 0 },
         { key: "logistics", label: "Logistics & Transport", icon: Truck, target: "officerLogistics" as Screen, badge: officerLogisticsList.filter(l => l.status === "REQUESTED" || l.status === "ASSIGNED").length },
@@ -3851,7 +3928,7 @@ export default function Home() {
       return [
         { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
         { key: "pending", label: "Pending farmers", icon: UserCheck, target: "registrations" as Screen, badge: pendingRegistrations.length },
-        { key: "approved", label: "Approved farmers", icon: CheckCircle2, target: "approved" as Screen, badge: 0 },
+        { key: "approved", label: "Registered Farmers", icon: Users, target: "approved" as Screen, badge: officerFarmersList.length },
         { key: "bookings", label: "Bookings & queue", icon: CalendarDays, target: "bookings" as Screen, badge: 0 },
         { key: "payments", label: "Payment Settlement", icon: WalletCards, target: "officerPayments" as Screen, badge: 0 },
       ];
@@ -3878,7 +3955,7 @@ export default function Home() {
       { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
       { key: "pending", label: "Pending farmers", icon: UserCheck, target: "registrations" as Screen, badge: pendingRegistrations.length },
     ];
-  }, [officerProfile, staffList, pendingRegistrations, officerLogisticsList]);
+  }, [officerProfile, staffList, pendingRegistrations, officerLogisticsList, officerFarmersList]);
 
   const officerShell = (content: React.ReactNode) => (
     <div className="officer-shell">
@@ -4320,15 +4397,200 @@ export default function Home() {
   const approvedList = officerShell(
     <>
       <SectionTitle
-        eyebrow="APPROVED FARMERS"
-        title="Active verified farmers."
-        body="Approved farmer accounts have full login and slot booking privileges."
+        eyebrow="NATIONAL FARMER DIRECTORY"
+        title="Registered Farmers & Database Records"
+        body="Comprehensive, live database directory of all registered farmers across all districts. Zero passwords exposed."
+        action={
+          <ActionButton
+            onClick={() => {
+              if (officerToken) void loadOfficerFarmers(officerToken);
+            }}
+            icon={LocateFixed}
+          >
+            {officerFarmersLoading ? "Refreshing…" : "Refresh Directory"}
+          </ActionButton>
+        }
       />
-      <section className="approved-tip">
-        <CheckCircle2/>
-        <div>
-          <b>Approval synchronization complete</b>
-          <p>The database updates farmer status from PENDING to APPROVED immediately. The farmer can sign in and book their procurement visit.</p>
+
+      {/* 1. Summary Metrics */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <MetricCard
+          icon={Users}
+          label="Total Registered Farmers"
+          value={`${officerFarmersList.length}`}
+          hint="All active database records"
+          tone="green"
+        />
+        <MetricCard
+          icon={CheckCircle2}
+          label="Verified & Approved"
+          value={`${officerFarmersList.filter(f => f.status === "APPROVED").length}`}
+          hint="Full slot booking privileges"
+          tone="green"
+        />
+        <MetricCard
+          icon={Clock3}
+          label="Pending Review"
+          value={`${officerFarmersList.filter(f => f.status === "PENDING").length}`}
+          hint="Awaiting officer verification"
+          tone="yellow"
+        />
+        <MetricCard
+          icon={ShieldAlert}
+          label="Needs Attention / Rejected"
+          value={`${officerFarmersList.filter(f => f.status === "REJECTED").length}`}
+          hint="Document correction requested"
+          tone="blue"
+        />
+      </section>
+
+      {/* 2. Directory Toolbar & Filter */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-700">Filter Status:</span>
+          {(["ALL", "APPROVED", "PENDING", "REJECTED"] as const).map(tab => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setOfficerFarmersFilter(tab)}
+              className={cn(
+                "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                officerFarmersFilter === tab
+                  ? "bg-emerald-800 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              )}
+            >
+              {tab === "ALL" ? `All (${officerFarmersList.length})` :
+               tab === "APPROVED" ? `Approved (${officerFarmersList.filter(f => f.status === "APPROVED").length})` :
+               tab === "PENDING" ? `Pending (${officerFarmersList.filter(f => f.status === "PENDING").length})` :
+               `Rejected (${officerFarmersList.filter(f => f.status === "REJECTED").length})`}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name, phone, village..."
+            value={officerFarmersSearch}
+            onChange={e => setOfficerFarmersSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 focus:bg-white"
+          />
+        </div>
+      </div>
+
+      {/* 3. Tabular Directory View */}
+      <section className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                <th className="py-3 px-4">Farmer Info</th>
+                <th className="py-3 px-4">Mobile Number</th>
+                <th className="py-3 px-4">Village & District</th>
+                <th className="py-3 px-4">Primary Crop</th>
+                <th className="py-3 px-4">Aadhaar (Masked)</th>
+                <th className="py-3 px-4">Account Status</th>
+                <th className="py-3 px-4">Active Mandi / Slot</th>
+                <th className="py-3 px-4">Registration Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {(() => {
+                const filtered = officerFarmersList.filter(farmer => {
+                  const matchesFilter = officerFarmersFilter === "ALL" || farmer.status === officerFarmersFilter;
+                  const q = officerFarmersSearch.trim().toLowerCase();
+                  const matchesSearch = !q ||
+                    farmer.name.toLowerCase().includes(q) ||
+                    farmer.farmerCode.toLowerCase().includes(q) ||
+                    farmer.phone.includes(q) ||
+                    farmer.village.toLowerCase().includes(q) ||
+                    farmer.district.toLowerCase().includes(q);
+                  return matchesFilter && matchesSearch;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={8} className="py-10 text-center text-slate-500">
+                        <Users size={32} className="mx-auto text-slate-300 mb-2" />
+                        <p className="font-bold text-slate-700 m-0">No farmers found</p>
+                        <small className="text-slate-400">Try changing your search query or status filter.</small>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return filtered.map(f => {
+                  const regDate = f.createdAt ? new Date(f.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Recent";
+                  return (
+                    <tr key={f.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold text-xs shrink-0">
+                            {getInitials(f.name, "FM")}
+                          </span>
+                          <div>
+                            <div className="font-bold text-slate-900">{f.name}</div>
+                            <span className="font-mono text-[10px] text-slate-500">{f.farmerCode}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 font-mono font-medium text-slate-700">
+                        +91 {f.phone}
+                      </td>
+                      <td className="py-3 px-4 text-slate-700">
+                        <div className="font-medium">{f.village}</div>
+                        <div className="text-[10px] text-slate-500">{f.district}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          🌾 {f.primaryCrop}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                        {f.registration?.aadhaarMasked || "XXXX XXXX 1234"}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border",
+                            f.status === "APPROVED"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                              : f.status === "PENDING"
+                              ? "bg-amber-50 text-amber-800 border-amber-300"
+                              : "bg-rose-50 text-rose-800 border-rose-300"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              f.status === "APPROVED" ? "bg-emerald-600" : f.status === "PENDING" ? "bg-amber-600" : "bg-rose-600"
+                            )}
+                          />
+                          {f.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-700">
+                        {f.activeBooking ? (
+                          <div>
+                            <div className="font-semibold text-emerald-900">{f.activeBooking.centreName}</div>
+                            <span className="text-[10px] text-slate-500">{f.activeBooking.bookingCode} · {f.activeBooking.expectedQuantityQuintals} Qtl</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic">No active booking</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-slate-500 text-[11px]">
+                        {regDate}
+                      </td>
+                    </tr>
+                  );
+                });
+              })()}
+            </tbody>
+          </table>
         </div>
       </section>
     </>

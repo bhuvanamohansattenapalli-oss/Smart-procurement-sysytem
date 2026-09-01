@@ -155,11 +155,13 @@ export const procurementCentres = mysqlTable("procurementCentres", {
   name: varchar("name", { length: 180 }).notNull(),
   place: varchar("place", { length: 180 }).notNull(),
   district: varchar("district", { length: 160 }).notNull(),
+  state: varchar("state", { length: 100 }).default("Andhra Pradesh").notNull(),
   latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
   longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
   distanceKm: decimal("distanceKm", { precision: 5, scale: 2 }).notNull(),
   status: mysqlEnum("status", ["OPEN", "BUSY", "LIMITED", "CLOSED"]).default("OPEN").notNull(),
   queueCapacity: int("queueCapacity").notNull().default(50),
+  cropCategories: varchar("cropCategories", { length: 255 }).default("Cereals, Pulses, Oilseeds"),
   currentToken: varchar("currentToken", { length: 32 }).default("P-001"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
