@@ -2,69 +2,109 @@ import { useDialogComposition } from "@/components/ui/dialog";
 import { useComposition } from "@/hooks/useComposition";
 import { cn } from "@/lib/utils";
 import * as React from "react";
+import { Eye, EyeOff } from "lucide-react";
 
-function Input({
-  className,
-  type,
-  onKeyDown,
-  onCompositionStart,
-  onCompositionEnd,
-  ...props
-}: React.ComponentProps<"input">) {
-  // Get dialog composition context if available (will be no-op if not inside Dialog)
-  const dialogComposition = useDialogComposition();
-
-  // Add composition event handlers to support input method editor (IME) for CJK languages.
-  const {
-    onCompositionStart: handleCompositionStart,
-    onCompositionEnd: handleCompositionEnd,
-    onKeyDown: handleKeyDown,
-  } = useComposition<HTMLInputElement>({
-    onKeyDown: (e) => {
-      // Check if this is an Enter key that should be blocked
-      const isComposing = (e.nativeEvent as any).isComposing || dialogComposition.justEndedComposing();
-
-      // If Enter key is pressed while composing or just after composition ended,
-      // don't call the user's onKeyDown (this blocks the business logic)
-      if (e.key === "Enter" && isComposing) {
-        return;
-      }
-
-      // Otherwise, call the user's onKeyDown
-      onKeyDown?.(e);
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  function Input(
+    {
+      className,
+      type,
+      onKeyDown,
+      onCompositionStart,
+      onCompositionEnd,
+      style,
+      ...props
     },
-    onCompositionStart: e => {
-      dialogComposition.setComposing(true);
-      onCompositionStart?.(e);
-    },
-    onCompositionEnd: e => {
-      // Mark that composition just ended - this helps handle the Enter key that confirms input
-      dialogComposition.markCompositionEnd();
-      // Delay setting composing to false to handle Safari's event order
-      // In Safari, compositionEnd fires before the ESC keydown event
-      setTimeout(() => {
-        dialogComposition.setComposing(false);
-      }, 100);
-      onCompositionEnd?.(e);
-    },
-  });
+    ref
+  ) {
+    const [showPassword, setShowPassword] = React.useState(false);
+    const isPassword = type === "password";
+    const effectiveType = isPassword ? (showPassword ? "text" : "password") : type;
 
-  return (
-    <input
-      type={type}
-      data-slot="input"
-      className={cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-        className
-      )}
-      onCompositionStart={handleCompositionStart}
-      onCompositionEnd={handleCompositionEnd}
-      onKeyDown={handleKeyDown}
-      {...props}
-    />
-  );
-}
+    // Get dialog composition context if available (will be no-op if not inside Dialog)
+    const dialogComposition = useDialogComposition();
+
+    // Add composition event handlers to support input method editor (IME) for CJK languages.
+    const {
+      onCompositionStart: handleCompositionStart,
+      onCompositionEnd: handleCompositionEnd,
+      onKeyDown: handleKeyDown,
+    } = useComposition<HTMLInputElement>({
+      onKeyDown: (e) => {
+        // Check if this is an Enter key that should be blocked
+        const isComposing = (e.nativeEvent as any).isComposing || dialogComposition.justEndedComposing();
+
+        // If Enter key is pressed while composing or just after composition ended,
+        // don't call the user's onKeyDown (this blocks the business logic)
+        if (e.key === "Enter" && isComposing) {
+          return;
+        }
+
+        // Otherwise, call the user's onKeyDown
+        onKeyDown?.(e);
+      },
+      onCompositionStart: e => {
+        dialogComposition.setComposing(true);
+        onCompositionStart?.(e);
+      },
+      onCompositionEnd: e => {
+        // Mark that composition just ended - this helps handle the Enter key that confirms input
+        dialogComposition.markCompositionEnd();
+        // Delay setting composing to false to handle Safari's event order
+        // In Safari, compositionEnd fires before the ESC keydown event
+        setTimeout(() => {
+          dialogComposition.setComposing(false);
+        }, 100);
+        onCompositionEnd?.(e);
+      },
+    });
+
+    const inputElement = (
+      <input
+        ref={ref}
+        type={effectiveType}
+        data-slot="input"
+        className={cn(
+          "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+          "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+          isPassword && "pr-10",
+          className
+        )}
+        style={isPassword ? { ...style, paddingRight: "40px" } : style}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+        onKeyDown={handleKeyDown}
+        {...props}
+      />
+    );
+
+    if (isPassword) {
+      return (
+        <div className="relative w-full flex items-center">
+          {inputElement}
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-r-md transition-colors cursor-pointer select-none"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            title={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      );
+    }
+
+    return inputElement;
+  }
+);
+
+Input.displayName = "Input";
 
 export { Input };
