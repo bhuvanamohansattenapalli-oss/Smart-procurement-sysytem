@@ -769,6 +769,83 @@ export function createProcurementApi() {
     return res.status(201).json({ message: "Booking confirmed and token generated.", booking: publicBooking(context) });
   });
 
+  const handleCancelBooking = async (req: AuthenticatedRequest, res: Response) => {
+    const id = idSchema.safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR", message: "Invalid booking ID." });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const context = await getBookingContext(id.data);
+    if (!context) {
+      return res.status(404).json({ error: "BOOKING_NOT_FOUND", message: "Booking was not found." });
+    }
+
+    if (req.principal?.role === "farmer" && req.principal.id !== context.booking.farmerId) {
+      return res.status(403).json({ error: "FORBIDDEN", message: "You cannot cancel another farmer's booking." });
+    }
+
+    if (context.booking.status === "CANCELLED") {
+      return res.status(400).json({ error: "ALREADY_CANCELLED", message: "This booking has already been cancelled." });
+    }
+
+    if (context.booking.status === "COMPLETED") {
+      return res.status(400).json({ error: "CANNOT_CANCEL_COMPLETED", message: "Completed bookings cannot be cancelled." });
+    }
+
+    if (context.procurement && context.procurement.status !== "BOOKED") {
+      return res.status(400).json({
+        error: "PROCUREMENT_IN_PROGRESS",
+        message: "Cannot cancel booking because procurement verification or processing has already started.",
+      });
+    }
+
+    // Strict 30-minute cancellation window check
+    const bookingCreatedTime = new Date(context.booking.createdAt).getTime();
+    const now = Date.now();
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    if (now - bookingCreatedTime > thirtyMinutesMs) {
+      return res.status(400).json({
+        error: "CANCELLATION_WINDOW_EXPIRED",
+        message: "Cancellation window expired. Bookings can only be cancelled within 30 minutes of creation.",
+      });
+    }
+
+    // 1. Update booking status to CANCELLED
+    await db.update(bookings).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(bookings.id, context.booking.id));
+
+    // 2. Release slot capacity
+    if (context.slot) {
+      await db.update(slots).set({ bookedCount: Math.max(0, context.slot.bookedCount - 1) }).where(eq(slots.id, context.slot.id));
+    }
+
+    // 3. Remove queue entry
+    if (context.queue) {
+      await db.delete(queueEntries).where(eq(queueEntries.bookingId, context.booking.id));
+    }
+
+    // 4. In-app notification
+    try {
+      await db.insert(notifications).values({
+        farmerId: context.farmer.id,
+        title: "Booking Cancelled",
+        message: `Your booking ${context.booking.bookingCode} for slot ${context.slot.slotDate} (${context.slot.startTime} – ${context.slot.endTime}) has been cancelled successfully.`,
+        category: "BOOKING",
+      });
+    } catch (notifErr) {
+      console.error("Failed to insert cancellation notification:", notifErr);
+    }
+
+    const updatedContext = await getBookingContext(context.booking.id);
+    return res.json({
+      message: "Booking cancelled successfully.",
+      success: true,
+      booking: publicBooking(updatedContext),
+    });
+  };
+
+  api.put("/bookings/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelBooking);
+  api.post("/bookings/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelBooking);
+
   api.get("/bookings/:id", requireApiAuth, async (req: AuthenticatedRequest, res) => {
     const id = idSchema.safeParse(req.params.id); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     const context = await requireBookingAccess(req, res, id.data); if (!context) return;
@@ -839,7 +916,7 @@ export function createProcurementApi() {
 
   api.get("/analytics/officer", requireApiAuth, requireRole("officer"), async (_req, res) => {
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const [allFarmers, allRegistrations, allBookings, allCentres, allQueues, allProcurements, allPayments, allSlots] = await Promise.all([
+    const [allFarmers, allRegistrations, allBookings, allCentres, allQueues, allProcurements, allPayments, allSlots, allTransports] = await Promise.all([
       db.select().from(farmers),
       db.select().from(registrations),
       db.select().from(bookings),
@@ -848,6 +925,7 @@ export function createProcurementApi() {
       db.select().from(procurements),
       db.select().from(payments),
       db.select().from(slots),
+      db.select().from(transportBookings),
     ]);
 
     const centreUtilization = allCentres.map(c => {
@@ -915,6 +993,23 @@ export function createProcurementApi() {
     const totalFailedPayments = allPayments.filter(p => p.status === "FAILED").length;
     const successRate = (totalSuccessfulPayments + totalFailedPayments) > 0 ? Math.round((totalSuccessfulPayments / (totalSuccessfulPayments + totalFailedPayments)) * 100) : 100;
 
+    const transportStatusCounts = {
+      booked: allTransports.filter(t => t.status === "REQUESTED").length,
+      assigned: allTransports.filter(t => t.status === "ASSIGNED").length,
+      inTransit: allTransports.filter(t => t.status === "IN_TRANSIT").length,
+      delivered: allTransports.filter(t => t.status === "DELIVERED_AT_CENTRE").length,
+      cancelled: allTransports.filter(t => t.status === "CANCELLED").length,
+      total: allTransports.length,
+    };
+
+    const workflowStatusCounts = {
+      pending: allRegistrations.filter(r => r.status === "PENDING").length + allBookings.filter(b => b.status === "ACTIVE").length,
+      approved: allFarmers.filter(f => f.status === "APPROVED").length,
+      qualityChecked: allProcurements.filter(p => p.status === "QUALITY_CHECK" || p.status === "PROCESSING").length,
+      paymentInitiated: allPayments.filter(p => p.status === "PENDING" || p.status === "PROCESSING").length,
+      completed: allProcurements.filter(p => p.status === "COMPLETED").length,
+    };
+
     return res.json({
       analytics: {
         totalFarmers: allFarmers.length,
@@ -936,6 +1031,8 @@ export function createProcurementApi() {
         centreUtilization,
         hourlyArrivals,
         cropBreakdown,
+        transportStatusCounts,
+        workflowStatusCounts,
         funnel: {
           registered: allFarmers.length,
           pending: allRegistrations.filter(r => r.status === "PENDING").length,
@@ -1303,6 +1400,91 @@ export function createProcurementApi() {
     return res.json({ farmerId: id.data, transportBookings: formatted });
   });
 
+  const handleCancelTransport = async (req: AuthenticatedRequest, res: Response) => {
+    const rawId = String(req.params.id || "").trim();
+    const numId = Number(rawId);
+    const isNumeric = !isNaN(numId) && Number.isInteger(numId) && numId > 0;
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    const existing = (
+      await db
+        .select()
+        .from(transportBookings)
+        .where(
+          isNumeric
+            ? or(eq(transportBookings.id, numId), eq(transportBookings.transportCode, rawId))
+            : eq(transportBookings.transportCode, rawId)
+        )
+        .limit(1)
+    )[0];
+
+    if (!existing) {
+      return res.status(404).json({ error: "TRANSPORT_NOT_FOUND", message: `Transportation booking '${rawId}' was not found.` });
+    }
+
+    if (req.principal?.role === "farmer" && req.principal.id !== existing.farmerId) {
+      return res.status(403).json({ error: "FORBIDDEN", message: "You cannot cancel another farmer's transportation booking." });
+    }
+
+    if (existing.status === "CANCELLED") {
+      return res.status(400).json({ error: "ALREADY_CANCELLED", message: "This transportation booking has already been cancelled." });
+    }
+
+    if (existing.status === "DELIVERED_AT_CENTRE") {
+      return res.status(400).json({ error: "CANNOT_CANCEL_DELIVERED", message: "Delivered transportation cannot be cancelled." });
+    }
+
+    if (existing.status === "IN_TRANSIT") {
+      return res.status(400).json({ error: "CANNOT_CANCEL_IN_TRANSIT", message: "Cannot cancel a vehicle that is currently in transit." });
+    }
+
+    // Strict 30-minute cancellation window check for farmers
+    const transportCreatedTime = new Date(existing.createdAt).getTime();
+    const now = Date.now();
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    if (now - transportCreatedTime > thirtyMinutesMs) {
+      return res.status(400).json({
+        error: "CANCELLATION_WINDOW_EXPIRED",
+        message: "Cancellation window expired. Transportation bookings can only be cancelled within 30 minutes of creation.",
+      });
+    }
+
+    await db.update(transportBookings).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(transportBookings.id, existing.id));
+
+    const updated = (
+      await db.select().from(transportBookings).where(eq(transportBookings.id, existing.id)).limit(1)
+    )[0];
+
+    try {
+      await db.insert(notifications).values([
+        {
+          farmerId: existing.farmerId,
+          title: "Transportation Cancelled",
+          message: `Your transportation booking ${existing.transportCode} has been cancelled successfully.`,
+          category: "TRANSPORT",
+        },
+        {
+          farmerId: existing.farmerId,
+          title: "Transport Request Cancelled",
+          message: `Transport request ${existing.transportCode} from ${existing.pickupVillage} was cancelled by the farmer.`,
+          category: "TRANSPORT",
+        },
+      ]);
+    } catch (notifErr) {
+      console.error("Failed to insert transport cancellation notification:", notifErr);
+    }
+
+    return res.json({
+      message: "Transportation booking cancelled successfully.",
+      success: true,
+      transport: updated,
+    });
+  };
+
+  api.put("/transport/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelTransport);
+  api.post("/transport/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelTransport);
+
   api.put("/transport/:id/status", requireApiAuth, async (req: AuthenticatedRequest, res) => {
     const rawId = String(req.params.id || "").trim();
     const numId = Number(rawId);
@@ -1341,6 +1523,13 @@ export function createProcurementApi() {
       return res.status(404).json({
         error: "TRANSPORT_NOT_FOUND",
         message: `Transportation booking '${rawId}' was not found.`,
+      });
+    }
+
+    if (existing.status === "CANCELLED" && (rawStatus === "IN_TRANSIT" || rawStatus === "DELIVERED_AT_CENTRE")) {
+      return res.status(400).json({
+        error: "INVALID_STATUS_TRANSITION",
+        message: "Cannot transition a cancelled transportation booking to IN_TRANSIT or DELIVERED_AT_CENTRE.",
       });
     }
 
@@ -1464,6 +1653,13 @@ export function createProcurementApi() {
       return res.status(404).json({
         error: "TRANSPORT_NOT_FOUND",
         message: `Transportation booking '${rawId}' was not found.`,
+      });
+    }
+
+    if (existing.status === "CANCELLED" && (rawStatus === "IN_TRANSIT" || rawStatus === "DELIVERED_AT_CENTRE")) {
+      return res.status(400).json({
+        error: "INVALID_STATUS_TRANSITION",
+        message: "Cannot transition a cancelled transportation booking to IN_TRANSIT or DELIVERED_AT_CENTRE.",
       });
     }
 
@@ -1737,6 +1933,23 @@ export function createProcurementApi() {
     const benchmarkMspRevenue = Math.max(totalProcuredQuintals, totalBookedQuintals) * defaultMspRate;
     const priceRealizationPercent = benchmarkMspRevenue > 0 ? Math.min(105, Math.round((Math.max(totalEarnings, benchmarkMspRevenue) / benchmarkMspRevenue) * 100)) : 100;
 
+    const transportStatusCounts = {
+      booked: farmerTransports.filter(t => t.status === "REQUESTED").length,
+      assigned: farmerTransports.filter(t => t.status === "ASSIGNED").length,
+      inTransit: farmerTransports.filter(t => t.status === "IN_TRANSIT").length,
+      delivered: farmerTransports.filter(t => t.status === "DELIVERED_AT_CENTRE").length,
+      cancelled: farmerTransports.filter(t => t.status === "CANCELLED").length,
+      total: farmerTransports.length,
+    };
+
+    const workflowStatusCounts = {
+      pending: farmerBookings.filter(b => b.status === "ACTIVE" && (!myProcurements.find(p => p.bookingId === b.id) || myProcurements.find(p => p.bookingId === b.id)?.status === "BOOKED")).length,
+      approved: farmerBookings.filter(b => b.status === "ACTIVE").length,
+      qualityChecked: myProcurements.filter(p => p.status === "QUALITY_CHECK" || p.status === "PROCESSING").length,
+      paymentInitiated: myPayments.filter(p => p.status === "PENDING" || p.status === "PROCESSING").length,
+      completed: completedCount,
+    };
+
     return res.json({
       summary: {
         totalBookings: farmerBookings.length,
@@ -1755,6 +1968,8 @@ export function createProcurementApi() {
         },
       },
       cropBreakdown,
+      transportStatusCounts,
+      workflowStatusCounts,
       recentProcurements: farmerBookings.map(b => {
         const proc = myProcurements.find(p => p.bookingId === b.id);
         const pay = myPayments.find(p => p.bookingId === b.id);

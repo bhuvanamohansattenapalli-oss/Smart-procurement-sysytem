@@ -82,7 +82,8 @@ import { toast } from "sonner";
 import { apiUrl } from "@/lib/api";
 import { MapView } from "@/components/Map";
 
-import { localizedUiText, translations, Language } from "@/lib/translations";
+import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language } from "@/lib/translations";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
 
 function getInitials(name?: string | null, fallback = "SO"): string {
   if (!name || typeof name !== "string") return fallback;
@@ -180,6 +181,7 @@ type ApiBooking = {
   paddyGrade: string;
   expectedQuantityQuintals: number;
   tokenNumber: string;
+  createdAt?: string;
   farmer: { id: number; farmerCode: string; name: string; phone: string; village: string; district: string; primaryCrop: string; status: string };
   centre: { id: number; name: string; place: string; distanceKm: number };
   slot: { id: number; date: string; startTime: string; endTime: string };
@@ -655,6 +657,92 @@ export default function Home() {
   const [staffAuditLogsList, setStaffAuditLogsList] = useState<Array<{ id: number; performedByOfficerName: string; targetOfficerName?: string; action: string; details?: string; createdAt: string }>>([]);
   const [officerNotificationsList, setOfficerNotificationsList] = useState<Array<{ id: number; title: string; message: string; category: string; isRead: number; createdAt: string }>>([]);
   const [showOfficerNotifModal, setShowOfficerNotifModal] = useState(false);
+  const [showCancelBookingModal, setShowCancelBookingModal] = useState(false);
+  const [cancellingBooking, setCancellingBooking] = useState(false);
+  const [showCancelTransportModal, setShowCancelTransportModal] = useState(false);
+  const [targetCancelTransport, setTargetCancelTransport] = useState<any>(null);
+  const [cancellingTransport, setCancellingTransport] = useState(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTimeMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getCancellationStatus = (createdAtStr?: string) => {
+    if (!createdAtStr) return { canCancel: true, remainingMs: 30 * 60 * 1000, remainingMins: 30, text: "30m 00s", expired: false };
+    const createdTime = new Date(createdAtStr).getTime();
+    const elapsed = currentTimeMs - createdTime;
+    const remainingMs = 30 * 60 * 1000 - elapsed;
+    if (remainingMs <= 0) {
+      return { canCancel: false, remainingMs: 0, remainingMins: 0, text: "0m 00s", expired: true };
+    }
+    const mins = Math.floor(remainingMs / (60 * 1000));
+    const secs = Math.floor((remainingMs % (60 * 1000)) / 1000);
+    return {
+      canCancel: true,
+      remainingMs,
+      remainingMins: mins,
+      text: `${mins}m ${secs < 10 ? "0" : ""}${secs}s`,
+      expired: false,
+    };
+  };
+
+  const cancelFarmerBooking = async () => {
+    if (!farmerToken || !bookingRecord?.id) {
+      toast.error("No active booking to cancel.");
+      return;
+    }
+    setCancellingBooking(true);
+    try {
+      const response = await fetch(apiUrl(`/bookings/${bookingRecord.id}/cancel`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${farmerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to cancel booking.");
+      }
+      toast.success("Booking cancelled successfully.");
+      setShowCancelBookingModal(false);
+      setBookingRecord(null);
+      setBookingId(null);
+      if (farmerToken) {
+        void loadFarmerStats(farmerToken);
+        void loadFarmerAnalytics(farmerToken);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Cancellation failed.");
+    } finally {
+      setCancellingBooking(false);
+    }
+  };
+
+  const cancelFarmerTransport = async () => {
+    if (!farmerToken || !targetCancelTransport?.id) return;
+    setCancellingTransport(true);
+    try {
+      const response = await fetch(apiUrl(`/transport/${targetCancelTransport.id}/cancel`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${farmerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to cancel transportation.");
+      }
+      toast.success("Transportation booking cancelled successfully.");
+      setShowCancelTransportModal(false);
+      setTargetCancelTransport(null);
+      if (farmerToken) {
+        void loadFarmerTransportBookings(farmerToken);
+        void loadFarmerAnalytics(farmerToken);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Cancellation failed.");
+    } finally {
+      setCancellingTransport(false);
+    }
+  };
   const [showRecord, setShowRecord] = useState(false);
   const [apiCentres, setApiCentres] = useState<Centre[]>(centres);
   const [farmerToken, setFarmerToken] = useState<string | null>(null);
@@ -4021,7 +4109,8 @@ export default function Home() {
         }
       />
 
-      <section className="officer-metrics">
+      {/* 1. Four Summary Metric Cards */}
+      <section className="officer-metrics grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
           icon={Clock3}
           label="Delivered / Awaiting QC"
@@ -4037,7 +4126,7 @@ export default function Home() {
           tone="green"
         />
         <MetricCard
-          icon={CheckCircle2}
+          icon={ShieldCheck}
           label="FAQ Acceptance Rate"
           value="98.2%"
           hint="AP Civil Supplies standard"
@@ -4052,179 +4141,324 @@ export default function Home() {
         />
       </section>
 
-      <section className="officer-booking-list">
-        <div className="flex items-center justify-between">
-          <h2>Farmers in Quality Inspection Queue ({officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").length})</h2>
-          <Pill kind="green">OFFICIAL LAB WORKFLOW</Pill>
+      {/* 2. Quality Inspection Queue Section */}
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+              <span>Farmers in Quality Inspection Queue</span>
+              <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").length}
+              </span>
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5 m-0">
+              Live grain lots submitted at AP Procurement Mandis awaiting quality verification, weighing, and DBT settlement.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs">
+              <ShieldCheck size={13} className="text-emerald-700" /> OFFICIAL LAB WORKFLOW
+            </span>
+          </div>
         </div>
 
         {officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").length > 0 ? (
-          officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").map(b => (
-            <article key={b.id} className="p-5 border border-slate-200 bg-white rounded-xl shadow-xs hover:border-emerald-300 transition-all flex flex-col gap-4">
-              {/* Header: Farmer Name, Token, Reg ID, Village, Centre */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="token-disc small green"><ShieldCheck size={16} /></span>
-                    <h3 className="text-base font-bold text-[#143e2b] m-0">{b.farmer?.name ?? "Farmer"}</h3>
-                    <Pill kind="green">{b.tokenNumber ?? "AP-001"}</Pill>
+          <div className="space-y-4">
+            {officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").map(b => {
+              const isPassed = b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "COMPLETED";
+              const isPaid = b.procurement?.status === "COMPLETED";
+              const isRejected = b.procurement?.qualityGrade === "Rejected";
+
+              return (
+                <article
+                  key={b.id}
+                  className="bg-white rounded-xl border border-slate-200/90 hover:border-emerald-300 hover:shadow-md transition-all duration-200 p-5 flex flex-col gap-4"
+                >
+                  {/* Top Row: Farmer Profile, Reg ID, Location, Mandi, and Prominent Status Badge */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-800 font-bold text-sm shrink-0 shadow-2xs">
+                        {getInitials(b.farmer?.name || "Farmer", "FM")}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-bold text-slate-900 m-0 tracking-tight">{b.farmer?.name ?? "Farmer"}</h3>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            {b.tokenNumber ?? `AP-${b.id}`}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono text-slate-600 bg-slate-100 border border-slate-200">
+                            {b.farmer?.farmerCode ?? `FMR-2026-${b.id}`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1 m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="inline-flex items-center gap-1 text-slate-600">
+                            <MapPin size={12} className="text-emerald-600" />
+                            <b>{b.farmer?.village ?? "Village"}</b>, {b.farmer?.district ?? "District"}
+                          </span>
+                          <span className="text-slate-300">|</span>
+                          <span className="inline-flex items-center gap-1 text-slate-600">
+                            <Building2 size={12} className="text-slate-400" />
+                            <span>Mandi:</span>
+                            <b>{b.centre?.name ?? "Procurement Centre"}</b>
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="self-start sm:self-center shrink-0">
+                      {isPaid ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                          <CheckCircle2 size={13} className="text-emerald-600" /> DBT Payout Settled
+                        </span>
+                      ) : isPassed ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs">
+                          <ShieldCheck size={13} className="text-blue-600" /> Passed (Ready for Payout)
+                        </span>
+                      ) : isRejected ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 shadow-2xs">
+                          <AlertCircle size={13} className="text-rose-600" /> Rejected (Moisture {">"} 17%)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                          <Clock3 size={13} className="text-amber-600" /> Pending Inspection
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1 m-0">
-                    📍 {b.farmer?.village ?? "Village"}, {b.farmer?.district ?? "District"} · 🏢 <b>{b.centre?.name ?? "Procurement Centre"}</b>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Reg ID:</span>
-                  <Badge variant="outline" className="font-mono text-xs text-slate-700 bg-slate-50 border-slate-200">
-                    {b.farmer?.farmerCode ?? "FMR-2026"}
-                  </Badge>
-                </div>
-              </div>
 
-              {/* Middle Grid: Booking details, Schedule, Crop, Quantity, Stage, Grade */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 p-3.5 rounded-lg text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Booking ID</span>
-                  <b className="font-mono text-slate-800">{b.bookingCode ?? `BK-2026-${b.id}`}</b>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Logistics Trip</span>
-                  <b className="font-mono text-emerald-800">{b.transport?.transportCode || "Delivered at Centre"}</b>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Crop & Variety</span>
-                  <b className="text-slate-800">{b.paddyVariety ?? "Paddy (Common)"}</b>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Expected Quantity</span>
-                  <b className="text-slate-800">{b.expectedQuantityQuintals ?? 18} Quintals</b>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Current Stage</span>
-                  <Pill kind={b.procurement?.status === "COMPLETED" ? "green" : b.procurement?.status === "QUALITY_CHECK" ? "blue" : "yellow"}>
-                    {(b.procurement?.status || "ARRIVED").replaceAll("_", " ")}
-                  </Pill>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Quality Grade</span>
-                  <b className={b.procurement?.qualityGrade ? "text-emerald-700 font-bold" : "text-slate-500"}>
-                    {b.procurement?.qualityGrade || "Pending Inspection"}
-                  </b>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Weighed Quantity</span>
-                  <b className={b.procurement?.weighedQuantityQuintals ? "text-emerald-700 font-bold" : "text-slate-500"}>
-                    {b.procurement?.weighedQuantityQuintals ? `${b.procurement.weighedQuantityQuintals} Qtl` : "Pending Weighing"}
-                  </b>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Inspection Status</span>
-                  <b className={b.procurement?.status === "COMPLETED" || b.procurement?.status === "QUALITY_CHECK" ? "text-emerald-700 font-bold" : "text-amber-600"}>
-                    {b.procurement?.status === "COMPLETED" ? "Payment Settled" : b.procurement?.status === "QUALITY_CHECK" ? "Inspection Passed (Ready for Payout)" : "In QC Queue"}
-                  </b>
-                </div>
-              </div>
+                  {/* Middle Grid: 8 Clearly Separated Inspection Fields */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 bg-slate-50/90 p-3.5 rounded-xl border border-slate-100 text-xs">
+                    {/* 1. Farmer Name & Location */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Farmer</span>
+                      <span className="font-semibold text-slate-800 truncate block" title={b.farmer?.name ?? "Farmer"}>
+                        {b.farmer?.name ?? "Farmer"}
+                      </span>
+                      <span className="text-[10px] text-slate-500 truncate block">
+                        {b.farmer?.village ?? "Village"}
+                      </span>
+                    </div>
 
-              {/* Dedicated Action Button Row */}
-              <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                  onClick={() => setViewingQcFarmerProfile(b.farmer || { name: "Farmer", farmerCode: "FMR-2026", village: "Muppalapally", district: "Guntur", primaryCrop: "Paddy" })}
-                >
-                  <UserCheck size={14} className="mr-1.5 text-slate-600" /> View Profile
-                </Button>
+                    {/* 2. Booking ID */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Booking ID</span>
+                      <b className="font-mono text-slate-800 truncate block">
+                        {b.bookingCode ?? `BK-2026-${b.id}`}
+                      </b>
+                      <span className="text-[10px] text-slate-400 truncate block">Official Lot</span>
+                    </div>
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs border-emerald-600 text-emerald-800 hover:bg-emerald-50 font-bold"
-                  onClick={() => {
-                    setSelectedQcBooking(b);
-                    setQcForm({
-                      qualityGrade: b.procurement?.qualityGrade || b.paddyGrade || "Grade A Fine (FAQ)",
-                      qcResult: "ACCEPTED",
-                      weighedQuantityQuintals: String(b.procurement?.weighedQuantityQuintals || b.expectedQuantityQuintals || "18.50"),
-                      moisturePercent: "14.2",
-                      foreignMatterPercent: "1.0",
-                      remarks: "Grain sample inspected. Moisture and purity meet FAQ standards.",
-                    });
-                    setShowQcModal(true);
-                  }}
-                >
-                  <ShieldCheck size={14} className="mr-1.5 text-emerald-700" /> Inspect Crop Quality
-                </Button>
+                    {/* 3. Logistics Trip ID */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Logistics Trip</span>
+                      <b className="font-mono text-emerald-800 truncate block">
+                        {b.transport?.transportCode || "Centre Arrival"}
+                      </b>
+                      <span className="text-[10px] text-slate-400 truncate block">Delivered</span>
+                    </div>
 
-                {b.procurement?.status === "QUALITY_CHECK" && (
-                  <Button
-                    size="sm"
-                    className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
-                    disabled={payoutProcessingId === b.id}
-                    onClick={() => { void disburseFarmerPayout(b.id); }}
-                  >
-                    <WalletCards size={14} className="mr-1.5" />
-                    {payoutProcessingId === b.id ? "Disbursing DBT…" : "Disburse DBT Payout"}
-                  </Button>
-                )}
+                    {/* 4. Crop & Variety */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Crop & Variety</span>
+                      <b className="text-slate-800 truncate block" title={b.paddyVariety ?? "Paddy (Common)"}>
+                        {b.paddyVariety ?? "Paddy (Common)"}
+                      </b>
+                      <span className="text-[10px] text-slate-500 truncate block">Kharif 2026</span>
+                    </div>
 
-                {b.procurement?.status === "COMPLETED" && (
-                  <Pill kind="green">✓ DBT Payout Settled</Pill>
-                )}
-              </div>
-            </article>
-          ))
+                    {/* 5. Expected Quantity */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Expected Qty</span>
+                      <b className="text-slate-800 truncate block">
+                        {b.expectedQuantityQuintals ?? 18} Quintals
+                      </b>
+                      <span className="text-[10px] text-slate-400 truncate block">Self Declared</span>
+                    </div>
+
+                    {/* 6. Weighed Quantity */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Weighed Qty</span>
+                      {b.procurement?.weighedQuantityQuintals ? (
+                        <span className="text-emerald-700 font-bold truncate block">
+                          {b.procurement.weighedQuantityQuintals} Qtl
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic truncate block">Pending Scale</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 truncate block">Certified Scale</span>
+                    </div>
+
+                    {/* 7. Quality Grade */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Quality Grade</span>
+                      {b.procurement?.qualityGrade ? (
+                        <span className="text-emerald-700 font-bold truncate block" title={b.procurement.qualityGrade}>
+                          {b.procurement.qualityGrade}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic truncate block">Awaiting Grade</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 truncate block">FAQ Standard</span>
+                    </div>
+
+                    {/* 8. Inspection Status */}
+                    <div className="min-w-0">
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Inspection Status</span>
+                      <span className={`font-bold truncate block ${
+                        isPaid
+                          ? "text-emerald-700"
+                          : isPassed
+                          ? "text-blue-700"
+                          : isRejected
+                          ? "text-rose-700"
+                          : "text-amber-700"
+                      }`}>
+                        {isPaid
+                          ? "Settled & Closed"
+                          : isPassed
+                          ? "Ready for Payout"
+                          : isRejected
+                          ? "QC Failed"
+                          : "Pending Inspection"}
+                      </span>
+                      <span className="text-[10px] text-slate-400 truncate block">Mandi Lab</span>
+                    </div>
+                  </div>
+
+                  {/* Bottom Action Area: Clean Right-Side Actions with Consistent Buttons & Icons */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-3 border-t border-slate-100 gap-3">
+                    <div className="text-xs text-slate-500 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>AP Civil Supplies Lab Station #1 · FAQ Moisture Standard: <b>≤ 17.0%</b></span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+                      {/* 1. View Profile Button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs border-slate-300 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors"
+                        onClick={() => setViewingQcFarmerProfile(b.farmer || { name: "Farmer", farmerCode: "FMR-2026", village: "Muppalapally", district: "Guntur", primaryCrop: "Paddy" })}
+                      >
+                        <UserCheck size={14} className="text-slate-500" />
+                        <span>View Profile</span>
+                      </Button>
+
+                      {/* 2. Inspect Crop Quality (PRIMARY ACTION) */}
+                      <Button
+                        size="sm"
+                        className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold flex items-center gap-1.5 px-4 py-1.5 rounded-lg shadow-xs transition-all hover:shadow"
+                        onClick={() => {
+                          setSelectedQcBooking(b);
+                          setQcForm({
+                            qualityGrade: b.procurement?.qualityGrade || b.paddyGrade || "Grade A Fine (FAQ)",
+                            qcResult: "ACCEPTED",
+                            weighedQuantityQuintals: String(b.procurement?.weighedQuantityQuintals || b.expectedQuantityQuintals || "18.50"),
+                            moisturePercent: "14.2",
+                            foreignMatterPercent: "1.0",
+                            remarks: "Grain sample inspected. Moisture and purity meet FAQ standards.",
+                          });
+                          setShowQcModal(true);
+                        }}
+                      >
+                        <ShieldCheck size={14} className="text-emerald-200" />
+                        <span>Inspect Crop Quality</span>
+                      </Button>
+
+                      {/* 3. Disburse DBT Payout (when ready) */}
+                      {b.procurement?.status === "QUALITY_CHECK" && (
+                        <Button
+                          size="sm"
+                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg shadow-xs transition-all"
+                          disabled={payoutProcessingId === b.id}
+                          onClick={() => { void disburseFarmerPayout(b.id); }}
+                        >
+                          <WalletCards size={14} />
+                          <span>{payoutProcessingId === b.id ? "Disbursing DBT…" : "Disburse DBT Payout"}</span>
+                        </Button>
+                      )}
+
+                      {isPaid && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+                          <CheckCircle2 size={13} className="text-emerald-600" />
+                          <span>DBT Payout Settled</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         ) : (
-          <div className="p-8 text-center text-muted-foreground bg-slate-50/60 rounded-2xl border border-dashed">
-            No crops currently waiting in quality control queue. Deliveries will appear here as logistics marks them delivered.
+          <div className="p-10 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-500">
+            <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 mx-auto mb-3">
+              <ShieldCheck size={24} />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800 m-0">No Crops Waiting in Quality Control Queue</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              Incoming crop lots will automatically appear here once logistics marks them delivered at the procurement mandi.
+            </p>
           </div>
         )}
       </section>
 
-      {/* Farmer Profile Inspection Modal for QC */}
+      {/* Farmer Profile Modal for QC */}
       {viewingQcFarmerProfile && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="profile-avatar text-sm">{getInitials(viewingQcFarmerProfile.name, "FM")}</span>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 font-bold text-sm shadow-2xs">
+                  {getInitials(viewingQcFarmerProfile.name, "FM")}
+                </div>
                 <div>
                   <h3 className="text-base font-bold text-[#143e2b] m-0">{viewingQcFarmerProfile.name}</h3>
-                  <small className="text-xs text-muted-foreground">{viewingQcFarmerProfile.farmerCode ?? "FMR-2026-11842"}</small>
+                  <small className="text-xs text-slate-500 font-mono">{viewingQcFarmerProfile.farmerCode ?? "FMR-2026-11842"}</small>
                 </div>
               </div>
-              <button onClick={() => setViewingQcFarmerProfile(null)}><X size={18} /></button>
+              <button
+                onClick={() => setViewingQcFarmerProfile(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <div className="bg-slate-50 border rounded-xl p-3.5 space-y-2 text-xs">
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2.5 text-xs">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Mobile Phone:</span>
-                <b>+91 {viewingQcFarmerProfile.phone ?? "98765 43210"}</b>
+                <span className="text-slate-500">Mobile Phone:</span>
+                <b className="text-slate-800">+91 {viewingQcFarmerProfile.phone ?? "98765 43210"}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Village & District:</span>
-                <b>{viewingQcFarmerProfile.village ?? "Muppalapally"}, {viewingQcFarmerProfile.district ?? "Guntur"}</b>
+                <span className="text-slate-500">Village & District:</span>
+                <b className="text-slate-800">{viewingQcFarmerProfile.village ?? "Muppalapally"}, {viewingQcFarmerProfile.district ?? "Guntur"}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Primary Crop:</span>
-                <b>{viewingQcFarmerProfile.primaryCrop ?? "Paddy"}</b>
+                <span className="text-slate-500">Primary Crop:</span>
+                <b className="text-slate-800">{viewingQcFarmerProfile.primaryCrop ?? "Paddy"}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Account Status:</span>
-                <Pill kind="green">{viewingQcFarmerProfile.status ?? "APPROVED"}</Pill>
+                <span className="text-slate-500">Account Status:</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {viewingQcFarmerProfile.status ?? "APPROVED"}
+                </span>
               </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200">
-                <span className="text-muted-foreground">Aadhaar (Masked):</span>
-                <b>XXXX XXXX 4512</b>
+              <div className="flex justify-between pt-2 border-t border-slate-200/80">
+                <span className="text-slate-500">Aadhaar (Masked):</span>
+                <b className="font-mono text-slate-800">XXXX XXXX 4512</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">e-Crop Land Registry:</span>
+                <span className="text-slate-500">e-Crop Land Registry:</span>
                 <span className="text-emerald-700 font-bold flex items-center gap-1"><Check size={13} /> Verified (Pahani/1B)</span>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t">
-              <Button onClick={() => setViewingQcFarmerProfile(null)} className="action-button">Close Profile</Button>
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <Button onClick={() => setViewingQcFarmerProfile(null)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                Close Profile
+              </Button>
             </div>
           </div>
         </div>
@@ -4233,37 +4467,45 @@ export default function Home() {
       {/* QC Inspection Modal */}
       {showQcModal && selectedQcBooking && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl p-6 max-w-lg w-full shadow-2xl border flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-[#143e2b]">Crop Quality & Lab Inspection</h3>
-                <p className="text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-emerald-700" />
+                  <h3 className="text-lg font-bold text-slate-900 m-0">Crop Quality & Lab Inspection</h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 m-0">
                   Farmer: <b>{selectedQcBooking.farmer?.name}</b> ({selectedQcBooking.farmer?.farmerCode}) · Token: <b>{selectedQcBooking.tokenNumber}</b>
                 </p>
               </div>
-              <button onClick={() => setShowQcModal(false)}><X size={18} /></button>
+              <button
+                onClick={() => setShowQcModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <div className="bg-emerald-50/60 border border-emerald-200/70 p-3 rounded-lg text-xs space-y-1">
+            <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-xl text-xs space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Procurement Centre:</span>
-                <b>{selectedQcBooking.centre?.name}</b>
+                <span className="text-emerald-800">Procurement Centre:</span>
+                <b className="text-emerald-950">{selectedQcBooking.centre?.name}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Paddy Variety:</span>
-                <b>{selectedQcBooking.paddyVariety}</b>
+                <span className="text-emerald-800">Paddy Variety:</span>
+                <b className="text-emerald-950">{selectedQcBooking.paddyVariety}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Expected Load:</span>
-                <b>{selectedQcBooking.expectedQuantityQuintals} Quintals</b>
+                <span className="text-emerald-800">Expected Load:</span>
+                <b className="text-emerald-950">{selectedQcBooking.expectedQuantityQuintals} Quintals</b>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-bold">
+            <div className="grid grid-cols-2 gap-3.5">
+              <label className="text-xs font-semibold text-slate-700">
                 Crop Quality / Grade
                 <select
-                  className="w-full mt-1 p-2 rounded-md border bg-background text-xs font-semibold"
+                  className="w-full mt-1.5 p-2 rounded-lg border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   value={qcForm.qualityGrade}
                   onChange={e => setQcForm(f => ({ ...f, qualityGrade: e.target.value }))}
                 >
@@ -4274,10 +4516,10 @@ export default function Home() {
                 </select>
               </label>
 
-              <label className="text-xs font-bold">
+              <label className="text-xs font-semibold text-slate-700">
                 Inspection Result
                 <select
-                  className="w-full mt-1 p-2 rounded-md border bg-background text-xs font-semibold"
+                  className="w-full mt-1.5 p-2 rounded-lg border border-slate-300 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   value={qcForm.qcResult}
                   onChange={e => setQcForm(f => ({ ...f, qcResult: e.target.value as "ACCEPTED" | "REJECTED" | "HOLD" }))}
                 >
@@ -4288,57 +4530,63 @@ export default function Home() {
               </label>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-bold">
-                Moisture Content % (Max 17.0%)
+            <div className="grid grid-cols-2 gap-3.5">
+              <label className="text-xs font-semibold text-slate-700">
+                <span className="flex items-center justify-between">
+                  <span>Moisture %</span>
+                  <span className="text-[10px] text-emerald-700 font-normal">Max 17.0%</span>
+                </span>
                 <Input
                   type="number"
                   step="0.1"
-                  className="mt-1 text-xs"
+                  className="mt-1.5 text-xs"
                   value={qcForm.moisturePercent}
                   onChange={e => setQcForm(f => ({ ...f, moisturePercent: e.target.value }))}
                 />
               </label>
 
-              <label className="text-xs font-bold">
-                Net Weighed Quantity (Quintals)
+              <label className="text-xs font-semibold text-slate-700">
+                <span>Net Weighed Qty (Quintals)</span>
                 <Input
                   type="number"
                   step="0.01"
-                  className="mt-1 text-xs font-bold text-emerald-900"
+                  className="mt-1.5 text-xs font-bold text-emerald-900"
                   value={qcForm.weighedQuantityQuintals}
                   onChange={e => setQcForm(f => ({ ...f, weighedQuantityQuintals: e.target.value }))}
                 />
               </label>
             </div>
 
-            <label className="text-xs font-bold">
-              Foreign Matter / Refraction %
+            <label className="text-xs font-semibold text-slate-700">
+              <span className="flex items-center justify-between">
+                <span>Foreign Matter / Refraction %</span>
+                <span className="text-[10px] text-emerald-700 font-normal">Max 1.0%</span>
+              </span>
               <Input
                 type="number"
                 step="0.1"
-                className="mt-1 text-xs"
+                className="mt-1.5 text-xs"
                 value={qcForm.foreignMatterPercent}
                 onChange={e => setQcForm(f => ({ ...f, foreignMatterPercent: e.target.value }))}
               />
             </label>
 
-            <label className="text-xs font-bold">
+            <label className="text-xs font-semibold text-slate-700">
               Inspection Remarks
               <Input
-                className="mt-1 text-xs"
+                className="mt-1.5 text-xs"
                 placeholder="e.g. Grain sample inspected. Moisture and purity meet FAQ standards."
                 value={qcForm.remarks}
                 onChange={e => setQcForm(f => ({ ...f, remarks: e.target.value }))}
               />
             </label>
 
-            <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="outline" onClick={() => setShowQcModal(false)}>Cancel</Button>
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setShowQcModal(false)} className="text-xs">Cancel</Button>
               <Button
                 disabled={qcSubmitting}
                 onClick={() => { void submitQcInspection(); }}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs"
               >
                 {qcSubmitting ? "Submitting Quality Inspection…" : "Submit Quality Inspection"}
               </Button>
@@ -4735,6 +4983,166 @@ export default function Home() {
         })()}
       </section>
 
+      {/* Slot Booking Cancellation Confirmation Modal */}
+      {showCancelBookingModal && bookingRecord && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-2xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-2 border-b">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300 border border-rose-200">
+                  <X size={20} />
+                </span>
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground m-0">
+                    {tUi("Cancel booking?", language)}
+                  </h3>
+                  <span className="text-xs text-muted-foreground">Release reserved procurement slot</span>
+                </div>
+              </div>
+              <button onClick={() => setShowCancelBookingModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-muted/40 border space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Booking ID:", language)}</span>
+                  <b className="font-mono text-foreground">{bookingRecord.bookingCode}</b>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Booking type:", language)}</span>
+                  <span className="font-semibold text-foreground">MSP Paddy Procurement</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Scheduled time:", language)}</span>
+                  <span className="font-bold text-foreground">{bookingRecord.slot.date} ({bookingRecord.slot.startTime} – {bookingRecord.slot.endTime})</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
+                  {(() => {
+                    const cStatus = getCancellationStatus(bookingRecord.createdAt);
+                    return (
+                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                        cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
+                      }`}>
+                        {cStatus.canCancel ? `Within 30-min window (${cStatus.text} left)` : "Cancellation window expired"}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {tUi("Are you sure you want to cancel this booking? This action will release your reserved slot.", language)}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <Button
+                variant="outline"
+                className="text-xs"
+                onClick={() => setShowCancelBookingModal(false)}
+                disabled={cancellingBooking}
+              >
+                {tUi("Keep Booking", language)}
+              </Button>
+              {(() => {
+                const cStatus = getCancellationStatus(bookingRecord.createdAt);
+                return (
+                  <Button
+                    variant="destructive"
+                    className="text-xs font-bold"
+                    onClick={() => { void cancelFarmerBooking(); }}
+                    disabled={!cStatus.canCancel || cancellingBooking}
+                  >
+                    {cancellingBooking ? "Cancelling…" : tUi("Cancel Booking", language)}
+                  </Button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transport Booking Cancellation Confirmation Modal */}
+      {showCancelTransportModal && targetCancelTransport && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-2xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-2 border-b">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300 border border-rose-200">
+                  <X size={20} />
+                </span>
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground m-0">
+                    {tUi("Cancel booking?", language)}
+                  </h3>
+                  <span className="text-xs text-muted-foreground">Subsidized vehicle transportation</span>
+                </div>
+              </div>
+              <button onClick={() => setShowCancelTransportModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-muted/40 border space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Transport ID:", language)}</span>
+                  <b className="font-mono text-foreground">{targetCancelTransport.transportCode}</b>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Vehicle Type:", language)}</span>
+                  <span className="font-semibold text-foreground">{targetCancelTransport.vehicleName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Scheduled time:", language)}</span>
+                  <span className="font-bold text-foreground">{targetCancelTransport.scheduledDate} ({targetCancelTransport.timeSlot})</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
+                  {(() => {
+                    const cStatus = getCancellationStatus(targetCancelTransport.createdAt);
+                    return (
+                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                        cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
+                      }`}>
+                        {cStatus.canCancel ? `Within 30-min window (${cStatus.text} left)` : "Cancellation window expired"}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {tUi("Are you sure you want to cancel this transportation booking?", language)}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <Button
+                variant="outline"
+                className="text-xs"
+                onClick={() => setShowCancelTransportModal(false)}
+                disabled={cancellingTransport}
+              >
+                {tUi("Keep Booking", language)}
+              </Button>
+              {(() => {
+                const cStatus = getCancellationStatus(targetCancelTransport.createdAt);
+                return (
+                  <Button
+                    variant="destructive"
+                    className="text-xs font-bold"
+                    onClick={() => { void cancelFarmerTransport(); }}
+                    disabled={!cStatus.canCancel || cancellingTransport}
+                  >
+                    {cancellingTransport ? "Cancelling…" : tUi("Cancel Booking", language)}
+                  </Button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Interactive Logistics Route Map Modal */}
       {viewingTransportRouteItem && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -5119,50 +5527,198 @@ export default function Home() {
     <>
       <div className="analytics-hero-banner">
         <div>
-          <Pill kind="green">OFFICIAL HARVEST PERFORMANCE</Pill>
-          <h2>Farmer Procurement & Revenue Analytics</h2>
-          <p>Real-time data aggregated from your database records, DBT bank payments, and transport savings.</p>
+          <Pill kind="green">{tUi("OFFICIAL HARVEST PERFORMANCE", language)}</Pill>
+          <h2>{tUi("Farmer Procurement & Revenue Analytics", language)}</h2>
+          <p>{tUi("Real-time data aggregated from your database records, DBT bank payments, and transport savings.", language)}</p>
         </div>
         <ActionButton onClick={() => toast.success("Procurement Statement downloaded as PDF.")} secondary icon={Download}>
-          Download Statement
+          {tUi("Download Statement", language)}
         </ActionButton>
       </div>
 
+      {/* Top KPI Metrics */}
       <div className="analytics-metric-grid">
         <MetricCard
           icon={Wheat}
-          label="Total Harvest Procured"
-          value={`${farmerAnalyticsData?.summary.totalProcuredQuintals.toFixed(1) ?? (farmerStats?.completedProcurements ? "18.5" : "0.0")} Qtl`}
-          hint={`From ${farmerAnalyticsData?.summary.totalBookings ?? farmerStats?.totalBookings ?? 0} booked visits`}
+          label={tUi("Total Harvest Procured", language)}
+          value={`${farmerAnalyticsData?.summary.totalProcuredQuintals.toFixed(1) ?? (farmerStats?.completedProcurements ? "18.0" : "0.0")} Qtl`}
+          hint={`${farmerAnalyticsData?.summary.totalBookings ?? farmerStats?.totalBookings ?? 0} booked visits`}
           tone="green"
         />
         <MetricCard
           icon={Coins}
-          label="Realized Revenue"
+          label={tUi("Realized Revenue", language)}
           value={`₹${(farmerAnalyticsData?.summary.totalEarnings ?? farmerStats?.totalAmountReceived ?? 41400).toLocaleString("en-IN")}`}
           hint="Direct Bank Transfer credited"
           tone="green"
         />
         <MetricCard
           icon={TrendingUp}
-          label="Price Realization Rate"
+          label={tUi("Price Realization Rate", language)}
           value={`${farmerAnalyticsData?.summary.priceRealizationPercent ?? 100}%`}
           hint="100% MSP Benchmark Achieved"
           tone="blue"
         />
         <MetricCard
           icon={Clock3}
-          label="Average Turnaround"
+          label={tUi("Average Turnaround", language)}
           value={`${farmerAnalyticsData?.summary.avgTurnaroundMins ?? 32} Min`}
           hint="Fast weighbridge processing"
           tone="yellow"
         />
       </div>
 
+      {/* 3 Useful Analytics Graphs */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 my-5">
+        {/* Graph 1: Crop-wise Procurement Volume */}
+        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-foreground m-0">{tUi("Procurement Volume by Crop", language)}</h3>
+              <span className="text-[11px] text-muted-foreground">Quantity in Quintals per crop</span>
+            </div>
+            <Pill kind="green">Kharif 2025-26</Pill>
+          </div>
+          {(() => {
+            const cropData = (farmerAnalyticsData?.cropBreakdown && farmerAnalyticsData.cropBreakdown.length > 0)
+              ? farmerAnalyticsData.cropBreakdown.map(c => ({
+                  name: c.variety.length > 14 ? c.variety.slice(0, 12) + "…" : c.variety,
+                  fullName: c.variety,
+                  quantity: c.quantityQuintals,
+                  earnings: c.earnings,
+                }))
+              : [
+                  { name: "Common Paddy", fullName: "Common Paddy — Grade A", quantity: 18.0, earnings: 41400 },
+                  { name: "Fine Paddy", fullName: "Fine Paddy — Grade B", quantity: 12.0, earnings: 26436 },
+                ];
+            if (cropData.length === 0) {
+              return (
+                <div className="h-56 flex flex-col items-center justify-center text-center p-4 bg-muted/20 rounded-xl border border-dashed text-xs text-muted-foreground">
+                  <Wheat size={28} className="text-muted-foreground/40 mb-1" />
+                  <b>{tUi("Not enough data yet", language)}</b>
+                  <span>{tUi("No procurement records found yet to display volume statistics.", language)}</span>
+                </div>
+              );
+            }
+            return (
+              <div className="h-60 w-full pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cropData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip
+                      formatter={(val: any) => [`${val} Quintals`, "Quantity"]}
+                      labelFormatter={(label: any, payload: any) => payload?.[0]?.payload?.fullName || label}
+                      contentStyle={{ backgroundColor: "#0f3825", borderRadius: "10px", color: "#fff", fontSize: "11px", border: "none" }}
+                      itemStyle={{ color: "#a7f3d0" }}
+                    />
+                    <Bar dataKey="quantity" fill="#15803d" radius={[6, 6, 0, 0]}>
+                      {cropData.map((_, i) => (
+                        <Cell key={i} fill={i % 2 === 0 ? "#15803d" : "#047857"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Graph 2: Harvest Processing Pipeline */}
+        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-foreground m-0">{tUi("Harvest Processing Pipeline", language)}</h3>
+              <span className="text-[11px] text-muted-foreground">Procurement stage distribution</span>
+            </div>
+            <Pill kind="blue">Workflow</Pill>
+          </div>
+          {(() => {
+            const workflowData = [
+              { stage: "Booked", count: 1, color: "#3b82f6" },
+              { stage: "Gate Entry", count: 1, color: "#6366f1" },
+              { stage: "QC Passed", count: 1, color: "#8b5cf6" },
+              { stage: "Weighed", count: 1, color: "#d97706" },
+              { stage: "DBT Paid", count: 1, color: "#15803d" },
+            ];
+            return (
+              <div className="h-60 w-full pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={workflowData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
+                    <XAxis dataKey="stage" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip
+                      formatter={(val: any) => [`${val} Batches`, "Count"]}
+                      contentStyle={{ backgroundColor: "#1e293b", borderRadius: "10px", color: "#fff", fontSize: "11px", border: "none" }}
+                    />
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                      {workflowData.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Graph 3: Transportation Logistics Activity */}
+        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-foreground m-0">{tUi("Fleet Transportation Analytics", language)}</h3>
+              <span className="text-[11px] text-muted-foreground">Trips by transit status</span>
+            </div>
+            <Pill kind="green">30% Subsidy</Pill>
+          </div>
+          {(() => {
+            const requested = transportBookingsList.filter(t => t.status === "REQUESTED").length;
+            const assigned = transportBookingsList.filter(t => t.status === "ASSIGNED").length;
+            const inTransit = transportBookingsList.filter(t => t.status === "IN_TRANSIT").length;
+            const delivered = transportBookingsList.filter(t => t.status === "DELIVERED_AT_CENTRE").length;
+            const cancelled = transportBookingsList.filter(t => t.status === "CANCELLED").length;
+            const total = transportBookingsList.length;
+
+            const transportData = [
+              { status: "Booked", count: total > 0 ? requested : 1, color: "#3b82f6" },
+              { status: "Assigned", count: total > 0 ? assigned : 1, color: "#6366f1" },
+              { status: "In Transit", count: total > 0 ? inTransit : 1, color: "#eab308" },
+              { status: "Delivered", count: total > 0 ? delivered : 2, color: "#15803d" },
+              { status: "Cancelled", count: total > 0 ? cancelled : 0, color: "#ef4444" },
+            ];
+
+            return (
+              <div className="h-60 w-full pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={transportData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
+                    <XAxis dataKey="status" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip
+                      formatter={(val: any) => [`${val} Trips`, "Trips"]}
+                      contentStyle={{ backgroundColor: "#1e293b", borderRadius: "10px", color: "#fff", fontSize: "11px", border: "none" }}
+                    />
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                      {transportData.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Transport Logistics Subsidy Card */}
       <div className="analytics-split-view">
         <div className="analytics-chart-card">
           <div className="flex items-center justify-between mb-4">
-            <h3>Crop Variety Breakdown</h3>
+            <h3 className="font-extrabold text-foreground">{tUi("Crop Variety Breakdown", language)}</h3>
             <Pill kind="blue">Kharif 2025-26</Pill>
           </div>
           {(farmerAnalyticsData?.cropBreakdown && farmerAnalyticsData.cropBreakdown.length > 0 ? farmerAnalyticsData.cropBreakdown : [
@@ -5172,7 +5728,7 @@ export default function Home() {
             <div className="variety-progress-row" key={idx}>
               <div className="flex justify-between font-bold text-xs">
                 <span>{item.variety}</span>
-                <span className="text-emerald-800">₹{item.earnings.toLocaleString("en-IN")} ({item.quantityQuintals} Qtl)</span>
+                <span className="text-emerald-800 font-mono">₹{item.earnings.toLocaleString("en-IN")} ({item.quantityQuintals} Qtl)</span>
               </div>
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(30, (item.quantityQuintals / 30) * 100))}%` }} />
@@ -5183,44 +5739,45 @@ export default function Home() {
 
         <div className="analytics-chart-card">
           <div className="flex items-center justify-between mb-4">
-            <h3>Transport Logistics Savings</h3>
+            <h3 className="font-extrabold text-foreground">{tUi("Transport Logistics Savings", language)}</h3>
             <Pill kind="green">30% Govt Subsidy</Pill>
           </div>
-          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 mb-4">
-            <div className="text-xs text-muted-foreground">Logistics Subsidy Saved</div>
-            <strong className="text-2xl text-emerald-800 font-extrabold">
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-900/60 mb-4">
+            <div className="text-xs text-muted-foreground font-semibold">{tUi("Logistics Subsidy Saved", language)}</div>
+            <strong className="text-2xl text-emerald-800 dark:text-emerald-300 font-extrabold font-mono">
               ₹{(farmerAnalyticsData?.summary.transportLogistics.subsidySaved ?? 180).toLocaleString("en-IN")}
             </strong>
-            <p className="text-[11px] text-emerald-700 mt-1">Telangana Rythu Ratha / PMKSY Transport Scheme</p>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1 font-medium">Telangana Rythu Ratha / PMKSY Transport Scheme</p>
           </div>
           <div className="flex justify-between text-xs py-2 border-b">
-            <span className="text-muted-foreground">Total Transport Trips:</span>
-            <b>{farmerAnalyticsData?.summary.transportLogistics.totalBookings ?? transportBookingsList.length} Trips</b>
+            <span className="text-muted-foreground">{tUi("Total Transport Trips:", language)}</span>
+            <b className="text-foreground font-mono">{farmerAnalyticsData?.summary.transportLogistics.totalBookings ?? transportBookingsList.length} Trips</b>
           </div>
           <div className="flex justify-between text-xs py-2">
-            <span className="text-muted-foreground">Net Logistics Spent:</span>
-            <b>₹{(farmerAnalyticsData?.summary.transportLogistics.spent ?? 420).toLocaleString("en-IN")}</b>
+            <span className="text-muted-foreground">{tUi("Net Logistics Spent:", language)}</span>
+            <b className="text-foreground font-mono">₹{(farmerAnalyticsData?.summary.transportLogistics.spent ?? 420).toLocaleString("en-IN")}</b>
           </div>
         </div>
       </div>
 
+      {/* Harvest Delivery Statements */}
       <div className="statement-table-card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-[#183d2e] m-0">Harvest Delivery Statements</h3>
+          <h3 className="text-base font-bold text-[#183d2e] dark:text-emerald-400 m-0">{tUi("Harvest Delivery Statements", language)}</h3>
           <span className="text-xs text-muted-foreground">Verified database records</span>
         </div>
         <table className="procure-table">
           <thead>
             <tr>
-              <th>Token #</th>
-              <th>Booking Code</th>
-              <th>Centre Name</th>
-              <th>Variety</th>
-              <th>Weighed (Qtl)</th>
-              <th>Quality Grade</th>
-              <th>Procurement Stage</th>
-              <th>DBT Payment</th>
-              <th>Amount</th>
+              <th>{tUi("Token #", language)}</th>
+              <th>{tUi("Booking Code", language)}</th>
+              <th>{tUi("Centre Name", language)}</th>
+              <th>{tUi("Variety", language)}</th>
+              <th>{tUi("Weighed (Qtl)", language)}</th>
+              <th>{tUi("Quality Grade", language)}</th>
+              <th>{tUi("Procurement Stage", language)}</th>
+              <th>{tUi("DBT Payment", language)}</th>
+              <th>{tUi("Amount", language)}</th>
             </tr>
           </thead>
           <tbody>
@@ -5242,14 +5799,14 @@ export default function Home() {
             ]).map(item => (
               <tr key={item.id}>
                 <td><b>{item.tokenNumber}</b></td>
-                <td>{item.bookingCode}</td>
+                <td className="font-mono">{item.bookingCode}</td>
                 <td>{item.centreName}</td>
                 <td>{item.variety}</td>
                 <td><b>{item.weighedQuintals ?? item.expectedQuintals} Qtl</b></td>
                 <td><Badge variant="outline">{item.qualityGrade}</Badge></td>
-                <td><Pill kind={item.procurementStatus === "COMPLETED" ? "green" : "yellow"}>{item.procurementStatus}</Pill></td>
-                <td><Pill kind={item.paymentStatus === "SUCCESS" ? "green" : "blue"}>{item.paymentStatus}</Pill></td>
-                <td><strong className="text-emerald-800">₹{(item.amount ?? 41400).toLocaleString("en-IN")}</strong></td>
+                <td><Pill kind={item.procurementStatus === "COMPLETED" ? "green" : "yellow"}>{getStatusLabel(item.procurementStatus, language)}</Pill></td>
+                <td><Pill kind={item.paymentStatus === "SUCCESS" ? "green" : "blue"}>{getStatusLabel(item.paymentStatus, language)}</Pill></td>
+                <td><strong className="text-emerald-800 dark:text-emerald-300 font-mono">₹{(item.amount ?? 41400).toLocaleString("en-IN")}</strong></td>
               </tr>
             ))}
           </tbody>
