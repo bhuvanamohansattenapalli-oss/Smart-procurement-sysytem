@@ -3226,12 +3226,367 @@ export const localizedUiText: Record<Language, Record<string, string>> = {
   },
 };
 
+const extraTranslations: Record<Language, Record<string, string>> = {
+  EN: {},
+  HI: {
+    "Your registration needs attention.": "आपका पंजीकरण अस्वीकार कर दिया गया।",
+    "Your registration has been approved!": "आपका पंजीकरण अधिकारी द्वारा स्वीकृत कर दिया गया है!",
+    "Your registration is under officer review.": "आपका पंजीकरण अधिकारी सत्यापन की प्रतीक्षा कर रहा है।",
+    "An officer has approved your profile. You can now login to your dashboard.": "खरीद अधिकारी ने आपकी प्रोफ़ाइल सत्यापित कर दी है। अब आप अपने डैशबोर्ड में लॉगिन कर सकते हैं।",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "स्लॉट बुक करने से पहले खरीद अधिकारी द्वारा आपकी किसान प्रोफ़ाइल की समीक्षा और सत्यापन आवश्यक है।",
+    "Return to farmer login": "किसान लॉगिन पर जाएँ",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "इस स्क्रीन को सेव करें और केंद्र पर दिखाएँ।",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "यह स्क्रीन खुली रहने पर आपकी कतार हर पंद्रह सेकंड में अपडेट होती है।",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "अपनी धान बुकिंग से भुगतान पुष्टि तक की यात्रा देखें।",
+    "Select a quick question:": "त्वरित सवाल चुनें:",
+    "Listening... speak now": "सुन रहा हूँ... बोलिए",
+    "Type your question in English, Telugu, or Hindi…": "अपना सवाल यहाँ लिखें…",
+    "Payment Initiated by Officer": "अधिकारी द्वारा भुगतान शुरू किया गया",
+    "Payment Successful": "भुगतान सफल",
+    "Payment Processing": "भुगतान प्रक्रिया में है",
+    "Pending Quality Inspection": "गुणवत्ता जांच लंबित",
+    "Pending Officer Initiation": "अधिकारी द्वारा भुगतान की प्रतीक्षा",
+    "Disburse DBT": "डीबीटी भुगतान करें",
+    "Initiate Payment": "भुगतान शुरू करें",
+    "Cancellation allowed until": "रद्दीकरण की अनुमति इस समय तक है",
+    "Cancellation window closed": "रद्दीकरण समय समाप्त",
+  },
+  TE: {
+    "Your registration needs attention.": "మీ నమోదును అధికారి తిరస్కరించారు.",
+    "Your registration has been approved!": "మీ నమోదు అధికారిచే ఆమోదించబడింది!",
+    "Your registration is under officer review.": "మీ నమోదు అధికారి సమీక్షలో ఉంది.",
+    "An officer has approved your profile. You can now login to your dashboard.": "సేకరణ అధికారి మీ ప్రొఫైల్‌ను ధృవీకరించారు. మీరు ఇప్పుడు మీ డ్యాష్‌బోర్డ్‌కు లాగిన్ చేయవచ్చు.",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "మీరు స్లాట్ బుక్ చేయడానికి ముందు సేకరణ అధికారి మీ రైతు ప్రొఫైల్‌ను సమీక్షించి ధృవీకరించాలి.",
+    "Return to farmer login": "రైతు లాగిన్ పేజీకి వెళ్లండి",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "ఈ స్క్రీన్‌ను సేవ్ చేసి కేంద్రంలో చూపండి.",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "ఈ స్క్రీన్ తెరిచి ఉన్నంత వరకు క్యూ ప్రతి పదిహేను సెకన్లకు నవీకరించబడుతుంది.",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "మీ వరి బుకింగ్ నుండి చెల్లింపు నిర్ధారణ వరకు ప్రయాణాన్ని అనుసరించండి.",
+    "Select a quick question:": "త్వరిత ప్రశ్నలు ఎంచుకోండి:",
+    "Listening... speak now": "వింటున్నాను... మాట్లాడండి",
+    "Type your question in English, Telugu, or Hindi…": "మీ ప్రశ్నను ఇక్కడ టైప్ చేయండి…",
+    "Payment Initiated by Officer": "అధికారి ద్వారా చెల్లింపు ప్రారంభించబడింది",
+    "Payment Successful": "చెల్లింపు విజయవంతమైంది",
+    "Payment Processing": "చెల్లింపు ప్రాసెసింగ్‌లో ఉంది",
+    "Pending Quality Inspection": "నాణ్యత తనిఖీ పెండింగ్‌లో ఉంది",
+    "Pending Officer Initiation": "అధికారి చెల్లింపు ప్రారంభం కోసం వేచి ఉంది",
+    "Disburse DBT": "DBT చెల్లించండి",
+    "Initiate Payment": "చెల్లింపు ప్రారంభించండి",
+    "Cancellation allowed until": "రద్దు చేసుకోవడానికి గడువు",
+    "Cancellation window closed": "రద్దు చేసుకునే సమయం ముగిసింది",
+  },
+  TA: {
+    "Your registration needs attention.": "உங்கள் பதிவு மறுஆய்வு தேவைப்படுகிறது.",
+    "Your registration has been approved!": "உங்கள் பதிவு அங்கீகரிக்கப்பட்டது!",
+    "Your registration is under officer review.": "உங்கள் பதிவு அதிகாரி மறுஆய்வில் உள்ளது.",
+    "An officer has approved your profile. You can now login to your dashboard.": "அதிகாரி உங்கள் சுயவிவரத்தை அங்கீகரித்துள்ளார். இப்போது நீங்கள் உள்நுழையலாம்.",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "கொள்முதல் அதிகாரி உங்கள் விவரங்களை சரிபார்ப்பார்.",
+    "Return to farmer login": "விவசாயி உள்நுழைவுக்கு திரும்புக",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "இந்தத் திரையை சேமிக்கவும் அல்லது மையத்தில் காட்டவும்.",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "வரிசை நிலை தானாக புதுப்பிக்கப்படுகிறது.",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "உங்கள் நெல் கொள்முதல் பயணத்தைக் கண்காணிக்கவும்.",
+    "Select a quick question:": "விரைவான கேள்வியைத் தேர்ந்தெடுக்கவும்:",
+    "Listening... speak now": "கேட்கிறேன்... பேசுங்கள்",
+    "Type your question in English, Telugu, or Hindi…": "உங்கள் கேள்வியை தட்டச்சு செய்யவும்…",
+    "Payment Initiated by Officer": "அதிகாரியால் கட்டணம் தொடங்கப்பட்டது",
+    "Payment Successful": "பணம் வெற்றிகரமாக செலுத்தப்பட்டது",
+    "Payment Processing": "பணம் செயலாக்கத்தில் உள்ளது",
+    "Pending Quality Inspection": "தர ஆய்வு நிலுவையில் உள்ளது",
+    "Pending Officer Initiation": "அதிகாரி அனுமதி நிலுவையில் உள்ளது",
+    "Disburse DBT": "DBT செலுத்துக",
+    "Initiate Payment": "பணம் செலுத்துக",
+    "Cancellation allowed until": "ரத்து செய்ய அனுமதி",
+    "Cancellation window closed": "ரத்து செய்வதற்கான நேரம் முடிந்தது",
+  },
+  KN: {
+    "Your registration needs attention.": "ನಿಮ್ಮ ನೋಂದಣಿಗೆ ಗಮನ ಅಗತ್ಯವಿದೆ.",
+    "Your registration has been approved!": "ನಿಮ್ಮ ನೋಂದಣಿಯನ್ನು ಅನುಮೋದಿಸಲಾಗಿದೆ!",
+    "Your registration is under officer review.": "ನಿಮ್ಮ ನೋಂದಣಿ ಅಧಿಕಾರಿ ಪರಿಶೀಲನೆಯಲ್ಲಿದೆ.",
+    "An officer has approved your profile. You can now login to your dashboard.": "ಖರೀದಿ ಅಧಿಕಾರಿಯು ನಿಮ್ಮ ಪ್ರೊಫೈಲ್ ಅನುಮೋದಿಸಿದ್ದಾರೆ. ಈಗ ಲಾಗಿನ್ ಮಾಡಿ.",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "ಅಧಿಕಾರಿಯು ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಲಿದ್ದಾರೆ.",
+    "Return to farmer login": "ರೈತ ಲಾಗಿನ್‌ಗೆ ಹಿಂತಿರುಗಿ",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "ಈ ಪರದೆಯನ್ನು ಉಳಿಸಿ ಅಥವಾ ಕೇಂದ್ರದಲ್ಲಿ ತೋರಿಸಿ.",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "ಸಾಲಿನ ಸ್ಥಿತಿಯು ನವೀಕರಿಸಲ್ಪಡುತ್ತದೆ.",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "ನಿಮ್ಮ ಭತ್ತದ ಸ್ಥಿತಿಯನ್ನು ಅನುಸರಿಸಿ.",
+    "Select a quick question:": "ತ್ವರಿತ ಪ್ರಶ್ನೆ ಆಯ್ಕೆಮಾಡಿ:",
+    "Listening... speak now": "ಕೇಳುತ್ತಿದ್ದೇನೆ... ಮಾತನಾಡಿ",
+    "Type your question in English, Telugu, or Hindi…": "ನಿಮ್ಮ ಪ್ರಶ್ನೆ ಟೈಪ್ ಮಾಡಿ…",
+    "Payment Initiated by Officer": "ಅಧಿಕಾರಿಯಿಂದ ಪಾವತಿ ಪ್ರಾರಂಭಿಸಲಾಗಿದೆ",
+    "Payment Successful": "ಪಾವತಿ ಯಶಸ್ವಿಯಾಗಿದೆ",
+    "Payment Processing": "ಪಾವತಿ ಪ್ರಕ್ರಿಯೆಯಲ್ಲಿದೆ",
+    "Pending Quality Inspection": "ಗುಣಮಟ್ಟ ಪರಿಶೀಲನೆ ಬಾಕಿ ಇದೆ",
+    "Pending Officer Initiation": "ಅಧಿಕಾರಿ ಪಾವತಿ ಬಾಕಿ ಇದೆ",
+    "Disburse DBT": "DBT ವಿತರಿಸಿ",
+    "Initiate Payment": "ಪಾವತಿ ಪ್ರಾರಂಭಿಸಿ",
+    "Cancellation allowed until": "ರದ್ದುಗೊಳಿಸಲು ಅನುಮತಿಸಲಾದ ಸಮಯ",
+    "Cancellation window closed": "ರದ್ದತಿ ಸಮಯ ಮುಗಿದಿದೆ",
+  },
+  ML: {
+    "Your registration needs attention.": "നിങ്ങളുടെ രജിസ്ട്രേഷൻ പരിശോധന ആവശ്യമാണ്.",
+    "Your registration has been approved!": "നിങ്ങളുടെ രജിസ്ട്രേഷൻ അംഗീകരിച്ചു!",
+    "Your registration is under officer review.": "നിങ്ങളുടെ രജിസ്ട്രേഷൻ ഉദ്യോഗസ്ഥൻ പരിശോധിക്കുന്നു.",
+    "An officer has approved your profile. You can now login to your dashboard.": "നിങ്ങളുടെ പ്രൊഫൈൽ അംഗീകരിച്ചു. ഇപ്പോൾ ലോഗിൻ ചെയ്യാം.",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "ഉദ്യോഗസ്ഥൻ നിങ്ങളുടെ വിവരങ്ങൾ പരിശോധിക്കും.",
+    "Return to farmer login": "കർഷക ലോഗിനിലേക്ക് മടങ്ങുക",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "ഈ സ്ക്രീൻ സൂക്ഷിക്കുക അല്ലെങ്കിൽ കേന്ദ്രത്തിൽ കാണിക്കുക.",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "ക്യൂ നില തത്സമയം അപ്ഡേറ്റ് ചെയ്യുന്നു.",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "നിങ്ങളുടെ നെല്ല് സംഭരണ വിവരങ്ങൾ അറിയുക.",
+    "Select a quick question:": "പെട്ടെന്നുള്ള ചോദ്യം തിരഞ്ഞെടുക്കുക:",
+    "Listening... speak now": "കേൾക്കുന്നു... സംസാരിക്കൂ",
+    "Type your question in English, Telugu, or Hindi…": "നിങ്ങളുടെ ചോദ്യം ഇവിടെ നൽകുക…",
+    "Payment Initiated by Officer": "ഉദ്യോഗസ്ഥൻ പേയ്‌മെന്റ് ആരംഭിച്ചു",
+    "Payment Successful": "പേയ്‌മെന്റ് വിജയകരമായി പൂർത്തിയായി",
+    "Payment Processing": "പേയ്‌മെന്റ് പ്രോസസ്സിംഗിലാണ്",
+    "Pending Quality Inspection": "ഗുണനിലവാര പരിശോധന കാത്തിരിക്കുന്നു",
+    "Pending Officer Initiation": "ഉദ്യോഗസ്ഥ അനുമതി കാത്തിരിക്കുന്നു",
+    "Disburse DBT": "DBT വിതരണം ചെയ്യുക",
+    "Initiate Payment": "പേയ്‌മെന്റ് ആരംഭിക്കുക",
+    "Cancellation allowed until": "റദ്ദാക്കാവുന്ന സമയം വരെ",
+    "Cancellation window closed": "റദ്ദാക്കൽ സമയം അവസാനിച്ചു",
+  },
+  MR: {
+    "Your registration needs attention.": "आपल्या नोंदणीवर लक्ष देणे आवश्यक आहे.",
+    "Your registration has been approved!": "आपली नोंदणी मंजूर झाली आहे!",
+    "Your registration is under officer review.": "आपली नोंदणी अधिकारी पुनरावलोकनाधीन आहे.",
+    "An officer has approved your profile. You can now login to your dashboard.": "अधिकाऱ्याने आपले प्रोफाइल मंजूर केले आहे. आता लॉगिन करा.",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "अधिकारी आपल्या तपशीलांची पडताळणी करतील.",
+    "Return to farmer login": "शेतकरी लॉगिनवर परत जा",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "ही स्क्रीन सेव्ह करा किंवा केंद्रात दाखवा.",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "रांगेची स्थिती सतत अपडेट होते.",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "आपल्या भाताच्या खरेदीची स्थिती पहा.",
+    "Select a quick question:": "त्वरित प्रश्न निवडा:",
+    "Listening... speak now": "ऐकत आहे... बोला",
+    "Type your question in English, Telugu, or Hindi…": "आपला प्रश्न येथे टाइप करा…",
+    "Payment Initiated by Officer": "अधिकाऱ्याने पेमेंट सुरू केले",
+    "Payment Successful": "पेमेंट यशस्वी झाले",
+    "Payment Processing": "पेमेंट प्रक्रिया सुरू आहे",
+    "Pending Quality Inspection": "गुणवत्ता तपासणी प्रलंबित",
+    "Pending Officer Initiation": "अधिकारी मंजूरी प्रलंबित",
+    "Disburse DBT": "DBT वितरित करा",
+    "Initiate Payment": "पेमेंट सुरू करा",
+    "Cancellation allowed until": "रद्द करण्याची परवानगी वेळेपर्यंत",
+    "Cancellation window closed": "रद्दीकरण वेळ संपली",
+  },
+  BN: {
+    "Your registration needs attention.": "আপনার নিবন্ধনে মনোযোগ প্রয়োজন।",
+    "Your registration has been approved!": "আপনার নিবন্ধন অনুমোদিত হয়েছে!",
+    "Your registration is under officer review.": "আপনার নিবন্ধন কর্মকর্তার পর্যালোচনাধীন রয়েছে।",
+    "An officer has approved your profile. You can now login to your dashboard.": "কর্মকর্তা আপনার প্রোফাইল অনুমোদন করেছেন। এখন লগইন করুন।",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "কর্মকর্তা আপনার তথ্য যাচাই করবেন।",
+    "Return to farmer login": "কৃষক লগইনে ফিরে যান",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "এই স্ক্রিনটি সংরক্ষণ করুন বা কেন্দ্রে দেখান।",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "লাইনের অবস্থা স্বয়ংক্রিয়ভাবে আপডেট হয়।",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "আপনার ধান ক্রয়ের অগ্রগতি দেখুন।",
+    "Select a quick question:": "দ্রুত প্রশ্ন নির্বাচন করুন:",
+    "Listening... speak now": "শুনছি... বলুন",
+    "Type your question in English, Telugu, or Hindi…": "এখানে আপনার প্রশ্ন লিখুন…",
+    "Payment Initiated by Officer": "কর্মকর্তা দ্বারা পেমেন্ট শুরু হয়েছে",
+    "Payment Successful": "পেমেন্ট সফল হয়েছে",
+    "Payment Processing": "পেমেন্ট প্রক্রিয়াধীন রয়েছে",
+    "Pending Quality Inspection": "মান পরিদর্শন মুলতুবি রয়েছে",
+    "Pending Officer Initiation": "কর্মকর্তার অনুমোদনের অপেক্ষায়",
+    "Disburse DBT": "DBT প্রদান করুন",
+    "Initiate Payment": "পেমেন্ট শুরু করুন",
+    "Cancellation allowed until": "বাতিলের অনুমোদিত সময় পর্যন্ত",
+    "Cancellation window closed": "বাতিলের সময় শেষ",
+  },
+  GU: {
+    "Your registration needs attention.": "તમારી નોંધણી પર ધ્યાન આપવાની જરૂર છે.",
+    "Your registration has been approved!": "તમારી નોંધણી મંજૂર કરવામાં આવી છે!",
+    "Your registration is under officer review.": "તમારી નોંધણી અધિકારીની સમીક્ષા હેઠળ છે.",
+    "An officer has approved your profile. You can now login to your dashboard.": "અધિકારીએ તમારી પ્રોફાઇલ મંજૂર કરી છે. હવે લૉગિન કરો.",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "અધિકારી વિગતો ચકાસશે.",
+    "Return to farmer login": "ખેડૂત લૉગિન પર પાછા જાઓ",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "આ સ્ક્રીન સાચવો અથવા કેન્દ્ર પર બતાવો.",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "કતાર સ્થિતિ સતત અપડેટ થાય છે.",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "તમારા ડાંગર ખરીદી સ્થિતિ અનુસરો.",
+    "Select a quick question:": "ઝડપી પ્રશ્ન પસંદ કરો:",
+    "Listening... speak now": "સાંભળી રહ્યો છું... બોલો",
+    "Type your question in English, Telugu, or Hindi…": "તમારો પ્રશ્ન અહીં લખો…",
+    "Payment Initiated by Officer": "અધિકારી દ્વારા ચુકવણી શરૂ કરવામાં આવી",
+    "Payment Successful": "ચુકવણી સફળ થઈ",
+    "Payment Processing": "ચુકવણી પ્રક્રિયા હેઠળ છે",
+    "Pending Quality Inspection": "ગુણવત્તા ચકાસણી બાકી છે",
+    "Pending Officer Initiation": "અધિકારી મંજૂરી બાકી છે",
+    "Disburse DBT": "DBT ચૂકવો",
+    "Initiate Payment": "ચુકવણી શરૂ કરો",
+    "Cancellation allowed until": "રદ કરવાની મંજૂરી સમય સુધી",
+    "Cancellation window closed": "રદ કરવાનો સમય પૂરો થયો",
+  },
+  PA: {
+    "Your registration needs attention.": "ਤੁਹਾਡੀ ਰਜਿਸਟ੍ਰੇਸ਼ਨ ਵੱਲ ਧਿਆਨ ਦੇਣ ਦੀ ਲੋੜ ਹੈ।",
+    "Your registration has been approved!": "ਤੁਹਾਡੀ ਰਜਿਸਟ੍ਰੇਸ਼ਨ ਮਨਜ਼ੂਰ ਹੋ ਗਈ ਹੈ!",
+    "Your registration is under officer review.": "ਤੁਹਾਡੀ ਰਜਿਸਟ੍ਰੇਸ਼ਨ ਅਧਿਕਾਰੀ ਦੀ ਸਮੀਖਿਆ ਅਧੀਨ ਹੈ।",
+    "An officer has approved your profile. You can now login to your dashboard.": "ਅਧਿਕਾਰੀ ਨੇ ਪ੍ਰੋਫਾਈਲ ਮਨਜ਼ੂਰ ਕਰ ਦਿੱਤੀ ਹੈ। ਹੁਣ ਲੌਗਇਨ ਕਰੋ।",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "ਅਧਿਕਾਰੀ ਤੁਹਾਡੇ ਵੇਰਵੇ ਤਸਦੀਕ ਕਰੇਗਾ।",
+    "Return to farmer login": "ਕਿਸਾਨ ਲੌਗਇਨ 'ਤੇ ਵਾਪਸ ਜਾਓ",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "ਇਸ ਸਕ੍ਰੀਨ ਨੂੰ ਸੁਰੱਖਿਅਤ ਕਰੋ ਜਾਂ ਕੇਂਦਰ 'ਤੇ ਦਿਖਾਓ।",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "ਕਤਾਰ ਦੀ ਸਥਿਤੀ ਆਪਣੇ ਆਪ ਅੱਪਡੇਟ ਹੁੰਦੀ ਹੈ।",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "ਆਪਣੀ ਝੋਨੇ ਦੀ ਖਰੀਦ ਪ੍ਰਕਿਰਿਆ ਦੇਖੋ।",
+    "Select a quick question:": "ਇੱਕ ਤੁਰੰਤ ਸਵਾਲ ਚੁਣੋ:",
+    "Listening... speak now": "ਸੁਣ ਰਿਹਾ ਹਾਂ... ਬੋਲੋ",
+    "Type your question in English, Telugu, or Hindi…": "ਆਪਣਾ ਸਵਾਲ ਇੱਥੇ ਲਿਖੋ…",
+    "Payment Initiated by Officer": "ਅਧਿਕਾਰੀ ਵੱਲੋਂ ਭੁਗਤਾਨ ਸ਼ੁਰੂ ਕੀਤਾ ਗਿਆ",
+    "Payment Successful": "ਭੁਗਤਾਨ ਸਫਲ ਰਿਹਾ",
+    "Payment Processing": "ਭੁਗਤਾਨ ਪ੍ਰਕਿਰਿਆ ਅਧੀਨ ਹੈ",
+    "Pending Quality Inspection": "ਗੁਣਵੱਤਾ ਜਾਂਚ ਬਕਾਇਆ ਹੈ",
+    "Pending Officer Initiation": "ਅਧਿਕਾਰੀ ਮਨਜ਼ੂਰੀ ਬਕਾਇਆ ਹੈ",
+    "Disburse DBT": "DBT ਵੰਡੋ",
+    "Initiate Payment": "ਭੁਗਤਾਨ ਸ਼ੁਰੂ ਕਰੋ",
+    "Cancellation allowed until": "ਰੱਦ ਕਰਨ ਦੀ ਮਿਆਦ",
+    "Cancellation window closed": "ਰੱਦ ਕਰਨ ਦਾ ਸਮਾਂ ਸਮਾਪਤ",
+  },
+  OR: {
+    "Your registration needs attention.": "ଆପଣଙ୍କ ପଞ୍ଜୀକରଣରେ ଧ୍ୟାନ ଆବଶ୍ୟକ।",
+    "Your registration has been approved!": "ଆପଣଙ୍କ ପଞ୍ଜୀକରଣ ଅନୁମୋଦିତ ହୋଇଛି!",
+    "Your registration is under officer review.": "ଆପଣଙ୍କ ପଞ୍ଜୀକରଣ ଅଧିକାରୀଙ୍କ ସମୀକ୍ଷାଧୀନ ଅଛି।",
+    "An officer has approved your profile. You can now login to your dashboard.": "ଅଧିକାରୀ ଆପଣଙ୍କ ପ୍ରୋଫାଇଲ୍ ଅନୁମୋଦନ କରିଛନ୍ତି। ଏବେ ଲଗଇନ୍ କରନ୍ତୁ।",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "ଅଧିକାରୀ ବିବରଣୀ ଯାଞ୍ଚ କରିବେ।",
+    "Return to farmer login": "ଚାଷୀ ଲଗଇନ୍‌କୁ ଫେରନ୍ତୁ",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "ଏହି ସ୍କ୍ରିନ୍ ସଂରକ୍ଷଣ କରନ୍ତୁ କିମ୍ବା କେନ୍ଦ୍ରରେ ଦେଖାନ୍ତୁ।",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "ଧାଡ଼ିର ସ୍ଥିତି ନିରନ୍ତର ଅଦ୍ୟତନ ହୁଏ।",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "ଆପଣଙ୍କ ଧାନ କ୍ରୟର ସ୍ଥିତି ଅନୁସରଣ କରନ୍ତୁ।",
+    "Select a quick question:": "ଏକ ତ୍ୱରିତ ପ୍ରଶ୍ନ ବାଛନ୍ତୁ:",
+    "Listening... speak now": "ଶୁଣୁଛି... କୁହନ୍ତୁ",
+    "Type your question in English, Telugu, or Hindi…": "ଏଠାରେ ଆପଣଙ୍କ ପ୍ରଶ୍ନ ଟାଇପ୍ କରନ୍ତୁ…",
+    "Payment Initiated by Officer": "ଅଧିକାରୀଙ୍କ ଦ୍ୱାରା ଦେୟ ଆରମ୍ଭ ହୋଇଛି",
+    "Payment Successful": "ଦେୟ ସଫଳ ହେଲା",
+    "Payment Processing": "ଦେୟ ପ୍ରକ୍ରିୟାକରଣ ଚାଲିଛି",
+    "Pending Quality Inspection": "ଗୁଣବତ୍ତା ଯାଞ୍ଚ ବାକି ଅଛି",
+    "Pending Officer Initiation": "ଅଧିକାରୀ ଅନୁମୋଦନ ବାକି ଅଛି",
+    "Disburse DBT": "DBT ପ୍ରଦାନ କରନ୍ତୁ",
+    "Initiate Payment": "ଦେୟ ଆରମ୍ଭ କରନ୍ତୁ",
+    "Cancellation allowed until": "ବାତିଲ କରିବାର ସମୟ",
+    "Cancellation window closed": "ବାତିଲ କରିବା ସମୟ ସମାପ୍ତ",
+  },
+  AS: {
+    "Your registration needs attention.": "আপোনাৰ পঞ্জীয়নত মনোযোগৰ প্ৰয়োজন।",
+    "Your registration has been approved!": "আপোনাৰ পঞ্জীয়ন অনুমোদিত হৈছে!",
+    "Your registration is under officer review.": "আপোনাৰ পঞ্জীয়ন বিষয়াৰ পৰ্যালোচনাৰ অধীনত আছে।",
+    "An officer has approved your profile. You can now login to your dashboard.": "বিষয়াই আপোনাৰ প্ৰফাইল অনুমোদন কৰিছে। এতিয়া লগইন কৰক।",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "বিষয়াই আপোনাৰ তথ্য পৰীক্ষা কৰিব।",
+    "Return to farmer login": "কৃষক লগইনলৈ উভতি যাওক",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "এই স্ক্ৰীণখন সংৰক্ষণ কৰক বা কেন্দ্ৰত দেখুৱাওক।",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "শাৰীৰ স্থিতি আপডেট হৈ থাকে।",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "আপোনাৰ ধান ক্ৰয়ৰ অগ্ৰগতি চাওক।",
+    "Select a quick question:": "এটা ক্ষিপ্ৰ প্ৰশ্ন বাছক:",
+    "Listening... speak now": "শুনি আছোঁ... কওক",
+    "Type your question in English, Telugu, or Hindi…": "আপোনাৰ প্ৰশ্ন ইয়াত টাইপ কৰক…",
+    "Payment Initiated by Officer": "বিষয়াৰ দ্বাৰা পৰিশোধ আৰম্ভ হৈছে",
+    "Payment Successful": "পৰিশোধ সফল হ'ল",
+    "Payment Processing": "পৰিশোধ প্ৰক্ৰিয়াধীন হৈ আছে",
+    "Pending Quality Inspection": "গুণগত পৰিদৰ্শন বাকী আছে",
+    "Pending Officer Initiation": "বিষয়াৰ অনুমোদন বাকী আছে",
+    "Disburse DBT": "DBT প্ৰদান কৰক",
+    "Initiate Payment": "পৰিশোধ আৰম্ভ কৰক",
+    "Cancellation allowed until": "বাতিল কৰাৰ অনুমতি সময়",
+    "Cancellation window closed": "বাতিল কৰাৰ সময় উকলি গ'ল",
+  },
+  UR: {
+    "Your registration needs attention.": "آپ کی رجسٹریشن پر توجہ کی ضرورت ہے۔",
+    "Your registration has been approved!": "آپ کی رجسٹریشن منظور کر لی گئی ہے!",
+    "Your registration is under officer review.": "آپ کی رجسٹریشن افسر کے زیر جائزہ ہے۔",
+    "An officer has approved your profile. You can now login to your dashboard.": "افسر نے آپ کے پروفائل کی تصدیق کر دی ہے۔ اب لاگ ان کریں۔",
+    "The procurement officer has received your registration notification and will verify your details before you can sign in.": "افسر آپ کی تفصیلات کی تصدیق کرے گا۔",
+    "Return to farmer login": "کسان لاگ ان پر واپس جائیں",
+    "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.": "اس اسکرین کو محفوظ کریں یا مرکز پر دکھائیں۔",
+    "Your connected queue refreshes every fifteen seconds while this screen is open.": "قطار کی حیثیت خود بخود اپ ڈیٹ ہوتی ہے۔",
+    "Follow the journey of your paddy from booked slot to payment confirmation.": "اپنی دھان کی خریداری کی پیش رفت دیکھیں۔",
+    "Select a quick question:": "ایک فوری سوال منتخب کریں:",
+    "Listening... speak now": "سن رہا ہوں... بولئے",
+    "Type your question in English, Telugu, or Hindi…": "اپنا سوال یہاں ٹائپ کریں…",
+    "Payment Initiated by Officer": "افسر کی طرف سے ادائیگی شروع کر دی گئی ہے",
+    "Payment Successful": "ادائیگی کامیاب رہی",
+    "Payment Processing": "ادائیگی پر کارروائی ہو رہی ہے",
+    "Pending Quality Inspection": "معیار کی جانچ زیر التواء ہے",
+    "Pending Officer Initiation": "افسر کی منظوری زیر التواء ہے",
+    "Disburse DBT": "DBT ادا کریں",
+    "Initiate Payment": "ادائیگی شروع کریں",
+    "Cancellation allowed until": "منسوخی کی اجازت ہے تا",
+    "Cancellation window closed": "منسوخی کا وقت ختم ہو گیا ہے",
+  },
+};
+
+for (const [lang, dict] of Object.entries(extraTranslations)) {
+  if (localizedUiText[lang as Language]) {
+    Object.assign(localizedUiText[lang as Language], dict);
+  }
+}
+
+// Build comprehensive reverse translation map mapping ANY regional string back to its canonical English key
+export const reverseTranslationMap: Record<string, string> = {};
+
+for (const [lang, dict] of Object.entries(localizedUiText)) {
+  if (lang === "EN") continue;
+  for (const [enKey, localizedStr] of Object.entries(dict)) {
+    if (localizedStr && localizedStr !== enKey) {
+      reverseTranslationMap[localizedStr] = enKey;
+      reverseTranslationMap[localizedStr.trim()] = enKey;
+    }
+  }
+}
+
 export function getLocalizedText(key: string, lang: Language): string {
   if (!key) return "";
-  if (lang === "EN") return key;
+  if (lang === "EN") {
+    // If the string was already localized into a regional language, look up its English source
+    const trimmed = key.trim();
+    if (reverseTranslationMap[trimmed]) return reverseTranslationMap[trimmed];
+    if (reverseTranslationMap[key]) return reverseTranslationMap[key];
+    return key;
+  }
+  // If key is in a regional language, first normalize to English canonical key
+  const normalizedKey = reverseTranslationMap[key.trim()] || reverseTranslationMap[key] || key;
   const dict = localizedUiText[lang];
-  if (dict && dict[key]) return dict[key];
-  return key;
+  if (dict && dict[normalizedKey]) return dict[normalizedKey];
+  const trimmed = normalizedKey.trim();
+  if (dict && dict[trimmed]) return dict[trimmed];
+  return normalizedKey;
 }
 
 export const tUi = getLocalizedText;
+
+export function parseScheduledStartTime(dateStr?: string | null, timeStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  let hours = 9;
+  let minutes = 0;
+
+  if (timeStr) {
+    const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+      const meridian = match[3]?.toUpperCase();
+      if (meridian === "PM" && hours < 12) hours += 12;
+      if (meridian === "AM" && hours === 12) hours = 0;
+    }
+  }
+
+  // Check if dateStr is YYYY-MM-DD
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    return new Date(year, month, day, hours, minutes, 0);
+  }
+
+  // Match human formatted date e.g. "Wednesday, 18 March 2026" or "18 March"
+  const humanMatch = dateStr.match(/(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?/);
+  if (humanMatch) {
+    const day = parseInt(humanMatch[1], 10);
+    const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const monthIdx = monthNames.findIndex(m => humanMatch[2].toLowerCase().startsWith(m));
+    const year = humanMatch[3] ? parseInt(humanMatch[3], 10) : new Date().getFullYear();
+    if (monthIdx !== -1) {
+      return new Date(year, monthIdx, day, hours, minutes, 0);
+    }
+  }
+
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed.getTime())) {
+    parsed.setHours(hours, minutes, 0, 0);
+    return parsed;
+  }
+
+  return null;
+}

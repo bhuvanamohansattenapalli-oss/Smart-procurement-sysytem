@@ -206,7 +206,53 @@ function createPrototypePaymentQuote(cropNameOrVariety: string, expectedQuantity
 }
 
 function paymentView(payment: typeof payments.$inferSelect) {
-  return { paymentId: payment.paymentCode, transactionReference: payment.transactionReference, receiptNumber: payment.receiptNumber, amount: Number(payment.amount), method: payment.method, gateway: payment.gateway, gatewayPaymentId: payment.gatewayPaymentId, status: payment.status, failureReason: payment.failureReason, initiatedAt: payment.initiatedAt, processedAt: payment.processedAt, completedAt: payment.completedAt, updatedAt: payment.updatedAt };
+  return { paymentId: payment.paymentCode, transactionReference: payment.transactionReference, receiptNumber: payment.receiptNumber, amount: Number(payment.amount), method: payment.method, gateway: payment.gateway, gatewayPaymentId: payment.gatewayPaymentId, officerId: (payment as any).officerId ?? null, status: payment.status, failureReason: payment.failureReason, initiatedAt: payment.initiatedAt, processedAt: payment.processedAt, completedAt: payment.completedAt, updatedAt: payment.updatedAt };
+}
+
+export function parseScheduledStartTime(dateStr?: string | null, timeStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  let hours = 9;
+  let minutes = 0;
+
+  if (timeStr) {
+    const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+      const meridian = match[3]?.toUpperCase();
+      if (meridian === "PM" && hours < 12) hours += 12;
+      if (meridian === "AM" && hours === 12) hours = 0;
+    }
+  }
+
+  // Check if dateStr is YYYY-MM-DD
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    return new Date(year, month, day, hours, minutes, 0);
+  }
+
+  // Match human formatted date e.g. "Wednesday, 18 March 2026" or "18 March"
+  const humanMatch = dateStr.match(/(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?/);
+  if (humanMatch) {
+    const day = parseInt(humanMatch[1], 10);
+    const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const monthIdx = monthNames.findIndex(m => humanMatch[2].toLowerCase().startsWith(m));
+    const year = humanMatch[3] ? parseInt(humanMatch[3], 10) : new Date().getFullYear();
+    if (monthIdx !== -1) {
+      return new Date(year, monthIdx, day, hours, minutes, 0);
+    }
+  }
+
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed.getTime())) {
+    parsed.setHours(hours, minutes, 0, 0);
+    return parsed;
+  }
+
+  return null;
 }
 
 async function getQueueCount(centreId: number) {
@@ -246,9 +292,14 @@ function publicBooking(context: Awaited<ReturnType<typeof getBookingContext>>) {
   const paymentRecord = context.payment;
   const paymentStatus = paymentRecord?.status ?? (
     context.procurement?.status === "COMPLETED" || context.procurement?.status === "QUALITY_CHECK"
-      ? "READY_FOR_PAYMENT"
+      ? "PENDING_OFFICER_INITIATION"
       : "PENDING"
   );
+
+  const scheduledStart = parseScheduledStartTime(context.slot?.slotDate, context.slot?.startTime);
+  const cancellationDeadline = scheduledStart ? new Date(scheduledStart.getTime() - 30 * 60 * 1000) : null;
+  const isPastDeadline = cancellationDeadline ? Date.now() > cancellationDeadline.getTime() : false;
+  const canCancel = context.booking.status === "ACTIVE" && !isPastDeadline && (!context.procurement || context.procurement.status === "BOOKED");
 
   return {
     id: context.booking.id,
@@ -259,6 +310,10 @@ function publicBooking(context: Awaited<ReturnType<typeof getBookingContext>>) {
     expectedQuantityQuintals: quantity,
     tokenNumber: context.booking.tokenNumber,
     createdAt: context.booking.createdAt,
+    scheduledStartTime: scheduledStart ? scheduledStart.toISOString() : null,
+    cancellationDeadline: cancellationDeadline ? cancellationDeadline.toISOString() : null,
+    canCancel,
+    cancellationReason: canCancel ? null : isPastDeadline ? "Cancellation is available only until 30 minutes before the scheduled time." : `Booking is ${context.booking.status}`,
     farmer: formatFarmer(context.farmer),
     centre: { id: context.centre.id, name: context.centre.name, place: context.centre.place, distanceKm: Number(context.centre.distanceKm) },
     slot: { id: context.slot.id, date: context.slot.slotDate, startTime: context.slot.startTime, endTime: context.slot.endTime },
@@ -1008,15 +1063,21 @@ export function createProcurementApi() {
       });
     }
 
-    // Strict 30-minute cancellation window check
-    const bookingCreatedTime = new Date(context.booking.createdAt).getTime();
+    // Strict 30-minute cancellation rule: cancellation allowed ONLY until 30 minutes before scheduled slot time
+    const scheduledStart = parseScheduledStartTime(context.slot?.slotDate, context.slot?.startTime);
     const now = Date.now();
     const thirtyMinutesMs = 30 * 60 * 1000;
-    if (now - bookingCreatedTime > thirtyMinutesMs) {
-      return res.status(400).json({
-        error: "CANCELLATION_WINDOW_EXPIRED",
-        message: "Cancellation window expired. Bookings can only be cancelled within 30 minutes of creation.",
-      });
+    if (scheduledStart) {
+      const cancellationDeadline = scheduledStart.getTime() - thirtyMinutesMs;
+      if (now > cancellationDeadline) {
+        return res.status(400).json({
+          success: false,
+          error: "CANCELLATION_DEADLINE_EXCEEDED",
+          message: "Cancellation is available only until 30 minutes before the scheduled time.",
+          scheduledTime: scheduledStart.toISOString(),
+          cancellationDeadline: new Date(cancellationDeadline).toISOString(),
+        });
+      }
     }
 
     // 1. Update booking status to CANCELLED
@@ -1259,8 +1320,15 @@ export function createProcurementApi() {
     const id = idSchema.safeParse(req.params.bookingId); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     const context = await requireBookingAccess(req, res, id.data); if (!context) return;
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const payment = (await db.select().from(payments).where(eq(payments.bookingId, context.booking.id)).orderBy(desc(payments.createdAt)).limit(1))[0];
-    return res.json({ bookingId: context.booking.id, payment: payment ? paymentView(payment) : null });
+    const payment = (await db.select().from(payments).where(eq(payments.bookingId, context.booking.id)).limit(1))[0];
+    const isQcDone = context.procurement?.status === "COMPLETED" || context.procurement?.status === "QUALITY_CHECK";
+    const derivedStatus = payment ? payment.status : (isQcDone ? "PENDING_OFFICER_INITIATION" : "PENDING");
+    return res.json({
+      bookingId: context.booking.id,
+      payment: payment ? paymentView(payment) : null,
+      paymentStatus: derivedStatus,
+      status: derivedStatus,
+    });
   });
 
   api.post("/payments", requireApiAuth, requireRole("farmer"), async (req: AuthenticatedRequest, res) => {
@@ -1584,27 +1652,38 @@ export function createProcurementApi() {
     const allCentres = await db.select().from(procurementCentres);
     const centreMap = new Map(allCentres.map(c => [c.id, c.name]));
 
-    const formatted = rows.map(item => ({
-      id: item.id,
-      transportCode: item.transportCode,
-      vehicleType: item.vehicleType,
-      vehicleName: VEHICLE_CATALOG[item.vehicleType as keyof typeof VEHICLE_CATALOG]?.name || item.vehicleType,
-      pickupVillage: item.pickupVillage,
-      destinationCentreId: item.destinationCentreId,
-      destinationCentreName: centreMap.get(item.destinationCentreId) || "Procurement Centre",
-      scheduledDate: item.scheduledDate,
-      timeSlot: item.timeSlot,
-      estimatedLoadQuintals: Number(item.estimatedLoadQuintals),
-      driverName: item.driverName,
-      driverPhone: item.driverPhone,
-      vehicleNumber: item.vehicleNumber,
-      distanceKm: Number(item.distanceKm),
-      baseFare: Number(item.baseFare),
-      subsidyAmount: Number(item.subsidyAmount),
-      netPayable: Number(item.netPayable),
-      status: item.status,
-      createdAt: item.createdAt,
-    }));
+    const formatted = rows.map(item => {
+      const scheduledStart = parseScheduledStartTime(item.scheduledDate, item.timeSlot);
+      const cancellationDeadline = scheduledStart ? new Date(scheduledStart.getTime() - 30 * 60 * 1000) : null;
+      const isPastDeadline = cancellationDeadline ? Date.now() > cancellationDeadline.getTime() : false;
+      const canCancel = (item.status === "REQUESTED" || item.status === "ASSIGNED") && !isPastDeadline;
+
+      return {
+        id: item.id,
+        transportCode: item.transportCode,
+        vehicleType: item.vehicleType,
+        vehicleName: VEHICLE_CATALOG[item.vehicleType as keyof typeof VEHICLE_CATALOG]?.name || item.vehicleType,
+        pickupVillage: item.pickupVillage,
+        destinationCentreId: item.destinationCentreId,
+        destinationCentreName: centreMap.get(item.destinationCentreId) || "Procurement Centre",
+        scheduledDate: item.scheduledDate,
+        timeSlot: item.timeSlot,
+        scheduledStartTime: scheduledStart ? scheduledStart.toISOString() : null,
+        cancellationDeadline: cancellationDeadline ? cancellationDeadline.toISOString() : null,
+        canCancel,
+        cancellationReason: canCancel ? null : isPastDeadline ? "Cancellation is available only until 30 minutes before the scheduled time." : `Transport is ${item.status}`,
+        estimatedLoadQuintals: Number(item.estimatedLoadQuintals),
+        driverName: item.driverName,
+        driverPhone: item.driverPhone,
+        vehicleNumber: item.vehicleNumber,
+        distanceKm: Number(item.distanceKm),
+        baseFare: Number(item.baseFare),
+        subsidyAmount: Number(item.subsidyAmount),
+        netPayable: Number(item.netPayable),
+        status: item.status,
+        createdAt: item.createdAt,
+      };
+    });
 
     return res.json({ farmerId: id.data, transportBookings: formatted });
   });
@@ -1648,15 +1727,21 @@ export function createProcurementApi() {
       return res.status(400).json({ error: "CANNOT_CANCEL_IN_TRANSIT", message: "Cannot cancel a vehicle that is currently in transit." });
     }
 
-    // Strict 30-minute cancellation window check for farmers
-    const transportCreatedTime = new Date(existing.createdAt).getTime();
+    // Strict 30-minute cancellation rule: cancellation allowed ONLY until 30 minutes before scheduled transport pickup time
+    const scheduledStart = parseScheduledStartTime(existing.scheduledDate, existing.timeSlot);
     const now = Date.now();
     const thirtyMinutesMs = 30 * 60 * 1000;
-    if (now - transportCreatedTime > thirtyMinutesMs) {
-      return res.status(400).json({
-        error: "CANCELLATION_WINDOW_EXPIRED",
-        message: "Cancellation window expired. Transportation bookings can only be cancelled within 30 minutes of creation.",
-      });
+    if (scheduledStart) {
+      const cancellationDeadline = scheduledStart.getTime() - thirtyMinutesMs;
+      if (now > cancellationDeadline) {
+        return res.status(400).json({
+          success: false,
+          error: "CANCELLATION_DEADLINE_EXCEEDED",
+          message: "Cancellation is available only until 30 minutes before the scheduled time.",
+          scheduledTime: scheduledStart.toISOString(),
+          cancellationDeadline: new Date(cancellationDeadline).toISOString(),
+        });
+      }
     }
 
     await db.update(transportBookings).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(transportBookings.id, existing.id));
@@ -2014,6 +2099,81 @@ export function createProcurementApi() {
     });
   });
 
+  api.post("/officers/procurement/:bookingId/initiate-payment", requireApiAuth, requireRole("HEAD_OFFICER", "PAYMENT_OFFICER", "PROCUREMENT_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const id = idSchema.safeParse(req.params.bookingId);
+    if (!id.success) return res.status(400).json({ success: false, error: "VALIDATION_ERROR", message: "Invalid booking ID." });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ success: false, error: "SERVICE_UNAVAILABLE", message: "Database service unavailable." });
+
+    const context = await getBookingContext(id.data);
+    if (!context) return res.status(404).json({ success: false, error: "BOOKING_NOT_FOUND", message: "Booking record not found." });
+
+    const existingPayment = (await db.select().from(payments).where(eq(payments.bookingId, context.booking.id)).orderBy(desc(payments.createdAt)).limit(1))[0];
+    if (existingPayment && existingPayment.status === "SUCCESS") {
+      return res.status(409).json({ success: false, error: "PAYMENT_ALREADY_SUCCESSFUL", message: "Procurement payout has already been disbursed for this booking.", payment: paymentView(existingPayment) });
+    }
+
+    const qty = context.procurement?.weighedQuantityQuintals ? Number(context.procurement.weighedQuantityQuintals) : Number(context.booking.expectedQuantityQuintals);
+    const allPrices = await db.select().from(cropPrices);
+    const varietyLower = (context.booking.paddyVariety || "").toLowerCase();
+    const matchedCrop = allPrices.find(p =>
+      varietyLower.includes((p.variety || "").toLowerCase()) ||
+      varietyLower.includes((p.cropName || "").toLowerCase()) ||
+      (p.variety || "").toLowerCase().includes(varietyLower) ||
+      (p.cropName || "").toLowerCase().includes(varietyLower)
+    );
+
+    const mspPrice = matchedCrop ? {
+      mspPerQuintal: Number(matchedCrop.mspPerQuintal),
+      govtBonusPerQuintal: Number(matchedCrop.govtBonusPerQuintal || 0),
+    } : undefined;
+
+    const quote = createPrototypePaymentQuote(context.booking.paddyVariety, qty, mspPrice);
+    const paymentId = existingPayment ? existingPayment.paymentCode : `PAY-DBT-${Date.now().toString().slice(-8)}`;
+    const txRef = existingPayment ? existingPayment.transactionReference : `DBT-AP-GOVT-${Date.now().toString().slice(-9)}`;
+
+    if (existingPayment) {
+      await db.update(payments).set({
+        status: "OFFICER_INITIATED",
+        officerId: req.principal?.id ?? null,
+        amount: quote.demoPayable.toFixed(2),
+        initiatedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(payments.id, existingPayment.id));
+    } else {
+      await db.insert(payments).values({
+        bookingId: context.booking.id,
+        paymentCode: paymentId,
+        transactionReference: txRef,
+        amount: quote.demoPayable.toFixed(2),
+        method: "NET_BANKING",
+        gateway: "GOVT_DBT_DIRECT_CREDIT",
+        status: "OFFICER_INITIATED",
+        officerId: req.principal?.id ?? null,
+        isDemo: 1,
+        initiatedAt: new Date(),
+      });
+    }
+
+    const currentPayment = (await db.select().from(payments).where(eq(payments.bookingId, context.booking.id)).orderBy(desc(payments.createdAt)).limit(1))[0];
+
+    try {
+      await db.insert(notifications).values({
+        farmerId: context.farmer.id,
+        title: "Procurement Payment Initiated",
+        message: `Head Officer has initiated your DBT payment of ₹${quote.demoPayable.toLocaleString("en-IN")} for booking ${context.booking.bookingCode}. Reference: ${txRef}.`,
+        category: "PAYMENT",
+      });
+    } catch {}
+
+    return res.json({
+      success: true,
+      message: "Payment successfully initiated by officer.",
+      payment: paymentView(currentPayment),
+      amount: quote.demoPayable,
+    });
+  });
+
   api.post("/officers/procurement/:bookingId/payout", requireApiAuth, requireRole("HEAD_OFFICER", "PAYMENT_OFFICER", "PROCUREMENT_OFFICER"), async (req: AuthenticatedRequest, res) => {
     const id = idSchema.safeParse(req.params.bookingId);
     if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
@@ -2023,9 +2183,9 @@ export function createProcurementApi() {
     const context = await getBookingContext(id.data);
     if (!context) return res.status(404).json({ error: "BOOKING_NOT_FOUND" });
 
-    const existingSuccessful = (await db.select().from(payments).where(and(eq(payments.bookingId, context.booking.id), eq(payments.status, "SUCCESS"))).limit(1))[0];
-    if (existingSuccessful) {
-      return res.status(409).json({ error: "PAYMENT_ALREADY_SUCCESSFUL", message: "Procurement payout has already been disbursed for this booking.", payment: paymentView(existingSuccessful) });
+    const existingPayment = (await db.select().from(payments).where(eq(payments.bookingId, context.booking.id)).orderBy(desc(payments.createdAt)).limit(1))[0];
+    if (existingPayment && existingPayment.status === "SUCCESS") {
+      return res.status(409).json({ error: "PAYMENT_ALREADY_SUCCESSFUL", message: "Procurement payout has already been disbursed for this booking.", payment: paymentView(existingPayment) });
     }
 
     const qty = context.procurement?.weighedQuantityQuintals ? Number(context.procurement.weighedQuantityQuintals) : Number(context.booking.expectedQuantityQuintals);
@@ -2046,23 +2206,36 @@ export function createProcurementApi() {
     } : undefined;
 
     const quote = createPrototypePaymentQuote(context.booking.paddyVariety, qty, mspPrice);
-    const paymentId = `PAY-DBT-${Date.now().toString().slice(-8)}`;
-    const txRef = `DBT-AP-GOVT-${Date.now().toString().slice(-9)}`;
+    const paymentId = existingPayment ? existingPayment.paymentCode : `PAY-DBT-${Date.now().toString().slice(-8)}`;
+    const txRef = existingPayment ? existingPayment.transactionReference : `DBT-AP-GOVT-${Date.now().toString().slice(-9)}`;
     const rcpNo = `RCP-${Date.now().toString().slice(-9)}`;
 
-    await db.insert(payments).values({
-      bookingId: context.booking.id,
-      paymentCode: paymentId,
-      transactionReference: txRef,
-      receiptNumber: rcpNo,
-      amount: quote.demoPayable.toFixed(2),
-      method: "NET_BANKING",
-      gateway: "GOVT_DBT_DIRECT_CREDIT",
-      status: "SUCCESS",
-      isDemo: 1,
-      completedAt: new Date(),
-      processedAt: new Date(),
-    });
+    if (existingPayment) {
+      await db.update(payments).set({
+        status: "SUCCESS",
+        receiptNumber: rcpNo,
+        amount: quote.demoPayable.toFixed(2),
+        officerId: req.principal?.id ?? null,
+        completedAt: new Date(),
+        processedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(payments.id, existingPayment.id));
+    } else {
+      await db.insert(payments).values({
+        bookingId: context.booking.id,
+        paymentCode: paymentId,
+        transactionReference: txRef,
+        receiptNumber: rcpNo,
+        amount: quote.demoPayable.toFixed(2),
+        method: "NET_BANKING",
+        gateway: "GOVT_DBT_DIRECT_CREDIT",
+        status: "SUCCESS",
+        officerId: req.principal?.id ?? null,
+        isDemo: 1,
+        completedAt: new Date(),
+        processedAt: new Date(),
+      });
+    }
 
     await db.update(procurements).set({ status: "COMPLETED", updatedAt: new Date() }).where(eq(procurements.bookingId, context.booking.id));
     await db.update(bookings).set({ status: "COMPLETED", updatedAt: new Date() }).where(eq(bookings.id, context.booking.id));
@@ -2070,14 +2243,16 @@ export function createProcurementApi() {
       await db.update(queueEntries).set({ status: "SERVED", estimatedWaitMinutes: 0, updatedAt: new Date() }).where(eq(queueEntries.bookingId, context.booking.id));
     }
 
-    const createdPayment = (await db.select().from(payments).where(eq(payments.paymentCode, paymentId)).limit(1))[0];
+    const createdPayment = (await db.select().from(payments).where(eq(payments.bookingId, context.booking.id)).orderBy(desc(payments.createdAt)).limit(1))[0];
 
-    await db.insert(notifications).values({
-      farmerId: context.farmer.id,
-      title: "Procurement Payment Credited (DBT)",
-      message: `₹${quote.demoPayable.toLocaleString("en-IN")} credited directly to your bank account for booking ${context.booking.bookingCode}. Ref: ${txRef}.`,
-      category: "PAYMENT",
-    });
+    try {
+      await db.insert(notifications).values({
+        farmerId: context.farmer.id,
+        title: "Procurement Payment Credited (DBT)",
+        message: `₹${quote.demoPayable.toLocaleString("en-IN")} credited directly to your bank account for booking ${context.booking.bookingCode}. Ref: ${txRef}.`,
+        category: "PAYMENT",
+      });
+    } catch {}
 
     return res.status(201).json({
       message: "Procurement DBT payout initiated and credited successfully.",

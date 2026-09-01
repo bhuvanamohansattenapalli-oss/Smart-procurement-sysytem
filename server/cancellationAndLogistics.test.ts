@@ -3,7 +3,7 @@ import express from "express";
 import { createProcurementApi } from "./routes/procurementApi";
 import { ensurePrototypeSeed } from "./services/seedService";
 import { getDb } from "./db";
-import { farmers, officers } from "../drizzle/schema";
+import { farmers, officers, bookings, slots } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "./services/passwordService";
 
@@ -13,6 +13,7 @@ describe("Slot & Transportation 30-Minute Cancellation and Logistics Tests", () 
   let baseUrl: string;
   let farmerToken: string;
   let officerToken: string;
+  let farmerRecord: any;
 
   beforeAll(async () => {
     await ensurePrototypeSeed();
@@ -31,8 +32,10 @@ describe("Slot & Transportation 30-Minute Cancellation and Logistics Tests", () 
         primaryCrop: "Paddy",
         status: "APPROVED",
       });
+      farmerRecord = (await db!.select().from(farmers).where(eq(farmers.phone, "9876543210")).limit(1))[0];
     } else {
       await db!.update(farmers).set({ passwordHash: hashPassword("Farmer@2026"), status: "APPROVED" }).where(eq(farmers.phone, "9876543210"));
+      farmerRecord = testFarmer;
     }
 
     // Ensure officer exists and has known password & active status
@@ -78,10 +81,22 @@ describe("Slot & Transportation 30-Minute Cancellation and Logistics Tests", () 
   });
 
   it("should successfully cancel a fresh slot booking within 30 minutes", async () => {
-    // 1. Fetch available slot
-    const slotsRes = await fetch(`${baseUrl}/centres/1/slots`);
-    const slotsData = await slotsRes.json();
-    const targetSlot = slotsData.slots[0];
+    const db = await getDb();
+    // Complete existing active bookings
+    await db!.update(bookings).set({ status: "COMPLETED" }).where(eq(bookings.farmerId, farmerRecord.id));
+
+    // 1. Fetch available slot or create future slot
+    const futureDateStr = new Date(Date.now() + 48 * 3600 * 1000).toISOString().split("T")[0];
+    await db!.insert(slots).values({
+      centreId: 1,
+      slotDate: futureDateStr,
+      startTime: "10:00 AM",
+      endTime: "11:00 AM",
+      capacity: 25,
+      bookedCount: 0,
+      isActive: 1,
+    });
+    const targetSlot = (await db!.select().from(slots).where(eq(slots.slotDate, futureDateStr)).limit(1))[0];
     expect(targetSlot).toBeDefined();
 
     // 2. Create a fresh booking
@@ -120,6 +135,7 @@ describe("Slot & Transportation 30-Minute Cancellation and Logistics Tests", () 
   });
 
   it("should successfully book and cancel a transportation booking within 30 minutes", async () => {
+    const futureDateStr = new Date(Date.now() + 48 * 3600 * 1000).toISOString().split("T")[0];
     // 1. Book transportation
     const transportRes = await fetch(`${baseUrl}/transport/book`, {
       method: "POST",
@@ -131,7 +147,7 @@ describe("Slot & Transportation 30-Minute Cancellation and Logistics Tests", () 
         vehicleType: "TRACTOR_TROLLEY",
         pickupVillage: "Muppalapally",
         destinationCentreId: 1,
-        scheduledDate: "2026-03-20",
+        scheduledDate: futureDateStr,
         timeSlot: "10:00 AM – 01:00 PM",
         estimatedLoadQuintals: 18,
         distanceKm: 12,
@@ -158,6 +174,7 @@ describe("Slot & Transportation 30-Minute Cancellation and Logistics Tests", () 
   });
 
   it("should prevent updating status of a cancelled transport booking to IN_TRANSIT or DELIVERED_AT_CENTRE", async () => {
+    const futureDateStr = new Date(Date.now() + 48 * 3600 * 1000).toISOString().split("T")[0];
     // 1. Book and cancel
     const transportRes = await fetch(`${baseUrl}/transport/book`, {
       method: "POST",
@@ -169,7 +186,7 @@ describe("Slot & Transportation 30-Minute Cancellation and Logistics Tests", () 
         vehicleType: "MINI_TRUCK",
         pickupVillage: "Nizamabad North",
         destinationCentreId: 1,
-        scheduledDate: "2026-03-22",
+        scheduledDate: futureDateStr,
         timeSlot: "01:00 PM – 04:00 PM",
         estimatedLoadQuintals: 15,
         distanceKm: 8,

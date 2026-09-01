@@ -34,7 +34,14 @@ export const procurementStatus = [
   "PROCESSING",
   "COMPLETED",
 ] as const;
-export const paymentStatus = ["PENDING", "PROCESSING", "SUCCESS", "FAILED"] as const;
+export const paymentStatus = [
+  "PENDING",
+  "PENDING_OFFICER_INITIATION",
+  "OFFICER_INITIATED",
+  "PROCESSING",
+  "SUCCESS",
+  "FAILED",
+] as const;
 
 /** Hackathon demo farmer accounts, separate from Manus OAuth identities. */
 export const farmers = mysqlTable("farmers", {
@@ -222,6 +229,7 @@ export const payments = mysqlTable("payments", {
   method: mysqlEnum("method", ["UPI", "CARD", "NET_BANKING"]).notNull(),
   gateway: varchar("gateway", { length: 80 }).notNull().default("PROCUREFLOW_TEST_GATEWAY"),
   gatewayPaymentId: varchar("gatewayPaymentId", { length: 96 }),
+  officerId: int("officerId"),
   status: mysqlEnum("status", paymentStatus).default("PENDING").notNull(),
   failureReason: varchar("failureReason", { length: 240 }),
   isDemo: int("isDemo").notNull().default(1),

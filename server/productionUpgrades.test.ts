@@ -113,11 +113,26 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
     expect(["AVAILABLE", "LIMITED", "FULL"]).toContain(firstSlot.status);
   });
 
-  it("3. Slot Booking: Allows cancellation within 30 minutes and frees up slot capacity", async () => {
-    // Get a slot
-    const slotsRes = await fetch(`${baseUrl}/centres/1/slots?date=2026-03-18`);
-    const slotsData = await slotsRes.json();
-    const targetSlot = slotsData.slots.find((s: any) => s.available > 0) || slotsData.slots[0];
+  it("3. Slot Booking: Allows cancellation >= 30 minutes before scheduled slot time and frees capacity", async () => {
+    const db = await getDb();
+    // Complete any active bookings
+    await db!.update(bookings).set({ status: "COMPLETED" }).where(eq(bookings.farmerId, farmerRecord.id));
+
+    // Create a future slot 48 hours from now
+    const futureDate = new Date(Date.now() + 48 * 3600 * 1000);
+    const futureDateStr = futureDate.toISOString().split("T")[0];
+    await db!.insert(slots).values({
+      centreId: 1,
+      slotDate: futureDateStr,
+      startTime: "10:00 AM",
+      endTime: "11:00 AM",
+      capacity: 25,
+      bookedCount: 0,
+      isActive: 1,
+    });
+    const futureSlot = (await db!.select().from(slots).where(eq(slots.slotDate, futureDateStr)).limit(1))[0];
+
+    const initialBookedCount = futureSlot.bookedCount;
 
     // Create booking
     const bookRes = await fetch(`${baseUrl}/bookings`, {
@@ -125,7 +140,7 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${farmerToken}` },
       body: JSON.stringify({
         centreId: 1,
-        slotId: targetSlot.id,
+        slotId: futureSlot.id,
         paddyVariety: "Maize (Makka)",
         paddyGrade: "Grade A",
         expectedQuantityQuintals: 30,
@@ -135,7 +150,11 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
     const booking = await bookRes.json();
     const bookingId = booking.booking.id;
 
-    // Cancel within 30 min (immediate)
+    // Check slot bookedCount increased
+    const [slotAfterBook] = await db!.select().from(slots).where(eq(slots.id, futureSlot.id));
+    expect(slotAfterBook.bookedCount).toBe(initialBookedCount + 1);
+
+    // Cancel while >= 30 min before scheduled slot
     const cancelRes = await fetch(`${baseUrl}/bookings/${bookingId}/cancel`, {
       method: "POST",
       headers: { Authorization: `Bearer ${farmerToken}` },
@@ -143,40 +162,53 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
     expect(cancelRes.status).toBe(200);
     const cancelData = await cancelRes.json();
     expect(cancelData.booking.status).toBe("CANCELLED");
+
+    // Check slot bookedCount decreased
+    const [slotAfterCancel] = await db!.select().from(slots).where(eq(slots.id, futureSlot.id));
+    expect(slotAfterCancel.bookedCount).toBe(initialBookedCount);
   });
 
-  it("4. Slot Booking: Rejects cancellation if booking is older than 30 minutes", async () => {
+  it("4. Slot Booking: Rejects cancellation if less than 30 minutes before scheduled slot or past", async () => {
     const db = await getDb();
-    const oldDate = new Date(Date.now() - 40 * 60 * 1000); // 40 minutes ago
-    const code = `BK-TEST-OLD-${Date.now()}`;
+    const pastDateStr = "2026-03-18"; // In the past
+    await db!.insert(slots).values({
+      centreId: 1,
+      slotDate: pastDateStr,
+      startTime: "09:00 AM",
+      endTime: "10:00 AM",
+      capacity: 25,
+      bookedCount: 1,
+      isActive: 1,
+    });
+    const pastSlot = (await db!.select().from(slots).where(eq(slots.slotDate, pastDateStr)).limit(1))[0];
 
-    // Insert an old booking directly
+    const pastBookingCode = `BK-TEST-PAST-${Date.now()}`;
     await db!.insert(bookings).values({
-      bookingCode: code,
+      bookingCode: pastBookingCode,
       farmerId: farmerRecord.id,
       centreId: 1,
-      slotId: 1,
+      slotId: pastSlot.id,
       paddyVariety: "Wheat (Gehun)",
       paddyGrade: "Grade A",
       expectedQuantityQuintals: "25.00",
       status: "ACTIVE",
-      createdAt: oldDate,
     });
+    const pastBooking = (await db!.select().from(bookings).where(eq(bookings.bookingCode, pastBookingCode)).limit(1))[0];
 
-    const inserted = (await db!.select().from(bookings).where(eq(bookings.bookingCode, code)).limit(1))[0];
-    expect(inserted).toBeDefined();
-
-    const cancelRes = await fetch(`${baseUrl}/bookings/${inserted.id}/cancel`, {
+    const cancelRes = await fetch(`${baseUrl}/bookings/${pastBooking.id}/cancel`, {
       method: "POST",
       headers: { Authorization: `Bearer ${farmerToken}` },
     });
     expect(cancelRes.status).toBe(400);
     const cancelData = await cancelRes.json();
+    expect(cancelData.error).toBe("CANCELLATION_DEADLINE_EXCEEDED");
     expect(cancelData.message).toMatch(/30 minutes/i);
   });
 
-  it("5. Transportation Booking: Allows cancellation within 30 minutes and rejects after 30 minutes", async () => {
-    // 1. Create a fresh transport booking
+  it("5. Transportation Booking: Allows cancellation >= 30 mins before pickup and rejects when past deadline", async () => {
+    const futureDateStr = new Date(Date.now() + 48 * 3600 * 1000).toISOString().split("T")[0];
+
+    // 1. Create a future transport booking
     const transportRes = await fetch(`${baseUrl}/transport/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${farmerToken}` },
@@ -184,7 +216,7 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
         vehicleType: "TRACTOR_TROLLEY",
         pickupVillage: "Muppalapally",
         destinationCentreId: 1,
-        scheduledDate: "2026-03-18",
+        scheduledDate: futureDateStr,
         timeSlot: "Morning (07:00 - 11:00 AM)",
         estimatedLoadQuintals: 40,
       }),
@@ -193,11 +225,14 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
     const transportData = await transportRes.json();
     const transportId = transportData.transport.id;
 
-    // 2. Cancel within 30 min
+    // 2. Cancel within allowed window
     const cancelRes = await fetch(`${baseUrl}/transport/bookings/${transportId}/cancel`, {
       method: "POST",
       headers: { Authorization: `Bearer ${farmerToken}` },
     });
+    if (cancelRes.status !== 200) {
+      console.log("CANCEL RES FAIL IN TEST 5:", cancelRes.status, await cancelRes.json());
+    }
     expect(cancelRes.status).toBe(200);
     const cancelResult = await cancelRes.json();
     expect(cancelResult.transport.status).toBe("CANCELLED");
@@ -209,12 +244,11 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
     });
     expect(reCancelRes.status).toBe(400);
 
-    // 4. Test older than 30 minutes rejection
+    // 4. Past transport rejection
     const db = await getDb();
-    const oldDate = new Date(Date.now() - 35 * 60 * 1000);
-    const code = `TR-OLD-${Date.now()}`;
+    const pastTransportCode = `TR-PAST-${Date.now()}`;
     await db!.insert(transportBookings).values({
-      transportCode: code,
+      transportCode: pastTransportCode,
       farmerId: farmerRecord.id,
       vehicleType: "MINI_TRUCK",
       vehicleNumber: "AP 07 TX 9988",
@@ -229,55 +263,83 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
       subsidyAmount: "360.00",
       netPayable: "840.00",
       status: "REQUESTED",
-      createdAt: oldDate,
     });
+    const pastTransport = (await db!.select().from(transportBookings).where(eq(transportBookings.transportCode, pastTransportCode)).limit(1))[0];
 
-    const oldTransport = (await db!.select().from(transportBookings).where(eq(transportBookings.transportCode, code)).limit(1))[0];
-    expect(oldTransport).toBeDefined();
-
-    const oldCancelRes = await fetch(`${baseUrl}/transport/bookings/${oldTransport.id}/cancel`, {
+    const oldCancelRes = await fetch(`${baseUrl}/transport/bookings/${pastTransport.id}/cancel`, {
       method: "POST",
       headers: { Authorization: `Bearer ${farmerToken}` },
     });
     expect(oldCancelRes.status).toBe(400);
     const oldCancelData = await oldCancelRes.json();
+    expect(oldCancelData.error).toBe("CANCELLATION_DEADLINE_EXCEEDED");
     expect(oldCancelData.message).toMatch(/30 minutes/i);
   });
 
-  it("6. Payment State Machine: Payment status is PENDING/READY_FOR_PAYMENT before payout, not CREDITED", async () => {
+  it("6. Payment Lifecycle: Officer Initiate -> OFFICER_INITIATED -> Payout -> SUCCESS", async () => {
     const db = await getDb();
-    // Complete any earlier active bookings for this farmer to satisfy one-active-booking constraint
+    // Complete existing bookings
     await db!.update(bookings).set({ status: "COMPLETED" }).where(eq(bookings.farmerId, farmerRecord.id));
 
-    const candidateSlots = await db!.select().from(slots).where(eq(slots.centreId, 1));
-    const targetSlot = candidateSlots.find(s => s.bookedCount < s.capacity) || candidateSlots[0];
-    if (targetSlot) {
-      await db!.update(slots).set({ bookedCount: Math.min(targetSlot.bookedCount, targetSlot.capacity - 5) }).where(eq(slots.id, targetSlot.id));
-    }
-
+    // Create fresh booking
     const bookRes = await fetch(`${baseUrl}/bookings`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${farmerToken}` },
       body: JSON.stringify({
         centreId: 1,
-        slotId: targetSlot ? targetSlot.id : 1,
+        slotId: 1,
         paddyVariety: "Soybean (Yellow)",
         paddyGrade: "Grade A",
         expectedQuantityQuintals: 20,
       }),
     });
-    const booking = await bookRes.json();
-    if (bookRes.status !== 201) {
-      console.error("DEBUG TEST 6 BOOKING FAILED:", bookRes.status, booking);
-    }
     expect(bookRes.status).toBe(201);
+    const bookData = await bookRes.json();
+    const testBookingId = bookData.booking.id;
 
-    // Verify payment record in DB is not SUCCESS
-    const paymentRecords = await db!.select().from(payments).where(eq(payments.bookingId, booking.booking.id));
-    // Either no payment record yet, or status is PENDING
-    if (paymentRecords.length > 0) {
-      expect(paymentRecords[0].status).not.toBe("SUCCESS");
-    }
+    // Step 1: Farmer checks status before officer action -> derived PENDING_OFFICER_INITIATION
+    const initialPayRes = await fetch(`${baseUrl}/payments/${testBookingId}`, {
+      headers: { Authorization: `Bearer ${farmerToken}` },
+    });
+    expect(initialPayRes.status).toBe(200);
+    const initialPayData = await initialPayRes.json();
+    expect(["PENDING", "PENDING_OFFICER_INITIATION"]).toContain(initialPayData.paymentStatus);
+
+    // Step 2: Officer initiates payment
+    const initiateRes = await fetch(`${baseUrl}/officers/procurement/${testBookingId}/initiate-payment`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${officerToken}` },
+    });
+    expect(initiateRes.status).toBe(200);
+    const initiateData = await initiateRes.json();
+    expect(initiateData.payment.status).toBe("OFFICER_INITIATED");
+    expect(initiateData.payment.officerId).toBeDefined();
+    expect(initiateData.payment.transactionReference).toBeDefined();
+
+    // Step 3: Farmer portal reflects OFFICER_INITIATED without relogging
+    const midPayRes = await fetch(`${baseUrl}/payments/${testBookingId}`, {
+      headers: { Authorization: `Bearer ${farmerToken}` },
+    });
+    expect(midPayRes.status).toBe(200);
+    const midPayData = await midPayRes.json();
+    expect(midPayData.payment.status).toBe("OFFICER_INITIATED");
+
+    // Step 4: Officer completes payout
+    const payoutRes = await fetch(`${baseUrl}/officers/procurement/${testBookingId}/payout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${officerToken}` },
+    });
+    expect([200, 201]).toContain(payoutRes.status);
+    const payoutData = await payoutRes.json();
+    expect(payoutData.payment.status).toBe("SUCCESS");
+
+    // Step 5: Farmer portal reflects SUCCESS
+    const finalPayRes = await fetch(`${baseUrl}/payments/${testBookingId}`, {
+      headers: { Authorization: `Bearer ${farmerToken}` },
+    });
+    expect(finalPayRes.status).toBe(200);
+    const finalPayData = await finalPayRes.json();
+    expect(finalPayData.payment.status).toBe("SUCCESS");
   });
 
   it("7. Phone Normalization: Accepts +91, spaces, dashes and correctly authenticates farmer", async () => {

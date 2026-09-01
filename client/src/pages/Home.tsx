@@ -85,7 +85,7 @@ import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { MapView } from "@/components/Map";
 
-import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language } from "@/lib/translations";
+import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
 
 function getInitials(name?: string | null, fallback = "SO"): string {
@@ -196,13 +196,15 @@ type ApiBooking = {
 
 type PaymentRecord = {
   paymentId: string;
+  bookingId?: number;
   transactionReference: string;
   receiptNumber: string | null;
   amount: number;
   method: "UPI" | "CARD" | "NET_BANKING";
   gateway: string;
   gatewayPaymentId: string | null;
-  status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED";
+  status: "PENDING" | "PENDING_OFFICER_INITIATION" | "OFFICER_INITIATED" | "PROCESSING" | "SUCCESS" | "FAILED";
+  officerId?: number | null;
   failureReason: string | null;
   initiatedAt: string;
   processedAt: string | null;
@@ -675,22 +677,55 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  const getCancellationStatus = (createdAtStr?: string) => {
-    if (!createdAtStr) return { canCancel: true, remainingMs: 30 * 60 * 1000, remainingMins: 30, text: "30m 00s", expired: false };
-    const createdTime = new Date(createdAtStr).getTime();
-    const elapsed = currentTimeMs - createdTime;
-    const remainingMs = 30 * 60 * 1000 - elapsed;
-    if (remainingMs <= 0) {
-      return { canCancel: false, remainingMs: 0, remainingMins: 0, text: "0m 00s", expired: true };
+  const getCancellationStatus = (dateStr?: string | null, timeStr?: string | null, createdAtStr?: string | null) => {
+    const scheduledStart = parseScheduledStartTime(dateStr, timeStr);
+    let deadline: number | null = null;
+    let deadlineDate: Date | null = null;
+
+    if (scheduledStart) {
+      deadline = scheduledStart.getTime() - 30 * 60 * 1000;
+      deadlineDate = new Date(deadline);
+    } else if (createdAtStr) {
+      deadline = new Date(createdAtStr).getTime() + 30 * 60 * 1000;
+      deadlineDate = new Date(deadline);
     }
-    const mins = Math.floor(remainingMs / (60 * 1000));
-    const secs = Math.floor((remainingMs % (60 * 1000)) / 1000);
+
+    if (!deadline) {
+      return { canCancel: true, remainingMs: 30 * 60 * 1000, remainingMins: 30, text: "30m 00s", expired: false, deadlineFormatted: "" };
+    }
+
+    const remainingMs = deadline - currentTimeMs;
+    const deadlineFormatted = deadlineDate
+      ? deadlineDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + ", " + deadlineDate.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
+      : "";
+
+    if (remainingMs <= 0) {
+      return {
+        canCancel: false,
+        remainingMs: 0,
+        remainingMins: 0,
+        text: "0m 00s",
+        expired: true,
+        deadlineFormatted,
+      };
+    }
+
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+
+    const timeText = hours > 0
+      ? `${hours}h ${mins}m`
+      : `${mins}m ${secs < 10 ? "0" : ""}${secs}s`;
+
     return {
       canCancel: true,
       remainingMs,
-      remainingMins: mins,
-      text: `${mins}m ${secs < 10 ? "0" : ""}${secs}s`,
+      remainingMins: Math.floor(remainingMs / (60 * 1000)),
+      text: timeText,
       expired: false,
+      deadlineFormatted,
     };
   };
 
@@ -770,7 +805,7 @@ export default function Home() {
   const [paymentRecord, setPaymentRecord] = useState<PaymentRecord | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<Array<PaymentRecord & { bookingCode: string; bookingId: number }>>([]);
   const [receipt, setReceipt] = useState<{ receiptNumber: string; issuedAt: string; payment: PaymentRecord } | null>(null);
-  const [officerPayments, setOfficerPayments] = useState<Array<PaymentRecord & { bookingCode: string; farmer: { name: string; farmerCode: string }; centre: { name: string } }>>([]);
+  const [officerPayments, setOfficerPayments] = useState<Array<PaymentRecord & { bookingId: number; bookingCode: string; farmer: { name: string; farmerCode: string }; centre: { name: string } }>>([]);
   const [officerFarmersList, setOfficerFarmersList] = useState<Array<{
     id: number;
     farmerCode: string;
@@ -1034,28 +1069,27 @@ export default function Home() {
   }, [language]);
   const changeLanguage = (next: Language) => { setLanguage(next); localStorage.setItem("procureflow.language", next); };
 
-  const originalTextMap = useRef(new WeakMap<Text, string>());
-
-  useEffect(() => {
-    const savedLanguage = localStorage.getItem("procureflow.language") as Language | null;
-    if (savedLanguage) setLanguage(savedLanguage);
-  }, []);
-
   useEffect(() => {
     if (language === "EN") {
-      // Restore any previously translated text nodes cleanly
+      // Revert all text nodes and options cleanly to English using reverseTranslationMap
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
         const textNode = node as Text;
-        const orig = originalTextMap.current.get(textNode);
-        if (orig && textNode.nodeValue !== orig) textNode.nodeValue = orig;
+        const currentVal = textNode.nodeValue;
+        if (!currentVal) continue;
+        const trimmed = currentVal.trim();
+        if (reverseTranslationMap[trimmed]) {
+          textNode.nodeValue = currentVal.replace(trimmed, reverseTranslationMap[trimmed]);
+        }
       }
       document.querySelectorAll<HTMLOptionElement>("option").forEach(opt => {
-        if (opt.dataset.originalText) opt.text = opt.dataset.originalText;
+        const trimmed = opt.text.trim();
+        if (reverseTranslationMap[trimmed]) opt.text = reverseTranslationMap[trimmed];
       });
       document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[placeholder], textarea[placeholder]").forEach(input => {
-        if (input.dataset.originalPlaceholder) input.placeholder = input.dataset.originalPlaceholder;
+        const trimmed = input.placeholder.trim();
+        if (reverseTranslationMap[trimmed]) input.placeholder = reverseTranslationMap[trimmed];
       });
       return;
     }
@@ -1063,95 +1097,36 @@ export default function Home() {
     const dictionary = localizedUiText[language];
     if (!dictionary) return;
 
-    const escapeRegex = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-    const compiledEntries = Object.entries(dictionary)
-      .sort((a, b) => b[0].length - a[0].length)
-      .map(([key, val]) => ({
-        regex: new RegExp(escapeRegex(key), "gi"),
-        val,
-        key,
-      }));
-
-    let isRunning = false;
-    let timerId: number | null = null;
-
-    const localize = () => {
-      if (isRunning) return;
-      isRunning = true;
-      try {
-        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-        let node: Node | null;
-        while ((node = walker.nextNode())) {
-          const textNode = node as Text;
-          const parent = textNode.parentElement;
-          if (parent && (parent.tagName === "SCRIPT" || parent.tagName === "STYLE" || parent.tagName === "NOSCRIPT" || parent.tagName === "INPUT" || parent.tagName === "TEXTAREA")) {
-            continue;
-          }
-
-          if (!originalTextMap.current.has(textNode)) {
-            originalTextMap.current.set(textNode, textNode.nodeValue ?? "");
-          }
-          const orig = originalTextMap.current.get(textNode) ?? "";
-          const trimmed = orig.trim();
-          if (trimmed && dictionary[trimmed]) {
-            const nextText = orig.replace(trimmed, dictionary[trimmed]);
-            if (textNode.nodeValue !== nextText) textNode.nodeValue = nextText;
-          } else if (trimmed && trimmed.length > 2) {
-            let modified = orig;
-            for (const { regex, val } of compiledEntries) {
-              if (regex.test(modified)) {
-                regex.lastIndex = 0;
-                modified = modified.replace(regex, val);
-              }
-            }
-            if (textNode.nodeValue !== modified) {
-              textNode.nodeValue = modified;
-            }
-          }
-        }
-
-        // Translate select options
-        document.querySelectorAll<HTMLOptionElement>("option").forEach(opt => {
-          if (!opt.dataset.originalText) opt.dataset.originalText = opt.text;
-          const orig = opt.dataset.originalText;
-          if (dictionary[orig.trim()]) {
-            opt.text = dictionary[orig.trim()];
-          }
-        });
-
-        // Translate inputs and placeholders
-        document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[placeholder], textarea[placeholder]").forEach(input => {
-          if (!input.dataset.originalPlaceholder) input.dataset.originalPlaceholder = input.placeholder;
-          const orig = input.dataset.originalPlaceholder;
-          if (dictionary[orig.trim()]) {
-            input.placeholder = dictionary[orig.trim()];
-          }
-        });
-      } finally {
-        isRunning = false;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const textNode = node as Text;
+      const parent = textNode.parentElement;
+      if (parent && (parent.tagName === "SCRIPT" || parent.tagName === "STYLE" || parent.tagName === "NOSCRIPT" || parent.tagName === "INPUT" || parent.tagName === "TEXTAREA")) {
+        continue;
       }
-    };
-
-    localize();
-
-    const debouncedLocalize = () => {
-      if (timerId) window.clearTimeout(timerId);
-      timerId = window.setTimeout(localize, 120);
-    };
-
-    const observer = new MutationObserver((mutations) => {
-      // Skip mutations triggered by typing inside inputs
-      const isInputMutation = mutations.some(m => m.target instanceof HTMLInputElement || m.target instanceof HTMLTextAreaElement);
-      if (!isInputMutation) {
-        debouncedLocalize();
+      const currentVal = textNode.nodeValue;
+      if (!currentVal) continue;
+      const trimmed = currentVal.trim();
+      const enKey = reverseTranslationMap[trimmed] || trimmed;
+      if (dictionary[enKey]) {
+        textNode.nodeValue = currentVal.replace(trimmed, dictionary[enKey]);
       }
+    }
+
+    // Translate select options
+    document.querySelectorAll<HTMLOptionElement>("option").forEach(opt => {
+      const trimmed = opt.text.trim();
+      const enKey = reverseTranslationMap[trimmed] || trimmed;
+      if (dictionary[enKey]) opt.text = dictionary[enKey];
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      if (timerId) window.clearTimeout(timerId);
-      observer.disconnect();
-    };
+    // Translate input placeholders
+    document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[placeholder], textarea[placeholder]").forEach(input => {
+      const trimmed = input.placeholder.trim();
+      const enKey = reverseTranslationMap[trimmed] || trimmed;
+      if (dictionary[enKey]) input.placeholder = dictionary[enKey];
+    });
   }, [language, screen]);
 
   const loadWeather = async (district: string = "Guntur") => {
@@ -1424,13 +1399,40 @@ export default function Home() {
     return data.booking;
   };
   const loadPaymentData = async (token: string, id: number, booking?: number) => {
-    const [historyResponse, currentResponse] = await Promise.all([
-      fetch(apiUrl(`/farmers/${id}/payments`), { headers: { Authorization: `Bearer ${token}` } }),
-      booking ? fetch(apiUrl(`/payments/${booking}`), { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(null),
-    ]);
-    if (historyResponse.ok) setPaymentHistory((await historyResponse.json()).payments);
-    if (currentResponse?.ok) setPaymentRecord((await currentResponse.json()).payment);
+    try {
+      const [historyResponse, currentResponse] = await Promise.all([
+        fetch(apiUrl(`/farmers/${id}/payments`), {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        }),
+        booking ? fetch(apiUrl(`/payments/${booking}`), {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        }) : Promise.resolve(null),
+      ]);
+      if (historyResponse.ok) {
+        const hData = await historyResponse.json();
+        setPaymentHistory(hData.payments ?? []);
+      }
+      if (currentResponse?.ok) {
+        const cData = await currentResponse.json();
+        if (cData.payment) {
+          setPaymentRecord(cData.payment);
+        }
+      }
+    } catch {}
   };
+
+  // Real-time synchronization of payment status when farmer is viewing payment page
+  useEffect(() => {
+    if (screen === "payment" && farmerToken && farmerId) {
+      void loadPaymentData(farmerToken, farmerId, bookingId ?? undefined);
+      const timer = setInterval(() => {
+        void loadPaymentData(farmerToken, farmerId, bookingId ?? undefined);
+      }, 4000);
+      return () => clearInterval(timer);
+    }
+  }, [screen, farmerToken, farmerId, bookingId]);
   const loadFarmerStats = async (token: string) => { const response = await fetch(apiUrl("/stats/farmer"), { headers: { Authorization: `Bearer ${token}` } }); if (response.ok) setFarmerStats((await response.json()).stats); };
   const loadOfficerStats = async (token: string) => { const response = await fetch(apiUrl("/stats/officer"), { headers: { Authorization: `Bearer ${token}` } }); if (response.ok) setOfficerStats((await response.json()).stats); };
   const loadOfficerAnalytics = async (token: string) => {
@@ -1809,6 +1811,32 @@ export default function Home() {
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Payout initiation failed.");
+    } finally {
+      setPayoutProcessingId(null);
+    }
+  };
+
+  const initiateFarmerPayment = async (bookingId: number) => {
+    if (!officerToken) return;
+    setPayoutProcessingId(bookingId);
+    try {
+      const response = await fetch(apiUrl(`/officers/procurement/${bookingId}/initiate-payment`), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${officerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to initiate payment.");
+      toast.success(`Payment initiated! Ref: ${data.payment?.transactionReference || ""}`);
+      await loadOfficerBookings(officerToken);
+      await loadOfficerAnalytics(officerToken);
+      await loadOfficerStats(officerToken);
+      const payRes = await fetch(apiUrl("/officers/payments"), { headers: { Authorization: `Bearer ${officerToken}` } });
+      if (payRes.ok) {
+        const pData = await payRes.json();
+        setOfficerPayments(pData.payments ?? []);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Payment initiation failed.");
     } finally {
       setPayoutProcessingId(null);
     }
@@ -2415,7 +2443,7 @@ export default function Home() {
           <p className="eyebrow">NEW REGISTRATION</p>
           <h2>{t.registrationTitle}</h2>
           <p>
-            {t.registrationIntro} Your account remains <b>{language === "TE" ? "పెండింగ్" : language === "HI" ? "लंबित" : "pending"}</b> until officer approval.
+            {t.registrationIntro} Your account remains <b>{tUi("pending", language)}</b> until officer approval.
           </p>
           <form onSubmit={e => { e.preventDefault(); void submitRegistration(); }}>
             <div className="field-row">
@@ -2460,7 +2488,7 @@ export default function Home() {
             </label>
             {authError && <p className="form-note">{authError}</p>}
             <Button disabled={authLoading} type="submit" className="action-button">
-              {authLoading ? (language === "TE" ? "సమర్పిస్తోంది…" : language === "HI" ? "जमा हो रहा है…" : "Submitting…") : (language === "TE" ? "నమోదును సమర్పించండి" : language === "HI" ? "पंजीकरण जमा करें" : "Submit registration")} <ArrowRight size={17}/>
+              {authLoading ? tUi("Submitting…", language) : tUi("Submit registration", language)} <ArrowRight size={17}/>
             </Button>
           </form>
           <p className="form-note">
@@ -2484,15 +2512,15 @@ export default function Home() {
         </Pill>
         <h1>
           {registrationStatus === "REJECTED"
-            ? (language === "TE" ? "మీ నమోదును అధికారి తిరస్కరించారు." : language === "HI" ? "आपका पंजीकरण अस्वीकार कर दिया गया।" : "Your registration needs attention.")
+            ? tUi("Your registration needs attention.", language)
             : registrationStatus === "APPROVED"
-            ? (language === "TE" ? "మీ నమోదు అధికారిచే ఆమోదించబడింది!" : language === "HI" ? "आपका पंजीकरण अधिकारी द्वारा स्वीकृत कर दिया गया है!" : "Your registration has been approved!")
-            : (language === "TE" ? "మీ నమోదు అధికారి సమీక్షలో ఉంది." : language === "HI" ? "आपका पंजीकरण अधिकारी सत्यापन की प्रतीक्षा कर रहा है।" : "Your registration is under officer review.")}
+            ? tUi("Your registration has been approved!", language)
+            : tUi("Your registration is under officer review.", language)}
         </h1>
         <p>
           {registrationStatus === "APPROVED"
-            ? (language === "TE" ? "సేకరణ అధికారి మీ ప్రొఫైల్‌ను ధృవీకరించారు. మీరు ఇప్పుడు మీ డ్యాష్‌బోర్డ్‌కు లాగిన్ చేయవచ్చు." : language === "HI" ? "खरीद अधिकारी ने आपकी प्रोफ़ाइल सत्यापित कर दी है। अब आप अपने डैशबोर्ड में लॉगिन कर सकते हैं।" : "An officer has approved your profile. You can now login to your dashboard.")
-            : (language === "TE" ? "మీరు స్లాట్ బుక్ చేయడానికి ముందు సేకరణ అధికారి మీ రైతు ప్రొఫైల్‌ను సమీక్షించి ధృవీకరించాలి." : language === "HI" ? "स्लॉट बुक करने से पहले खरीद अधिकारी द्वारा आपकी किसान प्रोफ़ाइल की समीक्षा और सत्यापन आवश्यक है।" : "The procurement officer has received your registration notification and will verify your details before you can sign in.")}
+            ? tUi("An officer has approved your profile. You can now login to your dashboard.", language)
+            : tUi("The procurement officer has received your registration notification and will verify your details before you can sign in.", language)}
         </p>
         {pendingFarmer && (
           <article className="pending-record">
@@ -2510,10 +2538,10 @@ export default function Home() {
         )}
         <div className="pending-actions">
           <ActionButton onClick={() => { void loginFarmer(); }} icon={LogIn}>
-            {language === "TE" ? "లాగిన్ ప్రయత్నించండి" : language === "HI" ? "लॉगिन का प्रयास करें" : "Check approval & sign in"}
+            {tUi("Check approval & sign in", language)}
           </ActionButton>
           <ActionButton onClick={() => navigate("farmerLogin")} secondary icon={ArrowRight}>
-            {language === "TE" ? "రైతు లాగిన్ పేజీకి వెళ్లండి" : language === "HI" ? "किसान लॉगिन पर जाएँ" : "Return to farmer login"}
+            {tUi("Return to farmer login", language)}
           </ActionButton>
         </div>
 
@@ -3095,7 +3123,7 @@ export default function Home() {
       <SectionTitle
         eyebrow="BOOKING CONFIRMED"
         title={t.tokenTitle}
-        body={language === "TE" ? "ఈ స్క్రీన్‌ను సేవ్ చేసి కేంద్రంలో చూపండి." : language === "HI" ? "इस स्क्रीन को सेव करें और केंद्र पर दिखाएँ।" : "Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open."}
+        body={tUi("Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.", language)}
       />
       <div className="token-layout">
         <section className="token-card">
@@ -3134,7 +3162,7 @@ export default function Home() {
 
           {/* 30-Minute Cancellation Window */}
           {(() => {
-            const cStatus = getCancellationStatus(bookingRecord?.createdAt);
+            const cStatus = getCancellationStatus(bookingRecord?.slot?.date, bookingRecord?.slot?.startTime, bookingRecord?.createdAt);
             const isCancelled = bookingRecord?.status === "CANCELLED";
             if (isCancelled) {
               return (
@@ -3150,9 +3178,9 @@ export default function Home() {
                   <span className="flex items-center gap-1.5 text-xs">
                     <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-amber-600"} />
                     {cStatus.expired ? (
-                      <b className="text-slate-500">Cancellation window expired (30m passed)</b>
+                      <b className="text-slate-500">Cancellation closed (allowed only until 30 mins before scheduled time)</b>
                     ) : (
-                      <>Cancellation available for: <b className="text-amber-700 font-mono font-bold">{cStatus.text}</b></>
+                      <>Cancellation allowed until: <b className="text-amber-700 font-bold">{cStatus.deadlineFormatted} ({cStatus.text} left)</b></>
                     )}
                   </span>
                 </div>
@@ -3179,9 +3207,9 @@ export default function Home() {
     </>
   );
 
-  const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={language === "TE" ? "ఈ స్క్రీన్ తెరిచి ఉన్నంత వరకు క్యూ ప్రతి పదిహేను సెకన్లకు నవీకరించబడుతుంది." : language === "HI" ? "यह स्क्रीन खुली रहने पर आपकी कतार हर पंद्रह सेकंड में अपडेट होती है।" : "Your connected queue refreshes every fifteen seconds while this screen is open."} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
+  const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={tUi("Your connected queue refreshes every fifteen seconds while this screen is open.", language)} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
 
-  const status = farmerShell(<><SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={language === "TE" ? "మీ వరి బుకింగ్ నుండి చెల్లింపు నిర్ధారణ వరకు ప్రయాణాన్ని అనుసరించండి." : language === "HI" ? "अपनी धान बुकिंग से भुगतान पुष्टि तक की यात्रा देखें।" : "Follow the journey of your paddy from booked slot to payment confirmation."}/><div className="status-layout"><section className="timeline-card"><div className="timeline-head"><div><Pill kind="green">{bookingRecord?.bookingCode ?? "BK-2026-7294"}</Pill><h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2><p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p></div><button onClick={() => navigate("token")}><Ticket size={18}/> Token {bookingRecord?.tokenNumber ?? "P-042"}</button></div><div className="timeline">{[{ title: "Slot Booked", desc: bookingRecord ? `${bookingRecord.slot.date} · ${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM", state: "done", icon: CalendarDays }, { title: "Current Stage", desc: (bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " "), state: "current", icon: LoaderCircle }, { title: "Weighed quantity", desc: bookingRecord?.procurement?.weighedQuantityQuintals ? `${bookingRecord.procurement.weighedQuantityQuintals} quintals · ${bookingRecord.procurement.qualityGrade ?? "Grade pending"}` : "Weight slip updated by officer upon arrival", state: bookingRecord?.procurement?.weighedQuantityQuintals ? "done" : "upcoming", icon: Tractor }, { title: "Completed", desc: bookingRecord?.procurement?.status === "COMPLETED" ? "Procurement verified and recorded" : "Final procurement record pending", state: bookingRecord?.procurement?.status === "COMPLETED" ? "done" : "upcoming", icon: CheckCircle2 }, { title: "Payment", desc: "Complete your payment from the next screen", state: paymentDone ? "done" : "upcoming", icon: WalletCards }].map(({ title, desc, state, icon: Icon }) => <article className={`timeline-row ${state}`} key={title}><span><Icon size={18}/></span><div><h3>{title}</h3><p>{desc}</p></div><i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i></article>)}</div></section><aside className="status-aside"><img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/><div><Pill kind="yellow">QUALITY SIGNAL</Pill><h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3><p>The displayed signal is pulled from the live procurement record in the database.</p></div></aside></div><section className="status-summary"><div><span className="token-disc small"><ClipboardCheck/></span><p><b>{(bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " ")}</b><br/>The current stage is synchronized in real-time with officer actions.</p></div><div><span className="token-disc small blue"><WalletCards/></span><p><b>Payment follows completion</b><br/>Explore payment details anytime.</p></div><ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton></section></>);
+  const status = farmerShell(<><SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={tUi("Follow the journey of your paddy from booked slot to payment confirmation.", language)}/><div className="status-layout"><section className="timeline-card"><div className="timeline-head"><div><Pill kind="green">{bookingRecord?.bookingCode ?? "BK-2026-7294"}</Pill><h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2><p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p></div><button onClick={() => navigate("token")}><Ticket size={18}/> Token {bookingRecord?.tokenNumber ?? "P-042"}</button></div><div className="timeline">{[{ title: "Slot Booked", desc: bookingRecord ? `${bookingRecord.slot.date} · ${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM", state: "done", icon: CalendarDays }, { title: "Current Stage", desc: (bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " "), state: "current", icon: LoaderCircle }, { title: "Weighed quantity", desc: bookingRecord?.procurement?.weighedQuantityQuintals ? `${bookingRecord.procurement.weighedQuantityQuintals} quintals · ${bookingRecord.procurement.qualityGrade ?? "Grade pending"}` : "Weight slip updated by officer upon arrival", state: bookingRecord?.procurement?.weighedQuantityQuintals ? "done" : "upcoming", icon: Tractor }, { title: "Completed", desc: bookingRecord?.procurement?.status === "COMPLETED" ? "Procurement verified and recorded" : "Final procurement record pending", state: bookingRecord?.procurement?.status === "COMPLETED" ? "done" : "upcoming", icon: CheckCircle2 }, { title: "Payment", desc: "Complete your payment from the next screen", state: paymentDone ? "done" : "upcoming", icon: WalletCards }].map(({ title, desc, state, icon: Icon }) => <article className={`timeline-row ${state}`} key={title}><span><Icon size={18}/></span><div><h3>{title}</h3><p>{desc}</p></div><i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i></article>)}</div></section><aside className="status-aside"><img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/><div><Pill kind="yellow">QUALITY SIGNAL</Pill><h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3><p>The displayed signal is pulled from the live procurement record in the database.</p></div></aside></div><section className="status-summary"><div><span className="token-disc small"><ClipboardCheck/></span><p><b>{(bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " ")}</b><br/>The current stage is synchronized in real-time with officer actions.</p></div><div><span className="token-disc small blue"><WalletCards/></span><p><b>Payment follows completion</b><br/>Explore payment details anytime.</p></div><ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton></section></>);
 
   const payment = farmerShell(
     <>
@@ -3194,24 +3222,30 @@ export default function Home() {
       {(() => {
         const isPaymentCredited = paymentRecord?.status === "SUCCESS";
         const isPaymentProcessing = paymentRecord?.status === "PROCESSING" || paymentProcessing;
+        const isPaymentInitiated = paymentRecord?.status === "OFFICER_INITIATED";
         const isPaymentFailed = paymentRecord?.status === "FAILED";
         const isQcPassed = bookingRecord?.procurement?.status === "COMPLETED" || bookingRecord?.procurement?.status === "QUALITY_CHECK";
+
         const paymentStatusLabel = isPaymentCredited
-          ? "Credited"
+          ? "Payment Successful"
           : isPaymentProcessing
-          ? "Processing Payout"
+          ? "Payment Processing"
+          : isPaymentInitiated
+          ? "Payment Initiated by Officer"
           : isPaymentFailed
           ? "Payment Failed"
           : isQcPassed
-          ? "Ready for Payment"
-          : "Pending Officer Initiation";
+          ? "Pending Officer Initiation"
+          : "Pending Quality Inspection";
+
+        const pillKind = isPaymentCredited ? "green" : isPaymentProcessing ? "yellow" : isPaymentInitiated ? "blue" : isPaymentFailed ? "yellow" : "blue";
 
         return (
           <div className="payment-credit-highlight-card">
             <div className="credit-highlight-main">
               <div className="credit-badge-row">
                 <span className="payout-type-tag">Government DBT Payout</span>
-                <Pill kind={isPaymentCredited ? "green" : isPaymentProcessing ? "yellow" : isPaymentFailed ? "yellow" : "blue"}>
+                <Pill kind={pillKind}>
                   {isPaymentCredited ? <Check size={13} /> : <Clock3 size={13} />}
                   Payment Status: {paymentStatusLabel}
                 </Pill>
@@ -3224,7 +3258,11 @@ export default function Home() {
               </strong>
               <p className="credit-bank-note">
                 {isPaymentCredited ? (
-                  <>Credited to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Linked Bank A/C (DBT/Aadhaar Enabled)</>
+                  <>Credited to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Ref: <b className="font-mono">{paymentRecord?.transactionReference ?? ""}</b> · Direct DBT Bank Credit</>
+                ) : isPaymentInitiated ? (
+                  <>Initiated by Head Officer · Ref: <b className="font-mono">{paymentRecord?.transactionReference ?? ""}</b> · Direct Aadhaar DBT Payout Queued for Crediting</>
+                ) : isPaymentProcessing ? (
+                  <>Processing Direct Bank Transfer to: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b></>
                 ) : (
                   <>Payable to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Linked Bank A/C (Aadhaar DBT Enabled upon Officer Initiation)</>
                 )}
@@ -3238,7 +3276,7 @@ export default function Home() {
               </div>
               <div>
                 <small>SETTLEMENT STATUS</small>
-                <b className={isPaymentCredited ? "text-emerald-700" : isPaymentProcessing ? "text-amber-700" : isPaymentFailed ? "text-rose-700" : "text-blue-700"}>
+                <b className={isPaymentCredited ? "text-emerald-700" : isPaymentProcessing ? "text-amber-700" : isPaymentInitiated ? "text-blue-700" : isPaymentFailed ? "text-rose-700" : "text-slate-600"}>
                   {paymentStatusLabel} {isPaymentCredited && "(Bank Transfer)"}
                 </b>
               </div>
@@ -3248,7 +3286,7 @@ export default function Home() {
               </div>
               <div>
                 <small>SETTLEMENT DATE</small>
-                <b>{isPaymentCredited && paymentRecord?.completedAt ? new Date(paymentRecord.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : isPaymentCredited && paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Pending Officer Initiation"}</b>
+                <b>{isPaymentCredited && paymentRecord?.completedAt ? new Date(paymentRecord.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Pending Officer Initiation"}</b>
               </div>
             </div>
           </div>
@@ -3781,7 +3819,7 @@ export default function Home() {
 
           <div className="suggested-prompts">
             <span className="font-bold text-xs text-[#164330] block mb-1">
-              💡 {language === "TE" ? "త్వరిత ప్రశ్నలు ఎంచుకోండి" : language === "HI" ? "त्वरित सवाल चुनें" : "Select a quick question:"}
+              💡 {tUi("Select a quick question:", language)}
             </span>
             <div className="prompt-chips-grid">
               {(promptCategories[assistantCategory] ?? promptCategories.ALL).map(question => (
@@ -3816,8 +3854,8 @@ export default function Home() {
               onChange={event => setChatInput(event.target.value)}
               placeholder={
                 isListening
-                  ? (language === "TE" ? "వింటున్నాను... మాట్లాడండి" : language === "HI" ? "सुन रहा हूँ... बोलिए" : "Listening... speak now")
-                  : (language === "TE" ? "మీ ప్రశ్నను ఇక్కడ టైప్ చేయండి…" : language === "HI" ? "अपना सवाल यहाँ लिखें…" : "Type your question in English, Telugu, or Hindi…")
+                  ? tUi("Listening... speak now", language)
+                  : tUi("Type your question in English, Telugu, or Hindi…", language)
               }
             />
             <button type="submit" title="Send question">
@@ -4279,7 +4317,19 @@ export default function Home() {
             <span>{payment.bookingCode ?? "BK-2026"}<small>{payment.centre?.name ?? "Procurement Centre"}</small></span>
             <span>{payment.method ?? "UPI"} · ₹{(payment.amount ?? 0).toLocaleString("en-IN")}</span>
             <span>{payment.paymentId}<small>{payment.transactionReference ?? ""}</small></span>
-            <Pill kind={payment.status === "SUCCESS" ? "green" : payment.status === "FAILED" ? "yellow" : "blue"}>{payment.status}</Pill>
+            <div className="flex items-center gap-2">
+              <Pill kind={payment.status === "SUCCESS" ? "green" : payment.status === "OFFICER_INITIATED" ? "blue" : payment.status === "PROCESSING" ? "yellow" : payment.status === "FAILED" ? "yellow" : "blue"}>{payment.status}</Pill>
+              {payment.status !== "SUCCESS" && (
+                <button
+                  type="button"
+                  onClick={() => { void disburseFarmerPayout(payment.bookingId); }}
+                  disabled={payoutProcessingId === payment.bookingId}
+                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                >
+                  {payoutProcessingId === payment.bookingId ? "Disbursing…" : "Disburse DBT"}
+                </button>
+              )}
+            </div>
             <ChevronRight/>
           </article>
         )) : (
@@ -5001,17 +5051,29 @@ export default function Home() {
                         <span>Inspect Crop Quality</span>
                       </Button>
 
-                      {/* 3. Disburse DBT Payout (when ready) */}
-                      {b.procurement?.status === "QUALITY_CHECK" && (
-                        <Button
-                          size="sm"
-                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg shadow-xs transition-all"
-                          disabled={payoutProcessingId === b.id}
-                          onClick={() => { void disburseFarmerPayout(b.id); }}
-                        >
-                          <WalletCards size={14} />
-                          <span>{payoutProcessingId === b.id ? "Disbursing DBT…" : "Disburse DBT Payout"}</span>
-                        </Button>
+                      {/* 3. Initiate / Disburse DBT Payout (when ready) */}
+                      {(b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "COMPLETED") && !isPaid && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50 font-bold flex items-center gap-1 px-3 py-1.5 rounded-lg shadow-xs"
+                            disabled={payoutProcessingId === b.id}
+                            onClick={() => { void initiateFarmerPayment(b.id); }}
+                          >
+                            <Clock3 size={13} />
+                            <span>{payoutProcessingId === b.id ? "Initiating…" : "Initiate Payment"}</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-xs transition-all"
+                            disabled={payoutProcessingId === b.id}
+                            onClick={() => { void disburseFarmerPayout(b.id); }}
+                          >
+                            <WalletCards size={14} />
+                            <span>{payoutProcessingId === b.id ? "Disbursing…" : "Disburse DBT"}</span>
+                          </Button>
+                        </div>
                       )}
 
                       {isPaid && (
@@ -5655,12 +5717,12 @@ export default function Home() {
                 <div className="flex justify-between items-center pt-2 border-t">
                   <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
                   {(() => {
-                    const cStatus = getCancellationStatus(bookingRecord.createdAt);
+                    const cStatus = getCancellationStatus(bookingRecord.slot?.date, bookingRecord.slot?.startTime, bookingRecord.createdAt);
                     return (
                       <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
                         cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
                       }`}>
-                        {cStatus.canCancel ? `Within 30-min window (${cStatus.text} left)` : "Cancellation window expired"}
+                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window closed (30m before scheduled time)"}
                       </span>
                     );
                   })()}
@@ -5682,7 +5744,7 @@ export default function Home() {
                 {tUi("Keep Booking", language)}
               </Button>
               {(() => {
-                const cStatus = getCancellationStatus(bookingRecord.createdAt);
+                const cStatus = getCancellationStatus(bookingRecord.slot?.date, bookingRecord.slot?.startTime, bookingRecord.createdAt);
                 return (
                   <Button
                     variant="destructive"
@@ -5735,12 +5797,12 @@ export default function Home() {
                 <div className="flex justify-between items-center pt-2 border-t">
                   <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
                   {(() => {
-                    const cStatus = getCancellationStatus(targetCancelTransport.createdAt);
+                    const cStatus = getCancellationStatus(targetCancelTransport.scheduledDate, targetCancelTransport.timeSlot, targetCancelTransport.createdAt);
                     return (
                       <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
                         cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
                       }`}>
-                        {cStatus.canCancel ? `Within 30-min window (${cStatus.text} left)` : "Cancellation window expired"}
+                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window closed (30m before scheduled time)"}
                       </span>
                     );
                   })()}
@@ -5762,7 +5824,7 @@ export default function Home() {
                 {tUi("Keep Booking", language)}
               </Button>
               {(() => {
-                const cStatus = getCancellationStatus(targetCancelTransport.createdAt);
+                const cStatus = getCancellationStatus(targetCancelTransport.scheduledDate, targetCancelTransport.timeSlot, targetCancelTransport.createdAt);
                 return (
                   <Button
                     variant="destructive"
@@ -6598,7 +6660,7 @@ export default function Home() {
               </div>
             ) : (
               transportBookingsList.map(item => {
-                const cStatus = getCancellationStatus(item.createdAt);
+                const cStatus = getCancellationStatus(item.scheduledDate, item.timeSlot, item.createdAt);
                 const isCancelled = item.status === "CANCELLED";
                 const isOngoing = item.status === "IN_TRANSIT" || item.status === "DELIVERED_AT_CENTRE";
                 return (
@@ -6641,11 +6703,11 @@ export default function Home() {
                       ) : isOngoing ? (
                         <span className="text-slate-500 font-medium">Trip dispatched / completed</span>
                       ) : cStatus.expired ? (
-                        <span className="text-slate-400">Cancellation window expired (30m passed)</span>
+                        <span className="text-slate-400">Cancellation window closed (30m before scheduled time)</span>
                       ) : (
                         <>
                           <span className="text-amber-700 font-medium flex items-center gap-1">
-                            <Clock3 size={13} /> Can cancel for: <b className="font-mono">{cStatus.text}</b>
+                            <Clock3 size={13} /> Can cancel until: <b className="font-bold">{cStatus.deadlineFormatted} ({cStatus.text} left)</b>
                           </span>
                           <button
                             type="button"

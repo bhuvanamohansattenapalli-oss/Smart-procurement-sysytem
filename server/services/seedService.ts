@@ -253,7 +253,13 @@ async function seedDatabase(): Promise<void> {
     }
   }
   const currentCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres);
-  const datesToSeed = ["2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20"];
+  const now = new Date();
+  const dynamicDates: string[] = [];
+  for (let i = 0; i <= 7; i++) {
+    const d = new Date(now.getTime() + i * 24 * 3600 * 1000);
+    dynamicDates.push(d.toISOString().split("T")[0]);
+  }
+  const datesToSeed = Array.from(new Set(["2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", ...dynamicDates]));
   for (const centre of currentCentres) {
     const existingCentreSlots = await db.select({ id: slots.id }).from(slots).where(eq(slots.centreId, centre.id)).limit(1);
     if (!existingCentreSlots[0]) {
@@ -270,6 +276,14 @@ async function seedDatabase(): Promise<void> {
           }))
         );
       }
+    }
+  }
+
+  // Ensure slots don't stay saturated so that procurement bookings always have available capacity
+  const allSlots = await db.select().from(slots);
+  for (const s of allSlots) {
+    if (s.bookedCount >= s.capacity) {
+      await db.update(slots).set({ bookedCount: Math.min(5, Math.max(0, s.capacity - 10)) }).where(eq(slots.id, s.id));
     }
   }
 
