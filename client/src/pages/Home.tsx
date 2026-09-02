@@ -291,6 +291,39 @@ const logoUrl = "https://images.unsplash.com/photo-1574943320219-553eb213f72d?au
 const queueUrl = "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=1200&q=80";
 const statusUrl = "https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&w=1200&q=80";
 
+// Curated authentic agricultural photographs for all 18 MSP crops
+export const CROP_PHOTO_CATALOG: Record<string, string> = {
+  "Bajra (Pearl Millet)": "https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&w=800&q=80",
+  "Bengal Gram (Chickpea / Chana)": "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?auto=format&fit=crop&w=800&q=80",
+  "Black Gram (Urad)": "https://images.unsplash.com/photo-1585996746979-3079ff176162?auto=format&fit=crop&w=800&q=80",
+  "Cotton (Long Staple)": "https://images.unsplash.com/photo-1605000797499-95a51c5269ae?auto=format&fit=crop&w=800&q=80",
+  "Cotton (Medium Staple)": "https://images.unsplash.com/photo-1605000797499-95a51c5269ae?auto=format&fit=crop&w=800&q=80",
+  "Green Gram (Moong)": "https://images.unsplash.com/photo-1627485937980-221c88ac04f9?auto=format&fit=crop&w=800&q=80",
+  "Groundnut (In Shell)": "https://images.unsplash.com/photo-1567894340315-735d7c361db0?auto=format&fit=crop&w=800&q=80",
+  "Jowar (Sorghum)": "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=800&q=80",
+  "Maize (Makka)": "https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=800&q=80",
+  "Paddy (Common)": "https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?auto=format&fit=crop&w=800&q=80",
+  "Paddy (Grade A)": "https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?auto=format&fit=crop&w=800&q=80",
+  "Paddy (Parboiled)": "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80",
+  "Ragi (Finger Millet)": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80",
+  "Red Gram (Tur / Arhar)": "https://images.unsplash.com/photo-1585996746979-3079ff176162?auto=format&fit=crop&w=800&q=80",
+  "Soybean (Yellow)": "https://images.unsplash.com/photo-1599940824399-b87987ceb72a?auto=format&fit=crop&w=800&q=80",
+  "Sugarcane": "https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80",
+  "Sunflower": "https://images.unsplash.com/photo-1597848212624-a19eb35e2651?auto=format&fit=crop&w=800&q=80",
+  "Wheat (Gehun)": "https://images.unsplash.com/photo-1501430654243-c934cec2e1c0?auto=format&fit=crop&w=800&q=80",
+};
+
+export function getCropImageUrl(cropName: string): string {
+  if (!cropName) return "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=800&q=80";
+  if (CROP_PHOTO_CATALOG[cropName]) return CROP_PHOTO_CATALOG[cropName];
+  for (const [key, url] of Object.entries(CROP_PHOTO_CATALOG)) {
+    if (cropName.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cropName.toLowerCase())) {
+      return url;
+    }
+  }
+  return "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=800&q=80";
+}
+
 const centres: Centre[] = [
   { id: 1, name: "Guntur Agricultural Market Yard", place: "Collectorate Road, Guntur", distance: "2.4 km", queue: 18, wait: "30 min", slots: 10, status: "Open", position: "left-[48%] top-[42%]", latitude: 16.2970, longitude: 80.4350 },
   { id: 2, name: "Vijayawada Central Paddy Hub", place: "Gollapudi Market Yard", distance: "4.8 km", queue: 8, wait: "15 min", slots: 14, status: "Open", position: "left-[52%] top-[38%]", latitude: 16.5417, longitude: 80.5847 },
@@ -300,7 +333,20 @@ const centres: Centre[] = [
   { id: 6, name: "Nellore Coastal Paddy Mandi", place: "Podalakur Road", distance: "13.8 km", queue: 15, wait: "30 min", slots: 7, status: "Open", position: "left-[45%] top-[78%]", latitude: 14.4426, longitude: 79.9865 },
   { id: 7, name: "Tirupati Rayalaseema Grain Yard", place: "Renigunta Road", distance: "15.2 km", queue: 32, wait: "55 min", slots: 3, status: "Busy", position: "left-[40%] top-[88%]", latitude: 13.6288, longitude: 79.4192 },
   { id: 8, name: "Visakhapatnam Anandapuram Yard", place: "Anandapuram Junction", distance: "18.5 km", queue: 9, wait: "20 min", slots: 12, status: "Open", position: "left-[80%] top-[12%]", latitude: 17.8864, longitude: 83.3980 },
-];
+].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+
+export function getCentreBranchCode(centre?: { name?: string; place?: string; district?: string } | null): string {
+  const text = `${centre?.name || ""} ${centre?.place || ""} ${centre?.district || ""}`.toLowerCase();
+  if (text.includes("guntur")) return "GNT";
+  if (text.includes("vijayawada")) return "VJA";
+  if (text.includes("kurnool")) return "KNL";
+  if (text.includes("rajahmundry") || text.includes("godavari")) return "RJY";
+  if (text.includes("visakhapatnam") || text.includes("anandapuram") || text.includes("vizag")) return "VSKP";
+  if (text.includes("eluru")) return "ELR";
+  if (text.includes("nellore")) return "NLR";
+  if (text.includes("tirupati")) return "TPTY";
+  return "GNT";
+}
 
 const navItems: { screen: Screen; label: string; icon: typeof Sprout }[] = [
   { screen: "dashboard", label: "Overview", icon: Sprout },
@@ -1130,8 +1176,13 @@ export default function Home() {
   const [assistantCategory, setAssistantCategory] = useState<string>("ALL");
   const [isListening, setIsListening] = useState<boolean>(false);
   const [speakingText, setSpeakingText] = useState<string | null>(null);
+  const [isChatbotOpen, setIsChatbotOpen] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [liveInterimTranscript, setLiveInterimTranscript] = useState<string>("");
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const activeRecognitionRef = useRef<any>(null);
   const chatFeedRef = useRef<HTMLDivElement>(null);
+  const floatingChatFeedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (chatFeedRef.current) {
@@ -1141,6 +1192,15 @@ export default function Home() {
       });
     }
   }, [chat]);
+
+  useEffect(() => {
+    if (floatingChatFeedRef.current) {
+      floatingChatFeedRef.current.scrollTo({
+        top: floatingChatFeedRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  }, [chat, liveInterimTranscript, isChatbotOpen]);
 
   const [officerBookings, setOfficerBookings] = useState<ApiBooking[]>([]);
   const [selectedOfficerBooking, setSelectedOfficerBooking] = useState<ApiBooking | null>(null);
@@ -2507,7 +2567,9 @@ export default function Home() {
     if (!prompt) return;
     setChat(items => [...items, { role: "user", text: prompt }]);
     setChatInput("");
+    setLiveInterimTranscript("");
 
+    let reply = "";
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (farmerToken) headers["Authorization"] = `Bearer ${farmerToken}`;
@@ -2525,32 +2587,52 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         if (data.response) {
-          setChat(items => [...items, { role: "assistant", text: data.response }]);
-          return;
+          reply = data.response;
         }
       }
     } catch {}
 
-    // Instant local intelligent AI fallback
-    const reply = getClientAiReply(prompt, language);
+    if (!reply) {
+      reply = getClientAiReply(prompt, language);
+    }
     setChat(items => [...items, { role: "assistant", text: reply }]);
+    if (!isMuted) {
+      speak(reply);
+    }
   };
-  const listen = () => {
-    if (isListening && activeRecognitionRef.current) {
+
+  const stopListening = () => {
+    if (activeRecognitionRef.current) {
       try {
-        activeRecognitionRef.current.stop();
+        if (typeof activeRecognitionRef.current.abort === "function") {
+          activeRecognitionRef.current.abort();
+        } else {
+          activeRecognitionRef.current.stop();
+        }
       } catch {}
-      setIsListening(false);
       activeRecognitionRef.current = null;
+    }
+    setIsListening(false);
+    setLiveInterimTranscript("");
+  };
+
+  const listen = () => {
+    if (isListening) {
+      stopListening();
       return;
     }
+
+    stopListening();
+    setSpeechError(null);
 
     const SpeechRecognition =
       (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
       (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      toast.message(tUi("Voice input is not available in this browser. Please type your question instead.", language));
+      const msg = tUi("Voice input is not available in this browser. Please type your question instead.", language);
+      setSpeechError(msg);
+      toast.message(msg);
       return;
     }
 
@@ -2560,31 +2642,48 @@ export default function Home() {
       recognition.lang = language === "TE" ? "te-IN" : language === "HI" ? "hi-IN" : "en-IN";
       recognition.interimResults = true;
       recognition.continuous = false;
+      recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         setIsListening(true);
+        setSpeechError(null);
+        setLiveInterimTranscript("");
       };
 
       recognition.onresult = (event: any) => {
-        let liveTranscript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          liveTranscript += event.results[i][0].transcript;
+        let interim = "";
+        let final = "";
+        for (let i = 0; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
         }
-        if (liveTranscript) {
-          setChatInput(liveTranscript);
+        const recognized = final || interim;
+        if (recognized) {
+          setChatInput(recognized);
+          setLiveInterimTranscript(interim);
         }
       };
 
       recognition.onerror = (e: any) => {
         setIsListening(false);
         activeRecognitionRef.current = null;
-        if (e && e.error !== "no-speech" && e.error !== "aborted") {
-          toast.error(tUi("We could not hear that. Please try again or type your question.", language));
+        setLiveInterimTranscript("");
+        if (e?.error === "not-allowed") {
+          const err = tUi("Microphone access was denied. Please allow microphone permissions.", language);
+          setSpeechError(err);
+          toast.error("Microphone permission denied.");
+        } else if (e?.error && e.error !== "no-speech" && e.error !== "aborted") {
+          const err = tUi("Could not hear speech clearly. Please try again or type your question.", language);
+          setSpeechError(err);
         }
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        setLiveInterimTranscript("");
         activeRecognitionRef.current = null;
       };
 
@@ -2592,18 +2691,26 @@ export default function Home() {
     } catch {
       setIsListening(false);
       activeRecognitionRef.current = null;
+      setSpeechError(tUi("Could not start speech recognition.", language));
     }
   };
+
   const speak = (text: string) => {
-    if (!("speechSynthesis" in window)) { toast.message("Voice response is not available in this browser. You can read the answer on screen."); return; }
+    if (isMuted) return;
+    if (!("speechSynthesis" in window)) {
+      toast.message("Voice response is not available in this browser. You can read the answer on screen.");
+      return;
+    }
     window.speechSynthesis.cancel();
+    setSpeakingText(text);
     const targetLocale = language === "TE" ? "te-IN" : language === "HI" ? "hi-IN" : "en-IN";
     const voices = window.speechSynthesis.getVoices();
     const voice = voices.find(candidate => candidate.lang.toLowerCase().startsWith(targetLocale.slice(0, 2)));
-    if (voices.length && !voice) { toast.message(`A ${language === "TE" ? "Telugu" : language === "HI" ? "Hindi" : "English"} voice is not available here. You can read the answer on screen.`); return; }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = targetLocale;
     if (voice) utterance.voice = voice;
+    utterance.onend = () => setSpeakingText(null);
+    utterance.onerror = () => setSpeakingText(null);
     window.speechSynthesis.speak(utterance);
   };
 
@@ -3426,95 +3533,288 @@ export default function Home() {
   );
 
   const token = farmerShell(
-    <>
-      <SectionTitle
-        eyebrow="BOOKING CONFIRMED"
-        title={t.tokenTitle}
-        body={tUi("Save this screen or show it at the procurement centre. The connected queue status refreshes while this screen is open.", language)}
-      />
-      <div className="token-layout">
-        <section className="token-card">
-          <div className="token-card-head"><AppLogo inverse/><span>PROCUREMENT TOKEN</span></div>
-          <div className="token-number">
-            <small>YOUR TOKEN NUMBER</small>
-            <strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong>
-            <span>{bookingRecord?.slot.date ?? "Wednesday, 18 March"} · {bookingRecord ? `${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : selectedSlot}</span>
-          </div>
-          <div className="token-card-details">
-            <div><small>CENTRE</small><b>{bookingRecord?.centre.name ?? selectedCentre.name}</b></div>
-            <div><small>BOOKING ID</small><b>{bookingRecord?.bookingCode ?? "BK-2026-7294"}</b></div>
-            <div><small>FARMER</small><b>{bookingRecord?.farmer.name ?? "Ramesh Kumar"}</b></div>
-            <div><small>PADDY / CROP</small><b>{bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}</b></div>
-          </div>
-          <div className="token-qr" style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <QRCodeSvg value={`PROCUREFLOW:${bookingRecord?.tokenNumber ?? "P-042"}|BOOKING:${bookingRecord?.bookingCode ?? "BK-2026-7294"}|FARMER:${profileRecord?.farmerCode ?? "FMR-2026-11842"}|CENTRE:${bookingRecord?.centre?.name ?? selectedCentre.name}`} size={120} />
-            <p>Verified QR pass<br/><b>Scan at verification gate</b></p>
-          </div>
-          <div className="ticket-corner"/>
-        </section>
+    (() => {
+      const stageDetails = getProcurementStageDetails(bookingRecord, paymentDone);
+      const cStatus = getCancellationStatus(bookingRecord?.slot?.date, bookingRecord?.slot?.startTime, bookingRecord?.createdAt);
+      const isCancelled = bookingRecord?.status === "CANCELLED";
+      const rawToken = bookingRecord?.tokenNumber ?? "TK-GNT-0001";
+      const branchCode = getCentreBranchCode(bookingRecord?.centre ?? selectedCentre);
+      const displayToken = rawToken.startsWith("TK-")
+        ? rawToken
+        : rawToken.startsWith("Token ")
+        ? `TK-${branchCode}-${rawToken.replace("Token ", "").padStart(4, "0")}`
+        : rawToken.startsWith("P-")
+        ? `TK-${branchCode}-${rawToken.replace("P-", "").padStart(4, "0")}`
+        : `TK-${branchCode}-${rawToken}`;
 
-        <aside className="token-status-card">
-          <Pill kind="yellow"><span className="pulse-dot"/> LIVE ESTIMATE</Pill>
-          <h2>{bookingRecord?.queue?.peopleAhead ?? queueAhead} farmers ahead</h2>
-          <p>Your connected booking has an estimated <b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} minute</b> wait.</p>
-          <div className="token-progress">
-            <span><b>Now</b><small>{bookingRecord?.queue?.currentToken ?? "P-024"}</small></span>
-            <Progress value={queueProgress}/>
-            <span><b>You</b><small>{bookingRecord?.tokenNumber ?? "P-042"}</small></span>
-          </div>
-          <ActionButton onClick={() => navigate("queue")} icon={ArrowRight}>Open live queue</ActionButton>
-          <button onClick={() => { const copy = `ProcureFlow token ${bookingRecord?.tokenNumber ?? "P-042"}, ${bookingRecord?.bookingCode ?? "BK-2026-7294"}`; navigator.clipboard?.writeText(copy); toast.success("Token details copied."); }}>
-            Copy token details
-          </button>
+      return (
+        <>
+          <SectionTitle
+            eyebrow="OFFICIAL MANDI PROCUREMENT PASS"
+            title={t.tokenTitle}
+            body={tUi("Official verified digital token pass. Present this pass or QR code at the procurement centre entry gate.", language)}
+          />
 
-          {/* 30-Minute Cancellation Window */}
-          {(() => {
-            const cStatus = getCancellationStatus(bookingRecord?.slot?.date, bookingRecord?.slot?.startTime, bookingRecord?.createdAt);
-            const isCancelled = bookingRecord?.status === "CANCELLED";
-            if (isCancelled) {
-              return (
-                <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
-                  <span className="font-bold flex items-center gap-1.5"><AlertTriangle size={15} /> Booking Cancelled</span>
-                  <button onClick={() => navigate("paddy")} className="text-xs text-emerald-800 underline font-bold">Book New Slot</button>
-                </div>
-              );
-            }
-            return (
-              <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 flex flex-col gap-2">
-                <div className="flex flex-col gap-1">
-                  <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
-                    <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-emerald-700"} />
-                    {tUi("Cancellation available for 30 minutes after booking", language)}
-                  </span>
-                  <span className="text-[11px] text-slate-600 pl-5">
-                    {cStatus.expired ? (
-                      <b className="text-slate-500">Cancellation window expired (deadline was {cStatus.deadlineFormatted})</b>
+          <div className="max-w-4xl mx-auto space-y-6 pb-12">
+            {/* Digital Token Pass Card */}
+            <div className="digital-token-pass">
+              {/* Pass Top Header */}
+              <div className="token-pass-header">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white">
+                      <Ticket size={22} />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200">
+                        GOVERNMENT MSP PROCUREMENT PASS
+                      </div>
+                      <h2 className="text-lg font-bold text-white m-0">ProcureFlow Digital Token Pass</h2>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isCancelled ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-rose-500/20 text-rose-200 border border-rose-400/40">
+                        <AlertTriangle size={13} /> CANCELLED
+                      </span>
                     ) : (
-                      <>Time remaining: <b className="text-amber-700 font-bold">{cStatus.text}</b> (until {cStatus.deadlineFormatted})</>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-400/20 text-emerald-200 border border-emerald-400/40">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> ACTIVE PASS
+                      </span>
                     )}
-                  </span>
+                  </div>
                 </div>
-                {!cStatus.expired && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setShowCancelBookingModal(true)}
-                    className="w-full text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white h-8 rounded-lg mt-1"
-                  >
-                    Cancel Booking
-                  </Button>
-                )}
+
+                {/* Prominent Token Display */}
+                <div className="bg-black/20 backdrop-blur-xs rounded-2xl p-5 border border-white/10 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-300 block mb-1">
+                      TOKEN PASS NUMBER
+                    </span>
+                    <div className="token-serial-display">
+                      {displayToken}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80 block">
+                      SCHEDULED APPOINTMENT
+                    </span>
+                    <span className="text-sm font-bold text-white block mt-0.5">
+                      {bookingRecord?.slot?.date ?? "Wednesday, 18 March 2026"}
+                    </span>
+                    <span className="text-xs text-emerald-200 font-medium">
+                      {bookingRecord?.slot ? `${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : selectedSlot}
+                    </span>
+                  </div>
+                </div>
               </div>
-            );
-          })()}
-        </aside>
-      </div>
-      <section className="token-next">
-        <div><span><CheckCircle2/></span><p><b>Booking saved</b> Your token was generated by the API.</p></div>
-        <div><span><Bell/></span><p><b>Notifications on</b> Real-time updates appear in your notification feed.</p></div>
-        <div><span><MapPin/></span><p><b>Arrive 10 minutes early</b> Keep your entry smooth.</p></div>
-      </section>
-    </>
+
+              {/* Ticket Notch & Perforated Divider */}
+              <div className="ticket-notch-divider">
+                <div className="ticket-perforated-line" />
+              </div>
+
+              {/* Pass Main Body */}
+              <div className="p-6 sm:p-8 space-y-6 bg-white">
+                {/* 5-Step Horizontal Lifecycle Progress */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#14532d]">
+                      PROCUREMENT PROGRESS & LIFECYCLE
+                    </span>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      {stageDetails.currentStageLabel}
+                    </span>
+                  </div>
+
+                  <div className="lifecycle-track">
+                    {stageDetails.timeline.map((step, sIdx) => {
+                      const statusClass = step.state === "done" ? "completed" : step.state === "current" ? "active" : "upcoming";
+                      return (
+                        <div key={step.title} className={`lifecycle-step ${statusClass}`}>
+                          <div className="lifecycle-step-dot">
+                            {step.state === "done" ? <Check size={14} /> : sIdx + 1}
+                          </div>
+                          <span className="lifecycle-step-label">{step.title}</span>
+                          <span className="text-[10px] text-slate-400 hidden sm:block">{step.desc}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Core Verification Details Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">PROCUREMENT CENTRE</span>
+                    <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5 leading-snug">
+                      {bookingRecord?.centre?.name ?? selectedCentre.name}
+                    </strong>
+                    <span className="text-xs text-slate-500">{bookingRecord?.centre?.place ?? selectedCentre.place}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">FARMER DETAILS</span>
+                    <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
+                      {bookingRecord?.farmer?.name ?? profileRecord?.name ?? "Ramesh Kumar"}
+                    </strong>
+                    <span className="text-xs text-slate-500">
+                      ID: {profileRecord?.farmerCode ?? "FMR-2026-11842"} · Aadhaar: {profileRecord?.aadhaarMasked ?? "XXXX XXXX 1234"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">CROP & VARIETY</span>
+                    <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
+                      {bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}
+                    </strong>
+                    <span className="text-xs text-slate-500">
+                      {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} Quintals
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LIVE QUEUE STATUS</span>
+                    <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
+                      Position #{bookingRecord?.queue?.position ?? 1}
+                    </strong>
+                    <span className="text-xs text-amber-700 font-bold">
+                      {bookingRecord?.queue?.peopleAhead ?? 0} farmers ahead · ~{bookingRecord?.queue?.estimatedWaitMinutes ?? 0}m wait
+                    </span>
+                  </div>
+                </div>
+
+                {/* QR Code & Entry Gate Verification */}
+                <div className="flex flex-col sm:flex-row items-center gap-6 p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+                  <div className="p-3 bg-white rounded-xl shadow-xs border border-emerald-100 flex-shrink-0">
+                    <QRCodeSvg
+                      value={`PROCUREFLOW:${displayToken}|BOOKING:${bookingRecord?.bookingCode ?? "BK-2026-7294"}|FARMER:${profileRecord?.farmerCode ?? "FMR-2026-11842"}|CENTRE:${bookingRecord?.centre?.name ?? selectedCentre.name}`}
+                      size={120}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 text-center sm:text-left flex-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-200/80 text-emerald-900">
+                      <ShieldCheck size={14} /> Official Verified Gate Pass
+                    </div>
+                    <h3 className="text-base font-extrabold text-[#153e2a] m-0">Scan at Entry Gate & Weighbridge</h3>
+                    <p className="text-xs text-slate-600 m-0 leading-relaxed">
+                      Present this digital QR code to the procurement officer upon mandi arrival. Keep your original Aadhaar card and bank passbook handy for instant biometric confirmation.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Mandi Gate Check-in Guidelines */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Clock3 size={15} />
+                    </div>
+                    <div>
+                      <b className="text-xs text-[#153e2a] block">Arrive 10 Mins Early</b>
+                      <span className="text-[11px] text-slate-500">Report prior to slot window for orderly gate entry.</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Scale size={15} />
+                    </div>
+                    <div>
+                      <b className="text-xs text-[#153e2a] block">Moisture Standard</b>
+                      <span className="text-[11px] text-slate-500">Moisture must be tested below 17% for 100% MSP payout.</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Coins size={15} />
+                    </div>
+                    <div>
+                      <b className="text-xs text-[#153e2a] block">Direct Bank DBT</b>
+                      <span className="text-[11px] text-slate-500">Disbursed directly to Aadhaar-linked bank within 24-48h.</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions & 30-Minute Cancellation Window */}
+                <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate("queue")}
+                      className="border-emerald-600 text-emerald-800 font-bold hover:bg-emerald-50 h-9"
+                    >
+                      <UsersRound size={15} className="mr-1.5" /> Open Live Queue
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const copy = `ProcureFlow Token: ${displayToken}, Booking ID: ${bookingRecord?.bookingCode ?? "BK-2026-7294"}, Centre: ${bookingRecord?.centre?.name ?? selectedCentre.name}, Slot: ${bookingRecord?.slot?.date ?? ""} (${bookingRecord?.slot?.startTime ?? ""})`;
+                        navigator.clipboard?.writeText(copy);
+                        toast.success("Token details copied to clipboard.");
+                      }}
+                      className="h-9"
+                    >
+                      <Copy size={14} className="mr-1.5" /> Copy Details
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.print()}
+                      className="h-9"
+                    >
+                      <Download size={14} className="mr-1.5" /> Download Pass
+                    </Button>
+                  </div>
+
+                  {/* 30-Minute Cancellation Box */}
+                  <div>
+                    {isCancelled ? (
+                      <div className="px-3.5 py-1.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                        <AlertTriangle size={14} />
+                        <span className="font-bold">Booking Cancelled</span>
+                        <button onClick={() => navigate("paddy")} className="text-emerald-800 underline font-extrabold ml-1">
+                          Book New Slot
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        {!cStatus.expired ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-500">
+                              Cancel window: <b className="text-amber-700 font-bold">{cStatus.text}</b>
+                            </span>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setShowCancelBookingModal(true)}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-9 px-3"
+                            >
+                              Cancel Booking
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            Cancellation closed (exceeded 30-min window)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    })()
   );
 
   const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={tUi("Your connected queue refreshes every fifteen seconds while this screen is open.", language)} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
@@ -6455,40 +6755,56 @@ export default function Home() {
         <div>
           <div className="crop-card-grid">
             {filteredCropPrices.map(item => (
-              <div className="crop-rate-card" key={item.id}>
+              <div className="crop-rate-card overflow-hidden flex flex-col justify-between" key={item.id}>
                 <div>
-                  <div className="crop-card-head">
-                    <div>
-                      <h3>{item.cropName}</h3>
-                      <p>{item.variety}</p>
-                    </div>
-                    <Pill kind={item.category === "Cereals" ? "green" : item.category === "Pulses" ? "yellow" : "blue"}>
-                      {item.category}
-                    </Pill>
-                  </div>
-
-                  <div className="crop-pricing-rows">
-                    <div>
-                      <span className="text-muted-foreground">Declared MSP</span>
-                      <strong className="text-foreground">₹{item.mspPerQuintal.toLocaleString("en-IN")} / qtl</strong>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Mandi Open Market Rate</span>
-                      <span className="text-slate-500">₹{item.marketRatePerQuintal.toLocaleString("en-IN")} / qtl</span>
-                    </div>
-                    <div>
-                      <span className="text-emerald-700 font-semibold">Govt Bonus</span>
-                      <strong className="text-emerald-700 font-bold">+₹{item.govtBonusPerQuintal} / qtl</strong>
+                  <div className="crop-card-image-wrap">
+                    <img
+                      src={getCropImageUrl(item.cropName)}
+                      alt={item.cropName}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={e => {
+                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=800&q=80";
+                      }}
+                    />
+                    <div className="absolute top-2.5 right-2.5">
+                      <Pill kind={item.category === "Cereals" ? "green" : item.category === "Pulses" ? "yellow" : "blue"}>
+                        {item.category}
+                      </Pill>
                     </div>
                   </div>
 
-                  <div className="effective-rate-pill">
-                    <span className="text-xs font-bold text-emerald-800">Effective Rate</span>
-                    <strong>₹{item.effectiveRatePerQuintal.toLocaleString("en-IN")} <small className="text-xs font-normal">/ qtl</small></strong>
+                  <div className="p-4">
+                    <div className="crop-card-head mb-3">
+                      <div>
+                        <h3 className="text-base font-extrabold text-[#153e2a] m-0">{item.cropName}</h3>
+                        <p className="text-xs text-muted-foreground m-0 mt-0.5">{item.variety}</p>
+                      </div>
+                    </div>
+
+                    <div className="crop-pricing-rows">
+                      <div>
+                        <span className="text-muted-foreground">Declared MSP</span>
+                        <strong className="text-foreground">₹{item.mspPerQuintal.toLocaleString("en-IN")} / qtl</strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Mandi Open Market Rate</span>
+                        <span className="text-slate-500">₹{item.marketRatePerQuintal.toLocaleString("en-IN")} / qtl</span>
+                      </div>
+                      <div>
+                        <span className="text-emerald-700 font-semibold">Govt Bonus</span>
+                        <strong className="text-emerald-700 font-bold">+₹{item.govtBonusPerQuintal} / qtl</strong>
+                      </div>
+                    </div>
+
+                    <div className="effective-rate-pill mt-3">
+                      <span className="text-xs font-bold text-emerald-800">Effective Rate</span>
+                      <strong>₹{item.effectiveRatePerQuintal.toLocaleString("en-IN")} <small className="text-xs font-normal">/ qtl</small></strong>
+                    </div>
                   </div>
                 </div>
 
-                <div className="crop-card-footer">
+                <div className="crop-card-footer px-4 pb-4 pt-2">
                   <span>Max Moisture: <b>{item.maxMoisturePercent}%</b></span>
                   <button
                     className="text-emerald-700 font-extrabold hover:underline"
@@ -7740,6 +8056,282 @@ export default function Home() {
   return (
     <>
       {renderCurrentScreen()}
+
+      {/* Floating ProcureFlow AI Chatbot (available across farmer views) */}
+      {!screen.startsWith("officer") && screen !== "registrations" && screen !== "approved" && screen !== "bookings" && screen !== "quality" && screen !== "farmerDetail" && screen !== "staffManagement" && (
+        <>
+          {/* Floating Trigger Button */}
+          {!isChatbotOpen && (
+            <button
+              type="button"
+              onClick={() => setIsChatbotOpen(true)}
+              className="procureflow-floating-trigger"
+              aria-label="Open ProcureFlow AI Assistant"
+            >
+              <div className="relative flex items-center justify-center">
+                <Bot size={20} />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-emerald-900 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-emerald-900 rounded-full" />
+              </div>
+              <span>ProcureFlow AI</span>
+            </button>
+          )}
+
+          {/* Floating Chatbot Panel */}
+          {isChatbotOpen && (
+            <div className="procureflow-floating-panel">
+              {/* Header */}
+              <div className="floating-bot-header">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-800/80 border border-emerald-500/30 flex items-center justify-center text-white shadow-xs">
+                    <Bot size={18} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-sm tracking-tight text-white">ProcureFlow AI</span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Online
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-emerald-100/80 m-0 font-medium">Official Agri Assistant</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {/* Language Selector Dropdown */}
+                  <select
+                    value={language}
+                    onChange={(e) => changeLanguage(e.target.value as any)}
+                    className="bg-emerald-800/90 hover:bg-emerald-700/90 text-white text-xs font-bold px-2 py-1 rounded-md border border-emerald-600/40 focus:outline-none cursor-pointer"
+                    title="Change Assistant Language"
+                  >
+                    <option value="EN" className="bg-slate-900 text-white">English (EN)</option>
+                    <option value="TE" className="bg-slate-900 text-white">తెలుగు (TE)</option>
+                    <option value="HI" className="bg-slate-900 text-white">हिन्दी (HI)</option>
+                  </select>
+
+                  {/* Speaker TTS Audio Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMuted(!isMuted);
+                      if (!isMuted && window.speechSynthesis) window.speechSynthesis.cancel();
+                      toast.message(isMuted ? "Voice speech response enabled." : "Voice speech response muted.");
+                    }}
+                    className="w-7 h-7 rounded-md bg-emerald-800/90 hover:bg-emerald-700/90 text-emerald-100 flex items-center justify-center border border-emerald-600/30"
+                    title={isMuted ? "Unmute voice response" : "Mute voice response"}
+                  >
+                    {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                  </button>
+
+                  {/* Close Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopListening();
+                      setIsChatbotOpen(false);
+                    }}
+                    className="w-7 h-7 rounded-md bg-emerald-800/90 hover:bg-emerald-700/90 text-emerald-100 flex items-center justify-center border border-emerald-600/30 ml-0.5"
+                    title="Close Assistant"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Chat Messages Stream */}
+              <div ref={floatingChatFeedRef} className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50">
+                {/* Assistant Welcome Message */}
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                    <Bot size={15} />
+                  </div>
+                  <div className="max-w-[85%] bg-white border border-emerald-100/80 rounded-2xl rounded-tl-none p-3.5 shadow-xs text-slate-800 text-xs leading-relaxed">
+                    <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-100">
+                      <span className="font-extrabold text-[11px] text-emerald-800">ProcureFlow AI</span>
+                      <button
+                        type="button"
+                        onClick={() => speak(
+                          language === "TE"
+                            ? "నమస్కారం! నేను ProcureFlow AI అసిస్టెంట్‌ని. మీ లైవ్ టోకెన్, క్యూ పొజిషన్, MSP ధరలు, లేదా DBT చెల్లింపులపై ఏదైనా సందేహం ఉంటే అడగండి."
+                            : language === "HI"
+                            ? "नमस्ते! मैं ProcureFlow AI सहायक हूँ। अपने टोकन नंबर, मंडी कतार, MSP दरों, या DBT भुगतान से संबंधित कोई भी प्रश्न पूछें।"
+                            : "Namaste! I am your ProcureFlow AI Assistant. Ask me anything regarding your live procurement token, queue position, crop MSP rates, nearest mandi centres, or DBT payment status."
+                        )}
+                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+                      >
+                        <Volume2 size={12} /> {tUi("Listen", language)}
+                      </button>
+                    </div>
+                    <p className="m-0 text-slate-700">
+                      {language === "TE"
+                        ? "నమస్కారం! నేను ProcureFlow AI అసిస్టెంట్‌ని. మీ లైవ్ టోకెన్, క్యూ పొజిషన్, MSP ధరలు, ధాన్యం సేకరణ కేంద్రాలు లేదా DBT చెల్లింపులపై ఏదైనా సందేహం ఉంటే అడగండి."
+                        : language === "HI"
+                        ? "नमस्ते! मैं ProcureFlow AI सहायक हूँ। अपने टोकन नंबर, मंडी कतार, धान न्यूनतम समर्थन मूल्य (MSP), खरीद केंद्र या DBT भुगतान से संबंधित कोई भी प्रश्न पूछें।"
+                        : "Namaste! I am your ProcureFlow AI Assistant. Ask me anything regarding your live procurement token, queue position, crop MSP rates, nearest mandi centres, or DBT payment status."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4 Quick Voice Prompt Cards with Icons */}
+                <div className="pt-1">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 px-1">
+                    💡 {tUi("Quick Questions", language)}
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { icon: Ticket, text: "What is my token number?", desc: tUi("Token & live queue position", language) },
+                      { icon: Wheat, text: "Check Paddy MSP Price", desc: tUi("Official MSP & bonus rates", language) },
+                      { icon: MapPin, text: "Find nearest centre", desc: tUi("AP Mandi locations & timings", language) },
+                      { icon: WalletCards, text: "Check payment status", desc: tUi("Direct DBT bank settlement", language) },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.text}
+                          type="button"
+                          onClick={() => void assistantReply(item.text)}
+                          className="p-2.5 bg-white hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 rounded-xl text-left transition-all group flex flex-col justify-between shadow-2xs"
+                        >
+                          <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs mb-1">
+                            <Icon size={14} className="group-hover:scale-110 transition-transform flex-shrink-0" />
+                            <span className="line-clamp-1">{item.text}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Live Conversation Stream */}
+                {chat.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {msg.role === "assistant" && (
+                      <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                        <Bot size={15} />
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[85%] text-xs leading-relaxed p-3.5 rounded-2xl shadow-xs ${
+                        msg.role === "user"
+                          ? "bg-emerald-700 text-white rounded-tr-none font-medium"
+                          : "bg-white border border-emerald-100/80 text-slate-800 rounded-tl-none"
+                      }`}
+                    >
+                      {msg.role === "assistant" && (
+                        <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-100">
+                          <span className="font-extrabold text-[11px] text-emerald-800">ProcureFlow AI</span>
+                          <button
+                            type="button"
+                            onClick={() => speak(msg.text)}
+                            className={`text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 ${
+                              speakingText === msg.text ? "animate-pulse font-extrabold" : ""
+                            }`}
+                          >
+                            <Volume2 size={12} /> {tUi("Listen", language)}
+                          </button>
+                        </div>
+                      )}
+                      <p className="m-0 whitespace-pre-wrap">{msg.text}</p>
+                    </div>
+                    {msg.role === "user" && (
+                      <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">
+                        {profileRecord?.name ? profileRecord.name.slice(0, 1).toUpperCase() : "F"}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Listening Banner with Animated Waveform */}
+              {isListening && (
+                <div className="px-4 py-2 bg-red-50 border-t border-red-200 flex items-center justify-between text-xs text-red-700 font-bold animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <div className="audio-wave-bars">
+                      <span className="audio-wave-bar" />
+                      <span className="audio-wave-bar" />
+                      <span className="audio-wave-bar" />
+                      <span className="audio-wave-bar" />
+                      <span className="audio-wave-bar" />
+                    </div>
+                    <span>{tUi("Listening...", language)}</span>
+                    {liveInterimTranscript && (
+                      <span className="text-red-900 font-normal italic truncate max-w-[170px]">
+                        "{liveInterimTranscript}"
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopListening}
+                    className="text-[10px] px-2 py-0.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-bold"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+
+              {/* Speech Error Banner */}
+              {speechError && (
+                <div className="px-4 py-1.5 bg-amber-50 border-t border-amber-200 text-[11px] text-amber-800 flex items-center justify-between">
+                  <span>{speechError}</span>
+                  <button type="button" onClick={() => setSpeechError(null)} className="text-amber-900 font-bold ml-2">✕</button>
+                </div>
+              )}
+
+              {/* Composer Input Area */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (chatInput.trim()) {
+                    void assistantReply(chatInput.trim());
+                    setChatInput("");
+                  }
+                }}
+                className="p-3 bg-white border-t border-slate-200 flex items-center gap-2"
+              >
+                <button
+                  type="button"
+                  onClick={listen}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${
+                    isListening
+                      ? "bg-red-600 text-white animate-pulse ring-4 ring-red-200 shadow-md"
+                      : "bg-emerald-100 hover:bg-emerald-200 text-emerald-800"
+                  }`}
+                  title={isListening ? "Stop listening" : "Click to speak"}
+                >
+                  <Mic size={20} />
+                </button>
+
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder={
+                    isListening
+                      ? tUi("Listening... speak now", language)
+                      : tUi("Type or tap mic to speak...", language)
+                  }
+                  className="flex-1 h-10 px-3.5 bg-slate-100 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 placeholder:text-slate-400"
+                />
+
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim()}
+                  className="w-10 h-10 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white flex items-center justify-center transition-all flex-shrink-0"
+                  title="Send message"
+                >
+                  <ArrowRight size={18} />
+                </button>
+              </form>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Global Slot Booking Cancellation Confirmation Modal */}
       {showCancelBookingModal && bookingRecord && (
