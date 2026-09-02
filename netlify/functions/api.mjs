@@ -67000,6 +67000,125 @@ async function withBookingLock(key, fn) {
     resolveLock();
   }
 }
+function getCentreBranchCode(centre) {
+  if (centre.currentToken) {
+    const parts = centre.currentToken.split("-");
+    if (parts.length >= 3 && parts[1] && parts[1].length >= 2 && parts[1].length <= 5) {
+      return parts[1].toUpperCase();
+    }
+  }
+  const text2 = `${centre.name || ""} ${centre.place || ""} ${centre.district || ""}`.toLowerCase();
+  if (text2.includes("guntur")) return "GNT";
+  if (text2.includes("nizamabad")) return "NZB";
+  if (text2.includes("vijayawada")) return "VJA";
+  if (text2.includes("kurnool")) return "KNL";
+  if (text2.includes("rajahmundry")) return "RJY";
+  if (text2.includes("eluru")) return "ELR";
+  if (text2.includes("nellore")) return "NLR";
+  if (text2.includes("tirupati")) return "TPT";
+  if (text2.includes("visakhapatnam")) return "VSP";
+  if (text2.includes("warangal")) return "WGL";
+  if (text2.includes("karimnagar")) return "KNR";
+  if (text2.includes("nalgonda") || text2.includes("miryalaguda")) return "MLG";
+  if (text2.includes("khammam")) return "KHM";
+  if (text2.includes("ludhiana")) return "LDH";
+  if (text2.includes("sangrur")) return "SGR";
+  if (text2.includes("patiala")) return "PTL";
+  if (text2.includes("bathinda")) return "BTI";
+  if (text2.includes("amritsar")) return "ASR";
+  if (text2.includes("karnal")) return "KAR";
+  if (text2.includes("kurukshetra")) return "KKR";
+  if (text2.includes("sirsa")) return "SRS";
+  if (text2.includes("kaithal")) return "KTL";
+  if (text2.includes("indore")) return "IND";
+  if (text2.includes("ujjain")) return "UJN";
+  if (text2.includes("bhopal")) return "BPL";
+  if (text2.includes("hoshangabad") || text2.includes("narmadapuram")) return "NDP";
+  if (text2.includes("jabalpur")) return "JBP";
+  if (text2.includes("varanasi")) return "VNS";
+  if (text2.includes("lucknow")) return "LKO";
+  if (text2.includes("bareilly")) return "BLY";
+  if (text2.includes("aligarh")) return "ALG";
+  if (text2.includes("gorakhpur")) return "GKP";
+  if (text2.includes("nagpur")) return "NGP";
+  if (text2.includes("akola")) return "AKL";
+  if (text2.includes("nashik")) return "NSK";
+  if (text2.includes("latur")) return "LTR";
+  if (text2.includes("solapur")) return "SLP";
+  if (text2.includes("madurai")) return "MDU";
+  if (text2.includes("tiruchirappalli")) return "TRY";
+  if (text2.includes("kota")) return "KTA";
+  if (text2.includes("ganganagar")) return "SGN";
+  if (text2.includes("hanumangarh")) return "HNM";
+  if (text2.includes("baran")) return "BRN";
+  if (text2.includes("rajkot")) return "RJK";
+  if (text2.includes("junagadh")) return "JND";
+  if (text2.includes("gondal")) return "GDL";
+  if (text2.includes("purnia")) return "PUR";
+  if (text2.includes("rohtas") || text2.includes("sasaram")) return "RHT";
+  if (text2.includes("begusarai")) return "BGS";
+  if (text2.includes("bargarh")) return "BGR";
+  if (text2.includes("sambalpur")) return "SBP";
+  if (text2.includes("cuttack")) return "CTC";
+  if (text2.includes("bardhaman") || text2.includes("memari")) return "BDN";
+  if (text2.includes("murshidabad")) return "MSD";
+  if (text2.includes("hooghly") || text2.includes("arambagh")) return "HGL";
+  return "BK";
+}
+async function calculateDynamicQueue(booking, centre, slot, queueStatus2 = "WAITING") {
+  const db = await getDb();
+  if (!db) return null;
+  const slotBookings = await db.select().from(bookings).where(
+    and(
+      eq(bookings.centreId, centre.id),
+      eq(bookings.slotId, slot.id)
+    )
+  );
+  const activeBookings = slotBookings.filter((b) => b.status === "ACTIVE");
+  const bookingIds = activeBookings.map((b) => b.id);
+  const procRecords = bookingIds.length > 0 ? await db.select().from(procurements).where(inArray(procurements.bookingId, bookingIds)) : [];
+  const procMap = /* @__PURE__ */ new Map();
+  for (const p of procRecords) {
+    procMap.set(p.bookingId, p.status);
+  }
+  const parseSeq = (tokenNumber) => {
+    if (!tokenNumber) return 0;
+    const match = tokenNumber.match(/\d+$/) || tokenNumber.match(/\d+/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+  const sorted = [...activeBookings].sort((a, b) => parseSeq(a.tokenNumber) - parseSeq(b.tokenNumber));
+  const currentFarmerSeq = parseSeq(booking.tokenNumber);
+  const activeAhead = sorted.filter((b) => {
+    if (b.id === booking.id) return false;
+    const otherSeq = parseSeq(b.tokenNumber);
+    if (otherSeq >= currentFarmerSeq) return false;
+    const stage = procMap.get(b.id) || "BOOKED";
+    return stage === "BOOKED" || stage === "ARRIVED";
+  });
+  const peopleAhead = activeAhead.length;
+  const position = peopleAhead + 1;
+  const estimatedWaitMinutes = peopleAhead * 5;
+  let currentToken = centre.currentToken;
+  const inProgress = sorted.find((b) => {
+    const s = procMap.get(b.id);
+    return s && s !== "BOOKED" && s !== "COMPLETED";
+  });
+  if (inProgress?.tokenNumber) {
+    currentToken = inProgress.tokenNumber;
+  } else if (sorted.length > 0) {
+    const firstWaiting = sorted.find((b) => (procMap.get(b.id) || "BOOKED") === "BOOKED");
+    if (firstWaiting?.tokenNumber) {
+      currentToken = firstWaiting.tokenNumber;
+    }
+  }
+  return {
+    position,
+    peopleAhead,
+    estimatedWaitMinutes,
+    currentToken,
+    status: queueStatus2 === "SERVED" ? "SERVED" : inProgress?.id === booking.id || queueStatus2 === "CALLED" ? "CALLED" : "WAITING"
+  };
+}
 async function getBookingContext(bookingId) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable.");
@@ -67015,7 +67134,8 @@ async function getBookingContext(bookingId) {
     db.select().from(payments).where(eq(payments.bookingId, booking.id)).orderBy(desc(payments.createdAt)).limit(1).then((rows) => rows[0])
   ]);
   if (!farmer || !centre || !slot) return void 0;
-  return { booking, farmer, centre, slot, queue, procurement, transport, payment };
+  const dynamicQueue = queue ? await calculateDynamicQueue(booking, centre, slot, queue.status) : null;
+  return { booking, farmer, centre, slot, queue, procurement, transport, payment, dynamicQueue };
 }
 async function requireBookingAccess(req, res, bookingId) {
   const context = await getBookingContext(bookingId);
@@ -67039,6 +67159,7 @@ function publicBooking(context) {
   const cancellationDeadline = new Date(createdAtTime + 30 * 60 * 1e3);
   const isPastDeadline = Date.now() > cancellationDeadline.getTime();
   const canCancel = context.booking.status === "ACTIVE" && !isPastDeadline && (!context.procurement || context.procurement.status === "BOOKED");
+  const dyn = context.dynamicQueue;
   return {
     id: context.booking.id,
     bookingCode: context.booking.bookingCode,
@@ -67055,7 +67176,13 @@ function publicBooking(context) {
     farmer: formatFarmer(context.farmer),
     centre: { id: context.centre.id, name: context.centre.name, place: context.centre.place, distanceKm: Number(context.centre.distanceKm) },
     slot: { id: context.slot.id, date: context.slot.slotDate, startTime: context.slot.startTime, endTime: context.slot.endTime },
-    queue: context.queue ? { position: context.queue.position, peopleAhead: Math.max(0, context.queue.position - 1), estimatedWaitMinutes: context.queue.estimatedWaitMinutes, status: context.queue.status, currentToken: context.centre.currentToken } : null,
+    queue: context.queue ? {
+      position: dyn?.position ?? context.queue.position,
+      peopleAhead: dyn?.peopleAhead ?? Math.max(0, context.queue.position - 1),
+      estimatedWaitMinutes: dyn?.estimatedWaitMinutes ?? context.queue.estimatedWaitMinutes,
+      status: dyn?.status ?? context.queue.status,
+      currentToken: dyn?.currentToken ?? context.centre.currentToken
+    } : null,
     procurement: context.procurement ? { status: context.procurement.status, weighedQuantityQuintals: context.procurement.weighedQuantityQuintals ? Number(context.procurement.weighedQuantityQuintals) : null, qualityGrade: context.procurement.qualityGrade, updatedAt: context.procurement.updatedAt } : null,
     transport: context.transport ? { id: context.transport.id, transportCode: context.transport.transportCode, vehicleType: context.transport.vehicleType, vehicleNumber: context.transport.vehicleNumber, driverName: context.transport.driverName, driverPhone: context.transport.driverPhone, status: context.transport.status } : null,
     payment: paymentRecord ? paymentView(paymentRecord) : null,
@@ -67694,7 +67821,7 @@ function createProcurementApi() {
       const activeBookings = existingBookings.filter((b) => b.status === "ACTIVE");
       const usedNumbers = /* @__PURE__ */ new Set();
       for (const b of activeBookings) {
-        const match = b.tokenNumber ? b.tokenNumber.match(/\d+/) : null;
+        const match = b.tokenNumber ? b.tokenNumber.match(/\d+$/) || b.tokenNumber.match(/\d+/) : null;
         if (match) {
           usedNumbers.add(parseInt(match[0], 10));
         }
@@ -67703,7 +67830,8 @@ function createProcurementApi() {
       while (usedNumbers.has(nextNum)) {
         nextNum++;
       }
-      const tokenNumber = `Token ${nextNum}`;
+      const branchCode = getCentreBranchCode(centre);
+      const tokenNumber = `TK-${branchCode}-${String(nextNum).padStart(4, "0")}`;
       const queuePosition = nextNum;
       const timestamp2 = `${Date.now()}${Math.floor(Math.random() * 1e3).toString().padStart(3, "0")}`;
       const bookingCode = `BK-${(/* @__PURE__ */ new Date()).getUTCFullYear()}-${timestamp2.slice(-9)}`;
@@ -67821,7 +67949,13 @@ function createProcurementApi() {
     const context = await requireBookingAccess(req, res, id.data);
     if (!context) return;
     if (!context.queue) return res.status(404).json({ error: "QUEUE_NOT_FOUND" });
-    return res.json({ bookingId: context.booking.id, tokenNumber: context.booking.tokenNumber, currentToken: context.centre.currentToken, position: context.queue.position, peopleAhead: Math.max(0, context.queue.position - 1), estimatedWaitMinutes: context.queue.estimatedWaitMinutes, status: context.queue.status, updatedAt: context.queue.updatedAt });
+    const dyn = context.dynamicQueue ?? await calculateDynamicQueue(context.booking, context.centre, context.slot);
+    const position = dyn?.position ?? context.queue.position;
+    const peopleAhead = dyn?.peopleAhead ?? Math.max(0, context.queue.position - 1);
+    const estimatedWaitMinutes = dyn?.estimatedWaitMinutes ?? context.queue.estimatedWaitMinutes;
+    const currentToken = dyn?.currentToken ?? context.centre.currentToken;
+    const status = dyn?.status ?? context.queue.status;
+    return res.json({ bookingId: context.booking.id, tokenNumber: context.booking.tokenNumber, currentToken, position, peopleAhead, estimatedWaitMinutes, status, updatedAt: context.queue.updatedAt });
   });
   api.get("/procurement/:bookingId", requireApiAuth, async (req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -67841,7 +67975,7 @@ function createProcurementApi() {
     const context = await getBookingContext(id.data);
     if (!context) return res.status(404).json({ error: "BOOKING_NOT_FOUND" });
     await db.update(procurements).set({ status: input.status, weighedQuantityQuintals: input.weighedQuantityQuintals?.toFixed(2), qualityGrade: input.qualityGrade, updatedAt: /* @__PURE__ */ new Date() }).where(eq(procurements.bookingId, context.booking.id));
-    if (input.status === "ARRIVED" && context.queue) {
+    if ((input.status === "ARRIVED" || input.status === "DOCUMENT_VERIFICATION" || input.status === "WEIGHING" || input.status === "QUALITY_CHECK") && context.queue) {
       await db.update(queueEntries).set({ status: "CALLED", estimatedWaitMinutes: 0, updatedAt: /* @__PURE__ */ new Date() }).where(eq(queueEntries.bookingId, context.booking.id));
       await db.update(procurementCentres).set({ currentToken: context.booking.tokenNumber }).where(eq(procurementCentres.id, context.centre.id));
     }

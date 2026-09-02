@@ -742,6 +742,154 @@ export default function Home() {
     };
   };
 
+  const getProcurementStageDetails = (booking: ApiBooking | null, isPaymentDone: boolean) => {
+    const isCancelled = booking?.status === "CANCELLED";
+    if (isCancelled) {
+      return {
+        currentStageLabel: "BOOKING CANCELLED",
+        currentStageDesc: "Procurement booking was cancelled by farmer. Reserved slot has been released.",
+        stageBadge: "Cancelled",
+        badgeKind: "gray" as const,
+        timeline: [
+          { title: "Slot Booked", desc: booking ? `${booking.slot.date} · ${booking.slot.startTime} – ${booking.slot.endTime}` : "Slot confirmed", state: "done" as const, icon: CalendarDays },
+          { title: "Booking Cancelled", desc: "Slot cancelled within 30-minute window", state: "done" as const, icon: X },
+          { title: "Verification", desc: "Cancelled", state: "upcoming" as const, icon: ClipboardCheck },
+          { title: "Weighing & Quality", desc: "Cancelled", state: "upcoming" as const, icon: Tractor },
+          { title: "Procurement & Payment", desc: "Cancelled", state: "upcoming" as const, icon: CheckCircle2 },
+        ]
+      };
+    }
+
+    const pStatus = booking?.procurement?.status || "BOOKED";
+    const weighedQty = booking?.procurement?.weighedQuantityQuintals;
+    const qualityGrade = booking?.procurement?.qualityGrade;
+    const paymentStatus = booking?.paymentStatus;
+
+    let currentStageLabel = "SLOT BOOKED";
+    let currentStageDesc = booking ? `Scheduled for ${booking.slot.date} (${booking.slot.startTime} – ${booking.slot.endTime})` : "Slot confirmed";
+    let stageBadge = "Awaiting Arrival";
+    let badgeKind: "blue" | "yellow" | "green" = "blue";
+
+    let step1State: "done" | "current" | "upcoming" = "done";
+    let step2State: "done" | "current" | "upcoming" = "upcoming";
+    let step3State: "done" | "current" | "upcoming" = "upcoming";
+    let step4State: "done" | "current" | "upcoming" = "upcoming";
+    let step5State: "done" | "current" | "upcoming" = "upcoming";
+
+    if (isPaymentDone || paymentStatus === "SUCCESS") {
+      currentStageLabel = "PAYMENT SETTLED";
+      currentStageDesc = "Direct Benefit Transfer (DBT) payment has been successfully credited to your bank account.";
+      stageBadge = "Payment Settled";
+      badgeKind = "green";
+      step2State = "done";
+      step3State = "done";
+      step4State = "done";
+      step5State = "done";
+    } else if (paymentStatus === "PROCESSING" || paymentStatus === "OFFICER_INITIATED") {
+      currentStageLabel = "PAYMENT PROCESSING";
+      currentStageDesc = "Payment transfer initiated by officer; banking gateway processing DBT disbursement.";
+      stageBadge = "Processing";
+      badgeKind = "yellow";
+      step2State = "done";
+      step3State = "done";
+      step4State = "done";
+      step5State = "current";
+    } else if (pStatus === "COMPLETED") {
+      currentStageLabel = (paymentStatus === "PENDING" || paymentStatus === "PENDING_OFFICER_INITIATION") ? "PAYMENT PENDING" : "PROCUREMENT COMPLETED";
+      currentStageDesc = "Procurement verified & recorded in government ledger. Awaiting payment authorization.";
+      stageBadge = "Procurement Completed";
+      badgeKind = "green";
+      step2State = "done";
+      step3State = "done";
+      step4State = "done";
+      step5State = "current";
+    } else if (pStatus === "QUALITY_CHECK" || pStatus === "PROCESSING") {
+      currentStageLabel = "QUALITY ASSESSMENT";
+      currentStageDesc = qualityGrade ? `Moisture and purity evaluated as Grade ${qualityGrade}.` : "Quality inspector assessing grain purity and moisture content.";
+      stageBadge = "Quality Check";
+      badgeKind = "yellow";
+      step2State = "done";
+      step3State = "current";
+      step4State = "upcoming";
+      step5State = "upcoming";
+    } else if (pStatus === "WEIGHING") {
+      currentStageLabel = "WEIGHING";
+      currentStageDesc = weighedQty ? `Gross and tare recorded: ${weighedQty} quintals weighed.` : "Paddy load currently on weighbridge.";
+      stageBadge = "Weighing";
+      badgeKind = "yellow";
+      step2State = "done";
+      step3State = "current";
+      step4State = "upcoming";
+      step5State = "upcoming";
+    } else if (pStatus === "DOCUMENT_VERIFICATION") {
+      currentStageLabel = "DOCUMENT VERIFICATION";
+      currentStageDesc = "Officer verifying farmer identity, Aadhaar, e-Crop registration, and Token pass.";
+      stageBadge = "Verifying";
+      badgeKind = "yellow";
+      step2State = "current";
+      step3State = "upcoming";
+      step4State = "upcoming";
+      step5State = "upcoming";
+    } else if (pStatus === "ARRIVED") {
+      currentStageLabel = "ARRIVED AT MANDI";
+      currentStageDesc = "Farmer reported arrival. Token called at intake counter.";
+      stageBadge = "Token Called";
+      badgeKind = "yellow";
+      step2State = "current";
+      step3State = "upcoming";
+      step4State = "upcoming";
+      step5State = "upcoming";
+    } else {
+      currentStageLabel = "SLOT BOOKED";
+      currentStageDesc = booking ? `Scheduled for ${booking.slot.date} (${booking.slot.startTime} – ${booking.slot.endTime})` : "Slot confirmed";
+      stageBadge = "Awaiting Arrival";
+      badgeKind = "blue";
+      step2State = "upcoming";
+      step3State = "upcoming";
+      step4State = "upcoming";
+      step5State = "upcoming";
+    }
+
+    return {
+      currentStageLabel,
+      currentStageDesc,
+      stageBadge,
+      badgeKind,
+      timeline: [
+        {
+          title: "Slot Booked",
+          desc: booking ? `${booking.slot.date} · ${booking.slot.startTime} – ${booking.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM",
+          state: step1State,
+          icon: CalendarDays,
+        },
+        {
+          title: "Verification",
+          desc: step2State === "done" ? "Aadhaar, e-Crop & Token verified by officer" : step2State === "current" ? "Document verification in progress at intake counter" : "Officer verification upon arrival at centre",
+          state: step2State,
+          icon: ClipboardCheck,
+        },
+        {
+          title: "Weighing & Quality",
+          desc: weighedQty ? `${weighedQty} quintals · ${qualityGrade ? `Grade ${qualityGrade}` : "Grade pending"}` : step3State === "current" ? "Weighbridge & moisture check in progress" : "Weight slip and grade updated after verification",
+          state: step3State,
+          icon: Tractor,
+        },
+        {
+          title: "Procurement Completed",
+          desc: step4State === "done" ? "Paddy received & procurement recorded in system" : "Official procurement record pending",
+          state: step4State,
+          icon: CheckCircle2,
+        },
+        {
+          title: "Payment",
+          desc: step5State === "done" ? "Payment successfully credited via DBT" : step5State === "current" ? "Procurement done; authorization & transfer in progress" : "Direct Benefit Transfer follows procurement completion",
+          state: step5State,
+          icon: WalletCards,
+        },
+      ],
+    };
+  };
+
   const cancelFarmerBooking = async () => {
     if (!farmerToken || !bookingRecord?.id) {
       toast.error("No active booking to cancel.");
@@ -1405,7 +1553,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (screen !== "queue" || !farmerToken || !bookingId) return;
+    if ((screen !== "queue" && screen !== "token") || !farmerToken || !bookingId) return;
     const refreshQueue = () => void fetch(apiUrl(`/queue/${bookingId}`), { headers: { Authorization: `Bearer ${farmerToken}` }, cache: "no-store" })
       .then(response => response.ok ? response.json() : Promise.reject())
       .then((data: { position: number; peopleAhead: number; estimatedWaitMinutes: number; status: string; currentToken: string }) => {
@@ -1414,7 +1562,7 @@ export default function Home() {
       })
       .catch(() => undefined);
     refreshQueue();
-    const timer = window.setInterval(refreshQueue, 15000);
+    const timer = window.setInterval(refreshQueue, 3000);
     return () => window.clearInterval(timer);
   }, [screen, farmerToken, bookingId]);
 
@@ -3372,81 +3520,121 @@ export default function Home() {
   const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={tUi("Your connected queue refreshes every fifteen seconds while this screen is open.", language)} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
 
   const status = farmerShell(
-    <>
-      <SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={tUi("Follow the journey of your paddy from booked slot to payment confirmation.", language)}/>
-      <div className="status-layout">
-        <section className="timeline-card">
-          <div className="timeline-head">
-            <div>
-              <Pill kind={bookingRecord?.status === "CANCELLED" ? "gray" : "green"}>
-                {bookingRecord?.status === "CANCELLED" ? "CANCELLED" : (bookingRecord?.bookingCode ?? "BK-2026-7294")}
-              </Pill>
-              <h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2>
-              <p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p>
-            </div>
-            <button onClick={() => navigate("token")}><Ticket size={18}/> Token {bookingRecord?.tokenNumber ?? "P-042"}</button>
-          </div>
-          <div className="timeline">
-            {[{ title: "Slot Booked", desc: bookingRecord ? `${bookingRecord.slot.date} · ${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM", state: "done", icon: CalendarDays }, { title: "Current Stage", desc: (bookingRecord?.procurement?.status || (bookingRecord?.status === "CANCELLED" ? "CANCELLED" : "BOOKED")).replaceAll("_", " "), state: "current", icon: LoaderCircle }, { title: "Weighed quantity", desc: bookingRecord?.procurement?.weighedQuantityQuintals ? `${bookingRecord.procurement.weighedQuantityQuintals} quintals · ${bookingRecord.procurement.qualityGrade ?? "Grade pending"}` : "Weight slip updated by officer upon arrival", state: bookingRecord?.procurement?.weighedQuantityQuintals ? "done" : "upcoming", icon: Tractor }, { title: "Completed", desc: bookingRecord?.procurement?.status === "COMPLETED" ? "Procurement verified and recorded" : "Final procurement record pending", state: bookingRecord?.procurement?.status === "COMPLETED" ? "done" : "upcoming", icon: CheckCircle2 }, { title: "Payment", desc: "Complete your payment from the next screen", state: paymentDone ? "done" : "upcoming", icon: WalletCards }].map(({ title, desc, state, icon: Icon }) => <article className={`timeline-row ${state}`} key={title}><span><Icon size={18}/></span><div><h3>{title}</h3><p>{desc}</p></div><i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i></article>)}
-          </div>
-        </section>
-        <aside className="status-aside">
-          <img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/>
-          <div>
-            <Pill kind="yellow">QUALITY SIGNAL</Pill>
-            <h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3>
-            <p>The displayed signal is pulled from the live procurement record in the database.</p>
-          </div>
-
-          {/* 30-Minute Cancellation Card on Procurement Status screen */}
-          {(() => {
-            const cStatus = getCancellationStatus(bookingRecord?.slot?.date, bookingRecord?.slot?.startTime, bookingRecord?.createdAt);
-            const isCancelled = bookingRecord?.status === "CANCELLED";
-            if (isCancelled) {
-              return (
-                <div className="mt-4 p-3 bg-white/95 text-rose-800 rounded-xl text-xs border border-rose-200">
-                  <span className="font-bold flex items-center gap-1.5"><AlertTriangle size={15} /> Booking Cancelled</span>
-                  <p className="mt-1 text-[11px] text-slate-600">This slot booking was cancelled. Your slot capacity has been released.</p>
-                  <button onClick={() => navigate("paddy")} className="mt-2 text-xs text-emerald-800 underline font-bold">Book New Slot</button>
+    (() => {
+      const stageDetails = getProcurementStageDetails(bookingRecord, paymentDone);
+      return (
+        <>
+          <SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={tUi("Follow the journey of your paddy from booked slot to payment confirmation.", language)}/>
+          <div className="status-layout">
+            <section className="timeline-card">
+              <div className="timeline-head">
+                <div>
+                  <Pill kind={bookingRecord?.status === "CANCELLED" ? "gray" : "green"}>
+                    {bookingRecord?.status === "CANCELLED" ? "CANCELLED" : (bookingRecord?.bookingCode ?? "BK-2026-7294")}
+                  </Pill>
+                  <h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2>
+                  <p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p>
                 </div>
-              );
-            }
-            return (
-              <div className="mt-4 p-3 bg-white/95 text-slate-800 rounded-xl text-xs border border-slate-200 shadow-sm">
-                <div className="flex flex-col gap-1">
-                  <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
-                    <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-emerald-700"} />
-                    {tUi("Cancellation available for 30 minutes after booking", language)}
-                  </span>
-                  <span className="text-[11px] text-slate-600 pl-5">
-                    {cStatus.expired ? (
-                      <b className="text-slate-500">Cancellation window expired (deadline was {cStatus.deadlineFormatted})</b>
-                    ) : (
-                      <>Time remaining: <b className="text-amber-700 font-bold">{cStatus.text}</b> (until {cStatus.deadlineFormatted})</>
-                    )}
-                  </span>
-                </div>
-                {!cStatus.expired && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setShowCancelBookingModal(true)}
-                    className="w-full text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white h-8 rounded-lg mt-2"
-                  >
-                    Cancel Booking
-                  </Button>
-                )}
+                <button onClick={() => navigate("token")}>
+                  <Ticket size={18}/> {bookingRecord?.tokenNumber ? (bookingRecord.tokenNumber.startsWith("TK-") || bookingRecord.tokenNumber.startsWith("Token ") ? bookingRecord.tokenNumber : `Token ${bookingRecord.tokenNumber}`) : "Token TK-GNT-0001"}
+                </button>
               </div>
-            );
-          })()}
-        </aside>
-      </div>
-      <section className="status-summary">
-        <div><span className="token-disc small"><ClipboardCheck/></span><p><b>{(bookingRecord?.procurement?.status || (bookingRecord?.status === "CANCELLED" ? "CANCELLED" : "BOOKED")).replaceAll("_", " ")}</b><br/>The current stage is synchronized in real-time with officer actions.</p></div>
-        <div><span className="token-disc small blue"><WalletCards/></span><p><b>Payment follows completion</b><br/>Explore payment details anytime.</p></div>
-        <ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton>
-      </section>
-    </>
+
+              {/* Prominent Current Stage Card */}
+              <div className="p-4 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 mb-4 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Current Stage</span>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">{stageDetails.currentStageLabel}</h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{stageDetails.currentStageDesc}</p>
+                </div>
+                <Pill kind={stageDetails.badgeKind}>{stageDetails.stageBadge}</Pill>
+              </div>
+
+              {/* 5-Step Clear Procurement Stage Progression */}
+              <div className="timeline">
+                {stageDetails.timeline.map(({ title, desc, state, icon: Icon }) => (
+                  <article className={`timeline-row ${state}`} key={title}>
+                    <span><Icon size={18}/></span>
+                    <div>
+                      <h3>{title}</h3>
+                      <p>{desc}</p>
+                    </div>
+                    <i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i>
+                  </article>
+                ))}
+              </div>
+            </section>
+            <aside className="status-aside">
+              <img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/>
+              <div>
+                <Pill kind="yellow">QUALITY SIGNAL</Pill>
+                <h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3>
+                <p>The displayed signal is pulled from the live procurement record in the database.</p>
+              </div>
+
+              {/* 30-Minute Cancellation Card on Procurement Status screen */}
+              {(() => {
+                const cStatus = getCancellationStatus(bookingRecord?.slot?.date, bookingRecord?.slot?.startTime, bookingRecord?.createdAt);
+                const isCancelled = bookingRecord?.status === "CANCELLED";
+                if (isCancelled) {
+                  return (
+                    <div className="mt-4 p-3 bg-white/95 text-rose-800 rounded-xl text-xs border border-rose-200">
+                      <span className="font-bold flex items-center gap-1.5"><AlertTriangle size={15} /> Booking Cancelled</span>
+                      <p className="mt-1 text-[11px] text-slate-600">This slot booking was cancelled. Your slot capacity has been released.</p>
+                      <button onClick={() => navigate("paddy")} className="mt-2 text-xs text-emerald-800 underline font-bold">Book New Slot</button>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mt-4 p-3 bg-white/95 text-slate-800 rounded-xl text-xs border border-slate-200 shadow-sm">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
+                        <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-emerald-700"} />
+                        {tUi("Cancellation available for 30 minutes after booking", language)}
+                      </span>
+                      <span className="text-[11px] text-slate-600 pl-5">
+                        {cStatus.expired ? (
+                          <b className="text-slate-500">Cancellation window expired (deadline was {cStatus.deadlineFormatted})</b>
+                        ) : (
+                          <>Time remaining: <b className="text-amber-700 font-bold">{cStatus.text}</b> (until {cStatus.deadlineFormatted})</>
+                        )}
+                      </span>
+                    </div>
+                    {!cStatus.expired && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setShowCancelBookingModal(true)}
+                        className="w-full text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white h-8 rounded-lg mt-2"
+                      >
+                        Cancel Booking
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
+            </aside>
+          </div>
+          <section className="status-summary">
+            <div>
+              <span className="token-disc small"><ClipboardCheck/></span>
+              <p>
+                <b>{stageDetails.currentStageLabel}</b><br/>
+                The current stage is synchronized in real-time with officer actions.
+              </p>
+            </div>
+            <div>
+              <span className="token-disc small blue"><WalletCards/></span>
+              <p>
+                <b>{paymentDone ? "Payment Settled" : "Payment follows completion"}</b><br/>
+                {paymentDone ? "DBT transfer completed to account." : "Explore payment details anytime."}
+              </p>
+            </div>
+            <ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton>
+          </section>
+        </>
+      );
+    })()
   );
 
   const payment = farmerShell(
@@ -5999,166 +6187,6 @@ export default function Home() {
         })()}
       </section>
 
-      {/* Slot Booking Cancellation Confirmation Modal */}
-      {showCancelBookingModal && bookingRecord && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-2xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
-            <div className="flex items-center justify-between pb-2 border-b">
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300 border border-rose-200">
-                  <X size={20} />
-                </span>
-                <div>
-                  <h3 className="text-base font-extrabold text-foreground m-0">
-                    {tUi("Cancel booking?", language)}
-                  </h3>
-                  <span className="text-xs text-muted-foreground">Release reserved procurement slot</span>
-                </div>
-              </div>
-              <button onClick={() => setShowCancelBookingModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-muted/40 border space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-semibold">{tUi("Booking ID:", language)}</span>
-                  <b className="font-mono text-foreground">{bookingRecord.bookingCode}</b>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-semibold">{tUi("Booking type:", language)}</span>
-                  <span className="font-semibold text-foreground">MSP Paddy Procurement</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-semibold">{tUi("Scheduled time:", language)}</span>
-                  <span className="font-bold text-foreground">{bookingRecord.slot.date} ({bookingRecord.slot.startTime} – {bookingRecord.slot.endTime})</span>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t">
-                  <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
-                  {(() => {
-                    const cStatus = getCancellationStatus(bookingRecord.slot?.date, bookingRecord.slot?.startTime, bookingRecord.createdAt);
-                    return (
-                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
-                        cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
-                      }`}>
-                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window expired (available for 30m from booking creation)"}
-                      </span>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                {tUi("Are you sure you want to cancel this booking? This action will release your reserved slot.", language)}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t">
-              <Button
-                variant="outline"
-                className="text-xs"
-                onClick={() => setShowCancelBookingModal(false)}
-                disabled={cancellingBooking}
-              >
-                {tUi("Keep Booking", language)}
-              </Button>
-              {(() => {
-                const cStatus = getCancellationStatus(bookingRecord.slot?.date, bookingRecord.slot?.startTime, bookingRecord.createdAt);
-                return (
-                  <Button
-                    variant="destructive"
-                    className="text-xs font-bold"
-                    onClick={() => { void cancelFarmerBooking(); }}
-                    disabled={!cStatus.canCancel || cancellingBooking}
-                  >
-                    {cancellingBooking ? "Cancelling…" : tUi("Cancel Booking", language)}
-                  </Button>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Transport Booking Cancellation Confirmation Modal */}
-      {showCancelTransportModal && targetCancelTransport && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-2xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
-            <div className="flex items-center justify-between pb-2 border-b">
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300 border border-rose-200">
-                  <X size={20} />
-                </span>
-                <div>
-                  <h3 className="text-base font-extrabold text-foreground m-0">
-                    {tUi("Cancel booking?", language)}
-                  </h3>
-                  <span className="text-xs text-muted-foreground">Subsidized vehicle transportation</span>
-                </div>
-              </div>
-              <button onClick={() => setShowCancelTransportModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-muted/40 border space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-semibold">{tUi("Transport ID:", language)}</span>
-                  <b className="font-mono text-foreground">{targetCancelTransport.transportCode}</b>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-semibold">{tUi("Vehicle Type:", language)}</span>
-                  <span className="font-semibold text-foreground">{targetCancelTransport.vehicleName}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-semibold">{tUi("Scheduled time:", language)}</span>
-                  <span className="font-bold text-foreground">{targetCancelTransport.scheduledDate} ({targetCancelTransport.timeSlot})</span>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t">
-                  <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
-                  {(() => {
-                    const cStatus = getCancellationStatus(targetCancelTransport.scheduledDate, targetCancelTransport.timeSlot, targetCancelTransport.createdAt);
-                    return (
-                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
-                        cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
-                      }`}>
-                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window expired (available for 30m from booking creation)"}
-                      </span>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                {tUi("Are you sure you want to cancel this transportation booking?", language)}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t">
-              <Button
-                variant="outline"
-                className="text-xs"
-                onClick={() => setShowCancelTransportModal(false)}
-                disabled={cancellingTransport}
-              >
-                {tUi("Keep Booking", language)}
-              </Button>
-              {(() => {
-                const cStatus = getCancellationStatus(targetCancelTransport.scheduledDate, targetCancelTransport.timeSlot, targetCancelTransport.createdAt);
-                return (
-                  <Button
-                    variant="destructive"
-                    className="text-xs font-bold"
-                    onClick={() => { void cancelFarmerTransport(); }}
-                    disabled={!cStatus.canCancel || cancellingTransport}
-                  >
-                    {cancellingTransport ? "Cancelling…" : tUi("Cancel Booking", language)}
-                  </Button>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Interactive Logistics Route Map Modal */}
       {viewingTransportRouteItem && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -7673,38 +7701,206 @@ export default function Home() {
     </>
   );
 
-  switch (screen) {
-    case "registration": return registration;
-    case "pending": return pending;
-    case "farmerLogin": return farmerLogin;
-    case "dashboard": return dashboard;
-    case "paddy": return paddy;
-    case "cropPrices": return cropPricesScreen;
-    case "weather": return weatherScreen;
-    case "farmerAnalytics": return farmerAnalyticsScreen;
-    case "transportation": return transportationScreen;
-    case "centres": return centresScreen;
-    case "centre": return centreDetail;
-    case "slot": return slot;
-    case "confirmation": return confirmation;
-    case "token": return token;
-    case "queue": return queue;
-    case "status": return status;
-    case "payment": return payment;
-    case "profile": return profile;
-    case "assistant": return assistant;
-    case "notifications": return notifications;
-    case "officerLogin": return officerLogin;
-    case "officerDashboard": return officerDashboard;
-    case "staffManagement": return staffManagementScreen;
-    case "officerPayments": return officerPaymentStatus;
-    case "registrations": return registrations;
-    case "farmerDetail": return registrations;
-    case "approved": return approvedList;
-    case "bookings": return bookings;
-    case "quality": return qualityControlScreen;
-    case "officerLogistics": return officerLogisticsScreen;
-    default: return landing;
-  }
+  const renderCurrentScreen = () => {
+    switch (screen) {
+      case "registration": return registration;
+      case "pending": return pending;
+      case "farmerLogin": return farmerLogin;
+      case "dashboard": return dashboard;
+      case "paddy": return paddy;
+      case "cropPrices": return cropPricesScreen;
+      case "weather": return weatherScreen;
+      case "farmerAnalytics": return farmerAnalyticsScreen;
+      case "transportation": return transportationScreen;
+      case "centres": return centresScreen;
+      case "centre": return centreDetail;
+      case "slot": return slot;
+      case "confirmation": return confirmation;
+      case "token": return token;
+      case "queue": return queue;
+      case "status": return status;
+      case "payment": return payment;
+      case "profile": return profile;
+      case "assistant": return assistant;
+      case "notifications": return notifications;
+      case "officerLogin": return officerLogin;
+      case "officerDashboard": return officerDashboard;
+      case "staffManagement": return staffManagementScreen;
+      case "officerPayments": return officerPaymentStatus;
+      case "registrations": return registrations;
+      case "farmerDetail": return registrations;
+      case "approved": return approvedList;
+      case "bookings": return bookings;
+      case "quality": return qualityControlScreen;
+      case "officerLogistics": return officerLogisticsScreen;
+      default: return landing;
+    }
+  };
+
+  return (
+    <>
+      {renderCurrentScreen()}
+
+      {/* Global Slot Booking Cancellation Confirmation Modal */}
+      {showCancelBookingModal && bookingRecord && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-2xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-2 border-b">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300 border border-rose-200">
+                  <X size={20} />
+                </span>
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground m-0">
+                    {tUi("Cancel booking?", language)}
+                  </h3>
+                  <span className="text-xs text-muted-foreground">Release reserved procurement slot</span>
+                </div>
+              </div>
+              <button onClick={() => setShowCancelBookingModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-muted/40 border space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Booking ID:", language)}</span>
+                  <b className="font-mono text-foreground">{bookingRecord.bookingCode}</b>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Booking type:", language)}</span>
+                  <span className="font-semibold text-foreground">MSP Paddy Procurement</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Scheduled time:", language)}</span>
+                  <span className="font-bold text-foreground">{bookingRecord.slot.date} ({bookingRecord.slot.startTime} – {bookingRecord.slot.endTime})</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
+                  {(() => {
+                    const cStatus = getCancellationStatus(bookingRecord.slot?.date, bookingRecord.slot?.startTime, bookingRecord.createdAt);
+                    return (
+                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                        cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
+                      }`}>
+                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window expired (available for 30m from booking creation)"}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {tUi("Are you sure you want to cancel this booking? This action will release your reserved slot.", language)}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <Button
+                variant="outline"
+                className="text-xs"
+                onClick={() => setShowCancelBookingModal(false)}
+                disabled={cancellingBooking}
+              >
+                {tUi("Keep Booking", language)}
+              </Button>
+              {(() => {
+                const cStatus = getCancellationStatus(bookingRecord.slot?.date, bookingRecord.slot?.startTime, bookingRecord.createdAt);
+                return (
+                  <Button
+                    variant="destructive"
+                    className="text-xs font-bold"
+                    onClick={() => { void cancelFarmerBooking(); }}
+                    disabled={!cStatus.canCancel || cancellingBooking}
+                  >
+                    {cancellingBooking ? "Cancelling…" : tUi("Cancel Booking", language)}
+                  </Button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Transport Booking Cancellation Confirmation Modal */}
+      {showCancelTransportModal && targetCancelTransport && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-2xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-2 border-b">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300 border border-rose-200">
+                  <X size={20} />
+                </span>
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground m-0">
+                    {tUi("Cancel booking?", language)}
+                  </h3>
+                  <span className="text-xs text-muted-foreground">Subsidized vehicle transportation</span>
+                </div>
+              </div>
+              <button onClick={() => setShowCancelTransportModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-muted/40 border space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Transport ID:", language)}</span>
+                  <b className="font-mono text-foreground">{targetCancelTransport.transportCode}</b>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Vehicle Type:", language)}</span>
+                  <span className="font-semibold text-foreground">{targetCancelTransport.vehicleName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold">{tUi("Scheduled time:", language)}</span>
+                  <span className="font-bold text-foreground">{targetCancelTransport.scheduledDate} ({targetCancelTransport.timeSlot})</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="text-muted-foreground font-semibold">{tUi("Cancellation Status:", language)}</span>
+                  {(() => {
+                    const cStatus = getCancellationStatus(targetCancelTransport.scheduledDate, targetCancelTransport.timeSlot, targetCancelTransport.createdAt);
+                    return (
+                      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                        cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
+                      }`}>
+                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window expired (available for 30m from booking creation)"}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {tUi("Are you sure you want to cancel this transportation booking?", language)}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <Button
+                variant="outline"
+                className="text-xs"
+                onClick={() => setShowCancelTransportModal(false)}
+                disabled={cancellingTransport}
+              >
+                {tUi("Keep Booking", language)}
+              </Button>
+              {(() => {
+                const cStatus = getCancellationStatus(targetCancelTransport.scheduledDate, targetCancelTransport.timeSlot, targetCancelTransport.createdAt);
+                return (
+                  <Button
+                    variant="destructive"
+                    className="text-xs font-bold"
+                    onClick={() => { void cancelFarmerTransport(); }}
+                    disabled={!cStatus.canCancel || cancellingTransport}
+                  >
+                    {cancellingTransport ? "Cancelling…" : tUi("Cancel Booking", language)}
+                  </Button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
