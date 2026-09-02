@@ -193,7 +193,7 @@ export const bookings = mysqlTable("bookings", {
   paddyVariety: varchar("paddyVariety", { length: 120 }).notNull(),
   paddyGrade: varchar("paddyGrade", { length: 32 }).notNull(),
   expectedQuantityQuintals: decimal("expectedQuantityQuintals", { precision: 8, scale: 2 }).notNull(),
-  tokenNumber: varchar("tokenNumber", { length: 32 }).notNull().unique(),
+  tokenNumber: varchar("tokenNumber", { length: 32 }).notNull(),
   status: mysqlEnum("status", bookingStatus).default("ACTIVE").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

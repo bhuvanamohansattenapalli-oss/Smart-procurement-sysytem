@@ -255,6 +255,32 @@ export function parseScheduledStartTime(dateStr?: string | null, timeStr?: strin
   return null;
 }
 
+// In-memory critical-section mutex for atomic token assignment per centre & slot
+const bookingQueueLocks = new Map<string, Promise<void>>();
+
+async function withBookingLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  while (bookingQueueLocks.has(key)) {
+    try {
+      await bookingQueueLocks.get(key);
+    } catch {
+      // ignore errors from previous holder
+    }
+  }
+
+  let resolveLock!: () => void;
+  const lockPromise = new Promise<void>((resolve) => {
+    resolveLock = resolve;
+  });
+  bookingQueueLocks.set(key, lockPromise);
+
+  try {
+    return await fn();
+  } finally {
+    bookingQueueLocks.delete(key);
+    resolveLock();
+  }
+}
+
 async function getQueueCount(centreId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable.");
@@ -926,6 +952,8 @@ export function createProcurementApi() {
       return formatCentre(centre, waiting.length, centreSlots.reduce((sum, slot) => sum + Math.max(0, slot.capacity - slot.bookedCount), 0));
     }));
 
+    response.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+
     const states = Array.from(new Set(allCentres.map(c => (c as any).state || "Andhra Pradesh"))).sort();
 
     return res.json({
@@ -1018,20 +1046,67 @@ export function createProcurementApi() {
     if (activeBooking) return res.status(409).json({ error: "ACTIVE_BOOKING_EXISTS", message: "This farmer already has an active booking.", bookingId: activeBooking.id });
     const [centre, slot] = await Promise.all([db.select().from(procurementCentres).where(eq(procurementCentres.id, input.centreId)).limit(1).then(rows => rows[0]), db.select().from(slots).where(eq(slots.id, input.slotId)).limit(1).then(rows => rows[0])]);
     if (!centre || !slot || slot.centreId !== centre.id || slot.isActive !== 1) return res.status(400).json({ error: "INVALID_SLOT", message: "The selected slot is not available at this centre." });
-    if (slot.bookedCount >= slot.capacity) return res.status(409).json({ error: "SLOT_FULL", message: "The selected slot is full. Please choose another time." });
-    const queuePosition = (await getQueueCount(centre.id)) + 1;
-    const timestamp = `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
-    const bookingCode = `BK-${new Date().getUTCFullYear()}-${timestamp.slice(-9)}`;
-    const tokenNumber = `P-${timestamp.slice(-9)}`;
-    await db.insert(bookings).values({ bookingCode, farmerId: farmer.id, centreId: centre.id, slotId: slot.id, paddyVariety: input.paddyVariety, paddyGrade: input.paddyGrade, expectedQuantityQuintals: input.expectedQuantityQuintals.toFixed(2), tokenNumber, status: "ACTIVE" });
-    const booking = (await db.select().from(bookings).where(eq(bookings.bookingCode, bookingCode)).limit(1))[0];
-    if (!booking) return res.status(500).json({ error: "BOOKING_CREATE_FAILED" });
-    await db.update(slots).set({ bookedCount: slot.bookedCount + 1 }).where(eq(slots.id, slot.id));
-    await db.insert(queueEntries).values({ bookingId: booking.id, centreId: centre.id, position: queuePosition, estimatedWaitMinutes: queuePosition * 2, status: "WAITING" });
-    await db.insert(procurements).values({ bookingId: booking.id, status: "BOOKED" });
-    await db.insert(notifications).values([{ farmerId: farmer.id, title: "Booking confirmed", message: `${bookingCode} is confirmed at ${centre.name}.`, category: "BOOKING" }, { farmerId: farmer.id, title: "Token generated", message: `Your queue token is ${tokenNumber}.`, category: "TOKEN" }, ...(queuePosition <= 3 ? [{ farmerId: farmer.id, title: "Queue approaching", message: `Only ${Math.max(0, queuePosition - 1)} farmer(s) are ahead of your token ${tokenNumber}.`, category: "QUEUE" }] : [])]);
-    const context = await getBookingContext(booking.id);
-    return res.status(201).json({ message: "Booking confirmed and token generated.", booking: publicBooking(context) });
+
+    const lockKey = `booking_${centre.id}_${slot.id}`;
+    return await withBookingLock(lockKey, async () => {
+      // Re-fetch slot inside lock to avoid concurrency over-booking
+      const currentSlot = (await db.select().from(slots).where(eq(slots.id, slot.id)).limit(1))[0];
+      if (!currentSlot || currentSlot.bookedCount >= currentSlot.capacity) {
+        return res.status(409).json({ error: "SLOT_FULL", message: "The selected slot is full. Please choose another time." });
+      }
+
+      // Query active bookings for this centre & slot to derive strictly consecutive token numbers
+      const existingBookings = await db.select().from(bookings).where(
+        and(
+          eq(bookings.centreId, centre.id),
+          eq(bookings.slotId, slot.id)
+        )
+      );
+      const activeBookings = existingBookings.filter(b => b.status === "ACTIVE");
+      const usedNumbers = new Set<number>();
+      for (const b of activeBookings) {
+        const match = b.tokenNumber ? b.tokenNumber.match(/\d+/) : null;
+        if (match) {
+          usedNumbers.add(parseInt(match[0], 10));
+        }
+      }
+      let nextNum = 1;
+      while (usedNumbers.has(nextNum)) {
+        nextNum++;
+      }
+      const tokenNumber = `Token ${nextNum}`;
+      const queuePosition = nextNum;
+
+      const timestamp = `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
+      const bookingCode = `BK-${new Date().getUTCFullYear()}-${timestamp.slice(-9)}`;
+
+      await db.insert(bookings).values({
+        bookingCode,
+        farmerId: farmer.id,
+        centreId: centre.id,
+        slotId: slot.id,
+        paddyVariety: input.paddyVariety,
+        paddyGrade: input.paddyGrade,
+        expectedQuantityQuintals: input.expectedQuantityQuintals.toFixed(2),
+        tokenNumber,
+        status: "ACTIVE"
+      });
+
+      const booking = (await db.select().from(bookings).where(eq(bookings.bookingCode, bookingCode)).limit(1))[0];
+      if (!booking) return res.status(500).json({ error: "BOOKING_CREATE_FAILED" });
+
+      await db.update(slots).set({ bookedCount: currentSlot.bookedCount + 1 }).where(eq(slots.id, slot.id));
+      await db.insert(queueEntries).values({ bookingId: booking.id, centreId: centre.id, position: queuePosition, estimatedWaitMinutes: queuePosition * 2, status: "WAITING" });
+      await db.insert(procurements).values({ bookingId: booking.id, status: "BOOKED" });
+      await db.insert(notifications).values([
+        { farmerId: farmer.id, title: "Booking confirmed", message: `${bookingCode} is confirmed at ${centre.name}.`, category: "BOOKING" },
+        { farmerId: farmer.id, title: "Token generated", message: `Your queue token is ${tokenNumber}.`, category: "TOKEN" },
+        ...(queuePosition <= 3 ? [{ farmerId: farmer.id, title: "Queue approaching", message: `Only ${Math.max(0, queuePosition - 1)} farmer(s) are ahead of your token ${tokenNumber}.`, category: "QUEUE" }] : [])
+      ]);
+
+      const context = await getBookingContext(booking.id);
+      return res.status(201).json({ message: "Booking confirmed and token generated.", booking: publicBooking(context) });
+    });
   });
 
   const handleCancelBooking = async (req: AuthenticatedRequest, res: Response) => {
@@ -1510,11 +1585,12 @@ export function createProcurementApi() {
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const prices = await db.select().from(cropPrices);
     const data = prices.length > 0 ? prices : prototypeCropPrices.map((p, idx) => ({ id: idx + 1, ...p, updatedAt: new Date() }));
+    const sortedData = [...data].sort((a, b) => a.cropName.localeCompare(b.cropName, undefined, { sensitivity: "base" }));
     return res.json({
       season: "Kharif & Rabi 2025-26",
       source: "Ministry of Agriculture & Farmers Welfare, Govt of India",
       effectiveFrom: "01-Oct-2025",
-      prices: data.map(item => ({
+      prices: sortedData.map(item => ({
         id: item.id,
         cropName: item.cropName,
         variety: item.variety,

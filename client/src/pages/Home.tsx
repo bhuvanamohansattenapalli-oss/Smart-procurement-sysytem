@@ -703,15 +703,6 @@ export default function Home() {
       const createdTime = new Date(createdAtVal).getTime();
       if (!isNaN(createdTime)) {
         deadline = createdTime + 30 * 60 * 1000;
-        if (dateStr && timeStr) {
-          const scheduledStart = parseScheduledStartTime(dateStr, timeStr);
-          if (scheduledStart) {
-            const slotDeadline = scheduledStart.getTime() - 30 * 60 * 1000;
-            if (slotDeadline < deadline) {
-              deadline = slotDeadline;
-            }
-          }
-        }
         deadlineDate = new Date(deadline);
       }
     }
@@ -759,7 +750,7 @@ export default function Home() {
     setCancellingBooking(true);
     try {
       const response = await fetch(apiUrl(`/bookings/${bookingRecord.id}/cancel`), {
-        method: "PUT",
+        method: "POST",
         headers: { Authorization: `Bearer ${farmerToken}` },
       });
       const data = await response.json();
@@ -991,6 +982,17 @@ export default function Home() {
   const [assistantCategory, setAssistantCategory] = useState<string>("ALL");
   const [isListening, setIsListening] = useState<boolean>(false);
   const [speakingText, setSpeakingText] = useState<string | null>(null);
+  const activeRecognitionRef = useRef<any>(null);
+  const chatFeedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (chatFeedRef.current) {
+      chatFeedRef.current.scrollTo({
+        top: chatFeedRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  }, [chat]);
 
   const [officerBookings, setOfficerBookings] = useState<ApiBooking[]>([]);
   const [selectedOfficerBooking, setSelectedOfficerBooking] = useState<ApiBooking | null>(null);
@@ -1181,7 +1183,7 @@ export default function Home() {
       const response = await fetch(apiUrl("/crop-prices"));
       if (response.ok) {
         const data = await response.json();
-        setCropPricesList(data.prices ?? []);
+        setCropPricesList([...(data.prices ?? [])].sort((a: any, b: any) => a.cropName.localeCompare(b.cropName, undefined, { sensitivity: "base" })));
       }
     } catch {}
   };
@@ -1303,7 +1305,7 @@ export default function Home() {
             position: centres[index]?.position ?? "left-[47%] top-[45%]",
             latitude: centre.latitude,
             longitude: centre.longitude,
-          })));
+          })).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })));
         }
       })
       .catch(() => undefined);
@@ -2386,13 +2388,63 @@ export default function Home() {
     setChat(items => [...items, { role: "assistant", text: reply }]);
   };
   const listen = () => {
-    const SpeechRecognition = (window as unknown as { SpeechRecognition?: new () => { lang: string; start: () => void; onresult: (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onerror: () => void }; webkitSpeechRecognition?: new () => { lang: string; start: () => void; onresult: (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onerror: () => void } }).SpeechRecognition || (window as unknown as { webkitSpeechRecognition?: new () => { lang: string; start: () => void; onresult: (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onerror: () => void } }).webkitSpeechRecognition;
-    if (!SpeechRecognition) { toast.message("Voice input is not available in this browser. Please type your question instead."); return; }
-    const recognition = new SpeechRecognition();
-    recognition.lang = language === "TE" ? "te-IN" : language === "HI" ? "hi-IN" : "en-IN";
-    recognition.onresult = (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => setChatInput(event.results[0][0].transcript);
-    recognition.onerror = () => toast.error("We could not hear that. Please try again or type your question.");
-    recognition.start();
+    if (isListening && activeRecognitionRef.current) {
+      try {
+        activeRecognitionRef.current.stop();
+      } catch {}
+      setIsListening(false);
+      activeRecognitionRef.current = null;
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
+      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.message(tUi("Voice input is not available in this browser. Please type your question instead.", language));
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      activeRecognitionRef.current = recognition;
+      recognition.lang = language === "TE" ? "te-IN" : language === "HI" ? "hi-IN" : "en-IN";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        let liveTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          liveTranscript += event.results[i][0].transcript;
+        }
+        if (liveTranscript) {
+          setChatInput(liveTranscript);
+        }
+      };
+
+      recognition.onerror = (e: any) => {
+        setIsListening(false);
+        activeRecognitionRef.current = null;
+        if (e && e.error !== "no-speech" && e.error !== "aborted") {
+          toast.error(tUi("We could not hear that. Please try again or type your question.", language));
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        activeRecognitionRef.current = null;
+      };
+
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      activeRecognitionRef.current = null;
+    }
   };
   const speak = (text: string) => {
     if (!("speechSynthesis" in window)) { toast.message("Voice response is not available in this browser. You can read the answer on screen."); return; }
@@ -2810,8 +2862,8 @@ export default function Home() {
       { id: 5, cropName: "Maize (Makka)", variety: "Hybrid Yellow", category: "Coarse Cereals", mspPerQuintal: 2225, effectiveRatePerQuintal: 2225, govtBonusPerQuintal: 0, maxMoisturePercent: 14 },
       { id: 6, cropName: "Cotton (Long Staple)", variety: "BT Cotton / DCH-32", category: "Commercial", mspPerQuintal: 7521, effectiveRatePerQuintal: 7521, govtBonusPerQuintal: 0, maxMoisturePercent: 8 },
     ];
-    if (bookingCropCategory === "ALL") return list;
-    return list.filter(c => (c.category || "").toLowerCase() === bookingCropCategory.toLowerCase());
+    const filtered = bookingCropCategory === "ALL" ? list : list.filter(c => (c.category || "").toLowerCase() === bookingCropCategory.toLowerCase());
+    return [...filtered].sort((a, b) => a.cropName.localeCompare(b.cropName, undefined, { sensitivity: "base" }));
   }, [cropPricesList, bookingCropCategory]);
 
   const selectedCropRecord = useMemo(() => {
@@ -2976,7 +3028,7 @@ export default function Home() {
                 position: centres[index]?.position ?? "left-[47%] top-[45%]",
                 latitude: centre.latitude,
                 longitude: centre.longitude,
-              })));
+              })).sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })));
               toast.success("Andhra Pradesh centre availability refreshed from the API.");
             }).catch(() => toast.error("Centre availability is unavailable."))}>
               Refresh availability
@@ -3281,13 +3333,16 @@ export default function Home() {
             }
             return (
               <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-1">
-                  <span className="flex items-center gap-1.5 text-xs">
-                    <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-amber-600"} />
+                <div className="flex flex-col gap-1">
+                  <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
+                    <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-emerald-700"} />
+                    {tUi("Cancellation available for 30 minutes after booking", language)}
+                  </span>
+                  <span className="text-[11px] text-slate-600 pl-5">
                     {cStatus.expired ? (
-                      <b className="text-slate-500">Cancellation window expired (available for 30 mins from booking creation)</b>
+                      <b className="text-slate-500">Cancellation window expired (deadline was {cStatus.deadlineFormatted})</b>
                     ) : (
-                      <>Cancellation allowed until: <b className="text-amber-700 font-bold">{cStatus.deadlineFormatted} ({cStatus.text} left)</b></>
+                      <>Time remaining: <b className="text-amber-700 font-bold">{cStatus.text}</b> (until {cStatus.deadlineFormatted})</>
                     )}
                   </span>
                 </div>
@@ -3316,7 +3371,83 @@ export default function Home() {
 
   const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={tUi("Your connected queue refreshes every fifteen seconds while this screen is open.", language)} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
 
-  const status = farmerShell(<><SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={tUi("Follow the journey of your paddy from booked slot to payment confirmation.", language)}/><div className="status-layout"><section className="timeline-card"><div className="timeline-head"><div><Pill kind="green">{bookingRecord?.bookingCode ?? "BK-2026-7294"}</Pill><h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2><p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p></div><button onClick={() => navigate("token")}><Ticket size={18}/> Token {bookingRecord?.tokenNumber ?? "P-042"}</button></div><div className="timeline">{[{ title: "Slot Booked", desc: bookingRecord ? `${bookingRecord.slot.date} · ${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM", state: "done", icon: CalendarDays }, { title: "Current Stage", desc: (bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " "), state: "current", icon: LoaderCircle }, { title: "Weighed quantity", desc: bookingRecord?.procurement?.weighedQuantityQuintals ? `${bookingRecord.procurement.weighedQuantityQuintals} quintals · ${bookingRecord.procurement.qualityGrade ?? "Grade pending"}` : "Weight slip updated by officer upon arrival", state: bookingRecord?.procurement?.weighedQuantityQuintals ? "done" : "upcoming", icon: Tractor }, { title: "Completed", desc: bookingRecord?.procurement?.status === "COMPLETED" ? "Procurement verified and recorded" : "Final procurement record pending", state: bookingRecord?.procurement?.status === "COMPLETED" ? "done" : "upcoming", icon: CheckCircle2 }, { title: "Payment", desc: "Complete your payment from the next screen", state: paymentDone ? "done" : "upcoming", icon: WalletCards }].map(({ title, desc, state, icon: Icon }) => <article className={`timeline-row ${state}`} key={title}><span><Icon size={18}/></span><div><h3>{title}</h3><p>{desc}</p></div><i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i></article>)}</div></section><aside className="status-aside"><img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/><div><Pill kind="yellow">QUALITY SIGNAL</Pill><h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3><p>The displayed signal is pulled from the live procurement record in the database.</p></div></aside></div><section className="status-summary"><div><span className="token-disc small"><ClipboardCheck/></span><p><b>{(bookingRecord?.procurement?.status || "BOOKED").replaceAll("_", " ")}</b><br/>The current stage is synchronized in real-time with officer actions.</p></div><div><span className="token-disc small blue"><WalletCards/></span><p><b>Payment follows completion</b><br/>Explore payment details anytime.</p></div><ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton></section></>);
+  const status = farmerShell(
+    <>
+      <SectionTitle eyebrow="PROCUREMENT STATUS" title={t.statusTitle} body={tUi("Follow the journey of your paddy from booked slot to payment confirmation.", language)}/>
+      <div className="status-layout">
+        <section className="timeline-card">
+          <div className="timeline-head">
+            <div>
+              <Pill kind={bookingRecord?.status === "CANCELLED" ? "gray" : "green"}>
+                {bookingRecord?.status === "CANCELLED" ? "CANCELLED" : (bookingRecord?.bookingCode ?? "BK-2026-7294")}
+              </Pill>
+              <h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2>
+              <p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p>
+            </div>
+            <button onClick={() => navigate("token")}><Ticket size={18}/> Token {bookingRecord?.tokenNumber ?? "P-042"}</button>
+          </div>
+          <div className="timeline">
+            {[{ title: "Slot Booked", desc: bookingRecord ? `${bookingRecord.slot.date} · ${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "Wednesday, 18 March · 10:30 – 11:00 AM", state: "done", icon: CalendarDays }, { title: "Current Stage", desc: (bookingRecord?.procurement?.status || (bookingRecord?.status === "CANCELLED" ? "CANCELLED" : "BOOKED")).replaceAll("_", " "), state: "current", icon: LoaderCircle }, { title: "Weighed quantity", desc: bookingRecord?.procurement?.weighedQuantityQuintals ? `${bookingRecord.procurement.weighedQuantityQuintals} quintals · ${bookingRecord.procurement.qualityGrade ?? "Grade pending"}` : "Weight slip updated by officer upon arrival", state: bookingRecord?.procurement?.weighedQuantityQuintals ? "done" : "upcoming", icon: Tractor }, { title: "Completed", desc: bookingRecord?.procurement?.status === "COMPLETED" ? "Procurement verified and recorded" : "Final procurement record pending", state: bookingRecord?.procurement?.status === "COMPLETED" ? "done" : "upcoming", icon: CheckCircle2 }, { title: "Payment", desc: "Complete your payment from the next screen", state: paymentDone ? "done" : "upcoming", icon: WalletCards }].map(({ title, desc, state, icon: Icon }) => <article className={`timeline-row ${state}`} key={title}><span><Icon size={18}/></span><div><h3>{title}</h3><p>{desc}</p></div><i>{state === "done" ? <Check/> : state === "current" ? "In progress" : "Next"}</i></article>)}
+          </div>
+        </section>
+        <aside className="status-aside">
+          <img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/>
+          <div>
+            <Pill kind="yellow">QUALITY SIGNAL</Pill>
+            <h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3>
+            <p>The displayed signal is pulled from the live procurement record in the database.</p>
+          </div>
+
+          {/* 30-Minute Cancellation Card on Procurement Status screen */}
+          {(() => {
+            const cStatus = getCancellationStatus(bookingRecord?.slot?.date, bookingRecord?.slot?.startTime, bookingRecord?.createdAt);
+            const isCancelled = bookingRecord?.status === "CANCELLED";
+            if (isCancelled) {
+              return (
+                <div className="mt-4 p-3 bg-white/95 text-rose-800 rounded-xl text-xs border border-rose-200">
+                  <span className="font-bold flex items-center gap-1.5"><AlertTriangle size={15} /> Booking Cancelled</span>
+                  <p className="mt-1 text-[11px] text-slate-600">This slot booking was cancelled. Your slot capacity has been released.</p>
+                  <button onClick={() => navigate("paddy")} className="mt-2 text-xs text-emerald-800 underline font-bold">Book New Slot</button>
+                </div>
+              );
+            }
+            return (
+              <div className="mt-4 p-3 bg-white/95 text-slate-800 rounded-xl text-xs border border-slate-200 shadow-sm">
+                <div className="flex flex-col gap-1">
+                  <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
+                    <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-emerald-700"} />
+                    {tUi("Cancellation available for 30 minutes after booking", language)}
+                  </span>
+                  <span className="text-[11px] text-slate-600 pl-5">
+                    {cStatus.expired ? (
+                      <b className="text-slate-500">Cancellation window expired (deadline was {cStatus.deadlineFormatted})</b>
+                    ) : (
+                      <>Time remaining: <b className="text-amber-700 font-bold">{cStatus.text}</b> (until {cStatus.deadlineFormatted})</>
+                    )}
+                  </span>
+                </div>
+                {!cStatus.expired && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowCancelBookingModal(true)}
+                    className="w-full text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white h-8 rounded-lg mt-2"
+                  >
+                    Cancel Booking
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+        </aside>
+      </div>
+      <section className="status-summary">
+        <div><span className="token-disc small"><ClipboardCheck/></span><p><b>{(bookingRecord?.procurement?.status || (bookingRecord?.status === "CANCELLED" ? "CANCELLED" : "BOOKED")).replaceAll("_", " ")}</b><br/>The current stage is synchronized in real-time with officer actions.</p></div>
+        <div><span className="token-disc small blue"><WalletCards/></span><p><b>Payment follows completion</b><br/>Explore payment details anytime.</p></div>
+        <ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton>
+      </section>
+    </>
+  );
 
   const payment = farmerShell(
     <>
@@ -3858,6 +3989,12 @@ export default function Home() {
       "What is the per-km rate for mini trucks in Andhra Pradesh?",
       "How are vehicle driver details assigned?",
     ],
+    PROCUREMENT: [
+      "When should I reach the centre for document verification?",
+      "What is the maximum allowed moisture percentage for Grade A paddy?",
+      "What happens after weighbridge measurement?",
+      "How is paddy quality inspected by the officer?",
+    ],
     HELPLINE: [
       "What documents must I carry to the procurement mandi?",
       "What is the Rythu Bharosa Kendra toll-free number?",
@@ -3868,18 +4005,21 @@ export default function Home() {
   const assistant = farmerShell(
     <>
       <SectionTitle
-        eyebrow="AI FARMER ASSISTANT & HELP CENTRE"
+        eyebrow="AI FARMER ASSISTANT · DIGITAL KRISHI HELP CENTRE"
         title={t.assistantTitle}
-        body="Ask any question regarding your live booking token, queue position, AP weather harvesting advisory, crop MSP rates, or subsidized transport."
+        body={tUi("Ask any question regarding your live booking token, queue position, AP weather harvesting advisory, crop MSP rates, or subsidized transport.", language)}
       />
       <div className="assistant-advanced-layout">
         <section className="chat-panel">
           <div className="chat-head">
-            <div>
-              <span className="assistant-bot"><Bot /></span>
+            <div className="flex items-center gap-3">
+              <span className="assistant-bot-avatar"><Bot size={20} /></span>
               <div>
-                <b>ProcureFlow AI Assistant</b>
-                <small><i /> Multilingual: English, Telugu & Hindi</small>
+                <b className="text-sm font-extrabold text-[#143d2c]">ProcureFlow AI Assistant</b>
+                <small className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                  <i className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                  {tUi("Digital Krishi Help Centre", language)} · 24x7 Government Agri-Support
+                </small>
               </div>
             </div>
             <LanguagePicker language={language} setLanguage={changeLanguage} />
@@ -3887,12 +4027,13 @@ export default function Home() {
 
           <div className="assistant-category-chips">
             {[
-              { id: "ALL", label: "🌟 All Topics" },
-              { id: "TOKEN", label: "🎫 Token & Queue" },
-              { id: "WEATHER", label: "🌧️ Weather & Advisory" },
-              { id: "MSP", label: "🌾 Crop MSP Rates" },
-              { id: "TRANSPORT", label: "🚚 30% Subsidized Transport" },
-              { id: "HELPLINE", label: "📞 Helplines & Docs" },
+              { id: "ALL", label: "🌟 " + tUi("All Topics", language) },
+              { id: "TOKEN", label: "🎫 " + tUi("Token & Queue", language) },
+              { id: "WEATHER", label: "🌧️ " + tUi("Weather & Advisory", language) },
+              { id: "MSP", label: "🌾 " + tUi("Crop MSP Rates", language) },
+              { id: "TRANSPORT", label: "🚚 " + tUi("Subsidized Transport", language) },
+              { id: "PROCUREMENT", label: "⚖️ " + tUi("Procurement Help", language) },
+              { id: "HELPLINE", label: "📞 " + tUi("Helplines & Docs", language) },
             ].map(cat => (
               <button
                 key={cat.id}
@@ -3904,24 +4045,62 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="chat-feed">
-            {chat.map((message, index) => (
-              <div className={`chat-bubble ${message.role}`} key={`${message.text}-${index}`}>
-                <span>{message.role === "assistant" ? <Bot /> : "RK"}</span>
-                <div className="flex-1">
-                  <p>{message.text}</p>
+          <div className="chat-feed" ref={chatFeedRef}>
+            {chat.length === 0 ? (
+              <div className="chat-empty-state">
+                <span className="chat-empty-badge">
+                  🌾 {tUi("Digital Krishi Help Centre", language)}
+                </span>
+                <h3 className="chat-empty-title">
+                  {tUi("How can I help you today?", language)}
+                </h3>
+                <p className="chat-empty-desc">
+                  {tUi("Ask any question regarding your live booking token, queue position, AP weather harvesting advisory, crop MSP rates, or subsidized transport.", language)}
+                </p>
+                <div className="prompt-chips-grid max-w-xl">
+                  {(promptCategories[assistantCategory] ?? promptCategories.ALL).slice(0, 4).map(question => (
+                    <button
+                      className="prompt-chip-btn"
+                      onClick={() => void assistantReply(question)}
+                      key={question}
+                    >
+                      💡 {question}
+                    </button>
+                  ))}
                 </div>
-                {message.role === "assistant" && (
-                  <button
-                    onClick={() => speak(message.text)}
-                    aria-label="Listen to response"
-                    className={speakingText === message.text ? "text-emerald-600 animate-pulse" : ""}
-                  >
-                    <Volume2 size={15} />
-                  </button>
-                )}
               </div>
-            ))}
+            ) : (
+              chat.map((message, index) => (
+                <div className={`chat-bubble ${message.role}`} key={`${message.text}-${index}`}>
+                  {message.role === "assistant" ? (
+                    <>
+                      <div className="assistant-head-info">
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                          <Bot size={14} className="text-emerald-700" /> ProcureFlow Krishi AI
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="assistant-role-pill">Official Agri-Advisor</span>
+                          <button
+                            onClick={() => speak(message.text)}
+                            aria-label="Listen to response"
+                            className={`assistant-audio-btn ${speakingText === message.text ? "text-emerald-600 animate-pulse" : ""}`}
+                            title="Read answer aloud"
+                          >
+                            <Volume2 size={14} /> Listen
+                          </button>
+                        </div>
+                      </div>
+                      <p>{message.text}</p>
+                    </>
+                  ) : (
+                    <>
+                      <span className="user-label-pill">You (Farmer)</span>
+                      <p>{message.text}</p>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
           </div>
 
           <div className="suggested-prompts">
@@ -3941,6 +4120,14 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Live Voice Recording Status Banner */}
+          {isListening && (
+            <div className="chat-listening-banner">
+              <span className="recording-dot" />
+              <span>{tUi("Listening... Speak now", language)} · Words appear in the input as you speak</span>
+            </div>
+          )}
+
           <form
             className="chat-compose"
             onSubmit={e => {
@@ -3951,22 +4138,23 @@ export default function Home() {
             <button
               type="button"
               onClick={listen}
-              title="Use voice input"
-              className={isListening ? "bg-red-500 text-white animate-pulse" : ""}
+              title={isListening ? "Stop listening" : "Use voice input"}
+              className={isListening ? "bg-red-600 text-white animate-pulse ring-4 ring-red-200" : "hover:bg-emerald-100"}
+              aria-label="Toggle voice input"
             >
-              <Mic />
+              <Mic size={18} />
             </button>
             <Input
               value={chatInput}
               onChange={event => setChatInput(event.target.value)}
               placeholder={
                 isListening
-                  ? tUi("Listening... speak now", language)
+                  ? tUi("Listening... Speak now", language)
                   : tUi("Type your question in English, Telugu, or Hindi…", language)
               }
             />
-            <button type="submit" title="Send question">
-              <ArrowRight />
+            <button type="submit" title="Send question" className="bg-emerald-700 hover:bg-emerald-800 text-white">
+              <ArrowRight size={18} />
             </button>
           </form>
           <p className="voice-note">
@@ -3976,18 +4164,18 @@ export default function Home() {
 
         <aside className="helpline-side-card">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 grid place-items-center font-bold">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 grid place-items-center font-bold">
               📞
             </div>
             <div>
-              <h3 className="text-sm font-extrabold text-[#153828] m-0">Official Rythu Helplines</h3>
-              <p className="text-[11px] text-muted-foreground m-0">Direct Government Support Desks</p>
+              <h3 className="text-sm font-extrabold text-[#153828] m-0">{tUi("Official Rythu Helplines", language)}</h3>
+              <p className="text-[11px] text-muted-foreground m-0">{tUi("Direct Government Support Desks", language)}</p>
             </div>
           </div>
 
           <div className="helpline-item-row">
             <div className="helpline-info">
-              <h4>Rythu Bharosa Kendra Helpdesk</h4>
+              <h4>{tUi("Rythu Bharosa Kendra Helpdesk", language)}</h4>
               <p>Toll-free · Mon–Sat (8 AM – 7 PM)</p>
               <b>1800-425-0002</b>
             </div>
@@ -4010,7 +4198,7 @@ export default function Home() {
 
           <div className="helpline-item-row">
             <div className="helpline-info">
-              <h4>AP Civil Supplies & Mandi Grievance</h4>
+              <h4>{tUi("AP Civil Supplies & Mandi Grievance", language)}</h4>
               <p>24x7 Government Helpline</p>
               <b>1902</b>
             </div>
@@ -4031,9 +4219,32 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="helpline-item-row">
+            <div className="helpline-info">
+              <h4>{tUi("Kisan Call Centre", language)}</h4>
+              <p>National Agri-Support · 22 Languages</p>
+              <b>1800-180-1551</b>
+            </div>
+            <div className="helpline-actions">
+              <a href="tel:18001801551" className="helpline-call-btn" title="Call Kisan Helpline">
+                <PhoneCall size={12} /> Call
+              </a>
+              <button
+                className="helpline-copy-btn"
+                onClick={() => {
+                  navigator.clipboard?.writeText("18001801551");
+                  toast.success("Helpline 1800-180-1551 copied.");
+                }}
+                title="Copy number"
+              >
+                <Copy size={13} />
+              </button>
+            </div>
+          </div>
+
           <div className="mt-5 p-4 bg-[#f4faf6] border border-[#c7e3d1] rounded-xl">
             <h4 className="text-xs font-bold text-[#144730] mb-2 flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-emerald-700" /> Mandatory Mandi Checklist:
+              <ShieldCheck size={14} className="text-emerald-700" /> {tUi("Mandatory Mandi Checklist:", language)}
             </h4>
             <ul className="text-[11px] text-[#244b38] space-y-1.5 pl-1 m-0 list-none">
               <li className="flex items-center gap-1.5">
@@ -4046,7 +4257,7 @@ export default function Home() {
                 <Check size={12} className="text-emerald-600" /> 3. e-Crop / Land Record (Pahani/1B)
               </li>
               <li className="flex items-center gap-1.5">
-                <Check size={12} className="text-emerald-600" /> 4. Digital Token Pass (<b>{bookingRecord?.tokenNumber ?? "P-042"}</b>)
+                <Check size={12} className="text-emerald-600" /> 4. Digital Token Pass (<b>{bookingRecord?.tokenNumber ?? "Token 1"}</b>)
               </li>
             </ul>
           </div>
@@ -6160,7 +6371,7 @@ export default function Home() {
       const matchesCat = selectedCropCategory === "ALL" || (item.category || "").toLowerCase() === selectedCropCategory.toLowerCase();
       const matchesSearch = !cropSearchQuery || (item.cropName || "").toLowerCase().includes(cropSearchQuery.toLowerCase()) || (item.variety || "").toLowerCase().includes(cropSearchQuery.toLowerCase());
       return matchesCat && matchesSearch;
-    });
+    }).sort((a, b) => a.cropName.localeCompare(b.cropName, undefined, { sensitivity: "base" }));
   }, [cropPricesList, selectedCropCategory, cropSearchQuery]);
 
   const calcMatch = useMemo(() => {
