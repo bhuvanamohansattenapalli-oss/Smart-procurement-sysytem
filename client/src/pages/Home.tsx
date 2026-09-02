@@ -677,26 +677,52 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  const getCancellationStatus = (dateStr?: string | null, timeStr?: string | null, createdAtStr?: string | null) => {
-    const scheduledStart = parseScheduledStartTime(dateStr, timeStr);
+  const getCancellationStatus = (
+    param1?: string | Date | null,
+    param2?: string | null,
+    param3?: string | Date | null
+  ) => {
+    let createdAtVal: string | Date | null = null;
+    let dateStr: string | null = null;
+    let timeStr: string | null = null;
+
+    if (param3 !== undefined && param3 !== null) {
+      createdAtVal = param3;
+      dateStr = typeof param1 === "string" ? param1 : null;
+      timeStr = param2 || null;
+    } else if (param1) {
+      createdAtVal = param1;
+      dateStr = null;
+      timeStr = null;
+    }
+
     let deadline: number | null = null;
     let deadlineDate: Date | null = null;
 
-    if (scheduledStart) {
-      deadline = scheduledStart.getTime() - 30 * 60 * 1000;
-      deadlineDate = new Date(deadline);
-    } else if (createdAtStr) {
-      deadline = new Date(createdAtStr).getTime() + 30 * 60 * 1000;
-      deadlineDate = new Date(deadline);
+    if (createdAtVal) {
+      const createdTime = new Date(createdAtVal).getTime();
+      if (!isNaN(createdTime)) {
+        deadline = createdTime + 30 * 60 * 1000;
+        if (dateStr && timeStr) {
+          const scheduledStart = parseScheduledStartTime(dateStr, timeStr);
+          if (scheduledStart) {
+            const slotDeadline = scheduledStart.getTime() - 30 * 60 * 1000;
+            if (slotDeadline < deadline) {
+              deadline = slotDeadline;
+            }
+          }
+        }
+        deadlineDate = new Date(deadline);
+      }
     }
 
-    if (!deadline) {
-      return { canCancel: true, remainingMs: 30 * 60 * 1000, remainingMins: 30, text: "30m 00s", expired: false, deadlineFormatted: "" };
+    if (!deadline || isNaN(deadline)) {
+      return { canCancel: false, remainingMs: 0, remainingMins: 0, text: "0m 00s", expired: true, deadlineFormatted: "" };
     }
 
     const remainingMs = deadline - currentTimeMs;
     const deadlineFormatted = deadlineDate
-      ? deadlineDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + ", " + deadlineDate.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
+      ? deadlineDate.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })
       : "";
 
     if (remainingMs <= 0) {
@@ -711,18 +737,14 @@ export default function Home() {
     }
 
     const totalSeconds = Math.floor(remainingMs / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
-
-    const timeText = hours > 0
-      ? `${hours}h ${mins}m`
-      : `${mins}m ${secs < 10 ? "0" : ""}${secs}s`;
+    const timeText = `${mins}m ${secs < 10 ? "0" : ""}${secs}s`;
 
     return {
       canCancel: true,
       remainingMs,
-      remainingMins: Math.floor(remainingMs / (60 * 1000)),
+      remainingMins: mins,
       text: timeText,
       expired: false,
       deadlineFormatted,
@@ -746,11 +768,16 @@ export default function Home() {
       }
       toast.success("Booking cancelled successfully.");
       setShowCancelBookingModal(false);
-      setBookingRecord(null);
-      setBookingId(null);
-      if (farmerToken) {
+      if (data.booking) {
+        setBookingRecord(data.booking);
+        setBookingId(data.booking.id);
+      } else {
+        setBookingRecord(prev => prev ? { ...prev, status: "CANCELLED" } : null);
+      }
+      if (farmerToken && farmerId) {
         void loadFarmerStats(farmerToken);
         void loadFarmerAnalytics(farmerToken);
+        void loadNotifications(farmerToken, farmerId);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Cancellation failed.");
@@ -762,8 +789,9 @@ export default function Home() {
   const cancelFarmerTransport = async () => {
     if (!farmerToken || !targetCancelTransport?.id) return;
     setCancellingTransport(true);
+    const cancelledId = targetCancelTransport.id;
     try {
-      const response = await fetch(apiUrl(`/transport/${targetCancelTransport.id}/cancel`), {
+      const response = await fetch(apiUrl(`/transport/${cancelledId}/cancel`), {
         method: "PUT",
         headers: { Authorization: `Bearer ${farmerToken}` },
       });
@@ -774,8 +802,13 @@ export default function Home() {
       toast.success("Transportation booking cancelled successfully.");
       setShowCancelTransportModal(false);
       setTargetCancelTransport(null);
-      if (farmerToken) {
-        void loadFarmerTransportBookings(farmerToken);
+      setTransportBookingsList(prev => prev.map(t => t.id === cancelledId ? { ...t, status: "CANCELLED" } : t));
+      setBookingRecord(b => (b && b.transport && b.transport.id === cancelledId) ? {
+        ...b,
+        transport: { ...b.transport, status: "CANCELLED" }
+      } : b);
+      if (farmerToken && farmerId) {
+        void loadFarmerTransportBookings(farmerToken, farmerId);
         void loadFarmerAnalytics(farmerToken);
       }
     } catch (err) {
@@ -1318,7 +1351,10 @@ export default function Home() {
       void loadFarmerStats(saved.token);
       void loadFarmerAnalytics(saved.token);
       void loadFarmerTransportBookings(saved.token, saved.farmer.id);
-      void fetch(apiUrl(`/farmers/${saved.farmer.id}/bookings`), { headers: { Authorization: `Bearer ${saved.token}` } })
+      void fetch(apiUrl(`/farmers/${saved.farmer.id}/bookings`), {
+        headers: { Authorization: `Bearer ${saved.token}` },
+        cache: "no-store",
+      })
         .then(response => {
           if (response.status === 401) {
             localStorage.removeItem("procureflow.farmer.session");
@@ -1328,7 +1364,13 @@ export default function Home() {
           if (!response.ok) return;
           return response.json();
         })
-        .then(data => data?.bookings?.[0] ? loadBooking(saved.token, data.bookings[0].id) : undefined)
+        .then(data => {
+          const list: ApiBooking[] = data?.bookings || [];
+          const target = list.find(b => b.status === "ACTIVE" && b.procurement?.status !== "COMPLETED")
+            || list.find(b => b.status === "ACTIVE")
+            || list[0];
+          return target ? loadBooking(saved.token, target.id) : undefined;
+        })
         .catch(() => undefined);
     } catch {
       localStorage.removeItem("procureflow.farmer.session");
@@ -1362,7 +1404,7 @@ export default function Home() {
 
   useEffect(() => {
     if (screen !== "queue" || !farmerToken || !bookingId) return;
-    const refreshQueue = () => void fetch(apiUrl(`/queue/${bookingId}`), { headers: { Authorization: `Bearer ${farmerToken}` } })
+    const refreshQueue = () => void fetch(apiUrl(`/queue/${bookingId}`), { headers: { Authorization: `Bearer ${farmerToken}` }, cache: "no-store" })
       .then(response => response.ok ? response.json() : Promise.reject())
       .then((data: { position: number; peopleAhead: number; estimatedWaitMinutes: number; status: string; currentToken: string }) => {
         setQueueAhead(data.peopleAhead);
@@ -1376,10 +1418,75 @@ export default function Home() {
 
   const queueProgress = useMemo(() => Math.round(((28 - queueAhead) / 28) * 100), [queueAhead]);
 
+  const refreshProcurementStatus = async (token?: string | null, fId?: number | null, bId?: number | null) => {
+    const activeToken = token ?? farmerToken;
+    const activeFarmerId = fId ?? farmerId;
+    const activeBookingId = bId ?? bookingId;
+    if (!activeToken) return;
+
+    try {
+      if (activeBookingId) {
+        const response = await fetch(apiUrl(`/bookings/${activeBookingId}`), {
+          headers: { Authorization: `Bearer ${activeToken}` },
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const data: { booking: ApiBooking } = await response.json();
+          if (data.booking) {
+            setBookingRecord(data.booking);
+            setBookingId(data.booking.id);
+            setProfileRecord(data.booking.farmer);
+            if (data.booking.queue) setQueueAhead(data.booking.queue.peopleAhead ?? 0);
+            return data.booking;
+          }
+        }
+      }
+
+      if (activeFarmerId) {
+        const response = await fetch(apiUrl(`/farmers/${activeFarmerId}/bookings`), {
+          headers: { Authorization: `Bearer ${activeToken}` },
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const list: ApiBooking[] = data.bookings || [];
+          if (list.length > 0) {
+            const target = list.find(b => b.status === "ACTIVE" && b.procurement?.status !== "COMPLETED")
+              || list.find(b => b.status === "ACTIVE")
+              || list[0];
+            if (target) {
+              setBookingId(target.id);
+              setBookingRecord(target);
+              setProfileRecord(target.farmer);
+              if (target.queue) setQueueAhead(target.queue.peopleAhead ?? 0);
+              return target;
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore network errors during background polling
+    }
+  };
+
+  // Active real-time synchronization of procurement status while farmer is on Procurement screen
+  useEffect(() => {
+    if (screen === "status" && farmerToken) {
+      void refreshProcurementStatus(farmerToken, farmerId, bookingId);
+      const timer = setInterval(() => {
+        void refreshProcurementStatus(farmerToken, farmerId, bookingId);
+      }, 3000);
+      return () => clearInterval(timer);
+    }
+  }, [screen, farmerToken, farmerId, bookingId]);
+
   const navigate = (next: Screen) => {
     if (farmerOnlyScreens.includes(next) && !farmerToken) {
       setAuthError("Please login with your approved farmer account to continue.");
       setScreen("farmerLogin"); setMobileMenu(false); window.scrollTo({ top: 0, behavior: "smooth" }); return;
+    }
+    if (next === "status" && farmerToken) {
+      void refreshProcurementStatus(farmerToken, farmerId, bookingId);
     }
     setScreen(next); setMobileMenu(false); window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1388,11 +1495,11 @@ export default function Home() {
   }, [screen, farmerToken]);
   const loadNotifications = async (token: string, id?: number) => {
     if (!id) return;
-    const response = await fetch(apiUrl(`/farmers/${id}/notifications`), { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(apiUrl(`/farmers/${id}/notifications`), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
     if (response.ok) setApiNotifications((await response.json()).notifications);
   };
   const loadBooking = async (token: string, id: number) => {
-    const response = await fetch(apiUrl(`/bookings/${id}`), { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(apiUrl(`/bookings/${id}`), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
     if (!response.ok) throw new Error("Booking data is unavailable.");
     const data: { booking: ApiBooking } = await response.json();
     setBookingId(data.booking.id); setBookingRecord(data.booking); setProfileRecord(data.booking.farmer); setQueueAhead(data.booking.queue?.peopleAhead ?? 0);
@@ -3178,7 +3285,7 @@ export default function Home() {
                   <span className="flex items-center gap-1.5 text-xs">
                     <Clock3 size={14} className={cStatus.expired ? "text-slate-400" : "text-amber-600"} />
                     {cStatus.expired ? (
-                      <b className="text-slate-500">Cancellation closed (allowed only until 30 mins before scheduled time)</b>
+                      <b className="text-slate-500">Cancellation window expired (available for 30 mins from booking creation)</b>
                     ) : (
                       <>Cancellation allowed until: <b className="text-amber-700 font-bold">{cStatus.deadlineFormatted} ({cStatus.text} left)</b></>
                     )}
@@ -5722,7 +5829,7 @@ export default function Home() {
                       <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
                         cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
                       }`}>
-                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window closed (30m before scheduled time)"}
+                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window expired (available for 30m from booking creation)"}
                       </span>
                     );
                   })()}
@@ -5802,7 +5909,7 @@ export default function Home() {
                       <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
                         cStatus.canCancel ? "bg-emerald-100 text-emerald-900 border border-emerald-300" : "bg-rose-100 text-rose-900 border border-rose-300"
                       }`}>
-                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window closed (30m before scheduled time)"}
+                        {cStatus.canCancel ? `Allowed until ${cStatus.deadlineFormatted} (${cStatus.text} left)` : "Cancellation window expired (available for 30m from booking creation)"}
                       </span>
                     );
                   })()}
@@ -6703,7 +6810,7 @@ export default function Home() {
                       ) : isOngoing ? (
                         <span className="text-slate-500 font-medium">Trip dispatched / completed</span>
                       ) : cStatus.expired ? (
-                        <span className="text-slate-400">Cancellation window closed (30m before scheduled time)</span>
+                        <span className="text-slate-400">Cancellation window expired (available for 30 mins from booking creation)</span>
                       ) : (
                         <>
                           <span className="text-amber-700 font-medium flex items-center gap-1">

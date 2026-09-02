@@ -192,6 +192,7 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
       paddyGrade: "Grade A",
       expectedQuantityQuintals: "25.00",
       status: "ACTIVE",
+      createdAt: new Date(Date.now() - 40 * 60 * 1000),
     });
     const pastBooking = (await db!.select().from(bookings).where(eq(bookings.bookingCode, pastBookingCode)).limit(1))[0];
 
@@ -263,6 +264,7 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
       subsidyAmount: "360.00",
       netPayable: "840.00",
       status: "REQUESTED",
+      createdAt: new Date(Date.now() - 40 * 60 * 1000),
     });
     const pastTransport = (await db!.select().from(transportBookings).where(eq(transportBookings.transportCode, pastTransportCode)).limit(1))[0];
 
@@ -412,8 +414,9 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
 
   it("10. Payout Settlement: Officer DBT payout transitions state to SUCCESS (CREDITED)", async () => {
     const db = await getDb();
-    // Complete existing bookings
+    // Complete existing bookings and ensure slot 1 has available capacity
     await db!.update(bookings).set({ status: "COMPLETED" }).where(eq(bookings.farmerId, farmerRecord.id));
+    await db!.update(slots).set({ bookedCount: 0 }).where(eq(slots.id, 1));
 
     // Create fresh booking
     const bookRes = await fetch(`${baseUrl}/bookings`, {

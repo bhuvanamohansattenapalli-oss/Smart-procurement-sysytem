@@ -297,8 +297,9 @@ function publicBooking(context: Awaited<ReturnType<typeof getBookingContext>>) {
   );
 
   const scheduledStart = parseScheduledStartTime(context.slot?.slotDate, context.slot?.startTime);
-  const cancellationDeadline = scheduledStart ? new Date(scheduledStart.getTime() - 30 * 60 * 1000) : null;
-  const isPastDeadline = cancellationDeadline ? Date.now() > cancellationDeadline.getTime() : false;
+  const createdAtTime = new Date(context.booking.createdAt).getTime();
+  const cancellationDeadline = new Date(createdAtTime + 30 * 60 * 1000);
+  const isPastDeadline = Date.now() > cancellationDeadline.getTime();
   const canCancel = context.booking.status === "ACTIVE" && !isPastDeadline && (!context.procurement || context.procurement.status === "BOOKED");
 
   return {
@@ -311,9 +312,9 @@ function publicBooking(context: Awaited<ReturnType<typeof getBookingContext>>) {
     tokenNumber: context.booking.tokenNumber,
     createdAt: context.booking.createdAt,
     scheduledStartTime: scheduledStart ? scheduledStart.toISOString() : null,
-    cancellationDeadline: cancellationDeadline ? cancellationDeadline.toISOString() : null,
+    cancellationDeadline: cancellationDeadline.toISOString(),
     canCancel,
-    cancellationReason: canCancel ? null : isPastDeadline ? "Cancellation is available only until 30 minutes before the scheduled time." : `Booking is ${context.booking.status}`,
+    cancellationReason: canCancel ? null : isPastDeadline ? "Cancellation window has expired (available for 30 minutes from booking creation)." : `Booking is ${context.booking.status}`,
     farmer: formatFarmer(context.farmer),
     centre: { id: context.centre.id, name: context.centre.name, place: context.centre.place, distanceKm: Number(context.centre.distanceKm) },
     slot: { id: context.slot.id, date: context.slot.slotDate, startTime: context.slot.startTime, endTime: context.slot.endTime },
@@ -1063,21 +1064,20 @@ export function createProcurementApi() {
       });
     }
 
-    // Strict 30-minute cancellation rule: cancellation allowed ONLY until 30 minutes before scheduled slot time
-    const scheduledStart = parseScheduledStartTime(context.slot?.slotDate, context.slot?.startTime);
+    // 30-minute cancellation rule: cancellation allowed within 30 minutes of creation time
+    const createdAtTime = new Date(context.booking.createdAt).getTime();
     const now = Date.now();
     const thirtyMinutesMs = 30 * 60 * 1000;
-    if (scheduledStart) {
-      const cancellationDeadline = scheduledStart.getTime() - thirtyMinutesMs;
-      if (now > cancellationDeadline) {
-        return res.status(400).json({
-          success: false,
-          error: "CANCELLATION_DEADLINE_EXCEEDED",
-          message: "Cancellation is available only until 30 minutes before the scheduled time.",
-          scheduledTime: scheduledStart.toISOString(),
-          cancellationDeadline: new Date(cancellationDeadline).toISOString(),
-        });
-      }
+    const cancellationDeadline = createdAtTime + thirtyMinutesMs;
+
+    if (now > cancellationDeadline) {
+      return res.status(400).json({
+        success: false,
+        error: "CANCELLATION_DEADLINE_EXCEEDED",
+        message: "Cancellation window has expired (available for 30 minutes from booking creation).",
+        createdAt: new Date(createdAtTime).toISOString(),
+        cancellationDeadline: new Date(cancellationDeadline).toISOString(),
+      });
     }
 
     // 1. Update booking status to CANCELLED
@@ -1106,6 +1106,7 @@ export function createProcurementApi() {
     }
 
     const updatedContext = await getBookingContext(context.booking.id);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     return res.json({
       message: "Booking cancelled successfully.",
       success: true,
@@ -1117,12 +1118,14 @@ export function createProcurementApi() {
   api.post("/bookings/:id/cancel", requireApiAuth, requireRole("farmer"), handleCancelBooking);
 
   api.get("/bookings/:id", requireApiAuth, async (req: AuthenticatedRequest, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     const id = idSchema.safeParse(req.params.id); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     const context = await requireBookingAccess(req, res, id.data); if (!context) return;
     return res.json({ booking: publicBooking(context) });
   });
 
   api.get("/farmers/:id/bookings", requireApiAuth, async (req: AuthenticatedRequest, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     const farmerId = idSchema.safeParse(req.params.id); if (!farmerId.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     if (req.principal?.role === "farmer" && req.principal.id !== farmerId.data) return res.status(403).json({ error: "FORBIDDEN", message: "You cannot access another farmer's bookings." });
     const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
@@ -1131,6 +1134,7 @@ export function createProcurementApi() {
   });
 
   api.get("/queue/:bookingId", requireApiAuth, async (req: AuthenticatedRequest, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     const id = idSchema.safeParse(req.params.bookingId); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     const context = await requireBookingAccess(req, res, id.data); if (!context) return;
     if (!context.queue) return res.status(404).json({ error: "QUEUE_NOT_FOUND" });
@@ -1138,6 +1142,7 @@ export function createProcurementApi() {
   });
 
   api.get("/procurement/:bookingId", requireApiAuth, async (req: AuthenticatedRequest, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     const id = idSchema.safeParse(req.params.bookingId); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
     const context = await requireBookingAccess(req, res, id.data); if (!context) return;
     if (!context.procurement) return res.status(404).json({ error: "PROCUREMENT_NOT_FOUND" });
@@ -1564,7 +1569,7 @@ export function createProcurementApi() {
       )
     ).orderBy(desc(transportBookings.createdAt)).limit(1))[0];
 
-    if (recentDuplicate && (Date.now() - new Date(recentDuplicate.createdAt).getTime() < 60000)) {
+    if (recentDuplicate && recentDuplicate.status !== "CANCELLED" && (Date.now() - new Date(recentDuplicate.createdAt).getTime() < 60000)) {
       return res.status(200).json({
         message: "Transportation booking already created.",
         transport: {
@@ -1652,10 +1657,12 @@ export function createProcurementApi() {
     const allCentres = await db.select().from(procurementCentres);
     const centreMap = new Map(allCentres.map(c => [c.id, c.name]));
 
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     const formatted = rows.map(item => {
-      const scheduledStart = parseScheduledStartTime(item.scheduledDate, item.timeSlot);
-      const cancellationDeadline = scheduledStart ? new Date(scheduledStart.getTime() - 30 * 60 * 1000) : null;
-      const isPastDeadline = cancellationDeadline ? Date.now() > cancellationDeadline.getTime() : false;
+      const createdAtTime = new Date(item.createdAt).getTime();
+      const thirtyMinutesMs = 30 * 60 * 1000;
+      const cancellationDeadline = new Date(createdAtTime + thirtyMinutesMs);
+      const isPastDeadline = Date.now() > cancellationDeadline.getTime();
       const canCancel = (item.status === "REQUESTED" || item.status === "ASSIGNED") && !isPastDeadline;
 
       return {
@@ -1668,10 +1675,10 @@ export function createProcurementApi() {
         destinationCentreName: centreMap.get(item.destinationCentreId) || "Procurement Centre",
         scheduledDate: item.scheduledDate,
         timeSlot: item.timeSlot,
-        scheduledStartTime: scheduledStart ? scheduledStart.toISOString() : null,
-        cancellationDeadline: cancellationDeadline ? cancellationDeadline.toISOString() : null,
+        scheduledStartTime: parseScheduledStartTime(item.scheduledDate, item.timeSlot)?.toISOString() || null,
+        cancellationDeadline: cancellationDeadline.toISOString(),
         canCancel,
-        cancellationReason: canCancel ? null : isPastDeadline ? "Cancellation is available only until 30 minutes before the scheduled time." : `Transport is ${item.status}`,
+        cancellationReason: canCancel ? null : isPastDeadline ? "Cancellation window has expired (available for 30 minutes from transport booking creation)." : `Transport is ${item.status}`,
         estimatedLoadQuintals: Number(item.estimatedLoadQuintals),
         driverName: item.driverName,
         driverPhone: item.driverPhone,
@@ -1695,17 +1702,12 @@ export function createProcurementApi() {
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
 
-    const existing = (
-      await db
-        .select()
-        .from(transportBookings)
-        .where(
-          isNumeric
-            ? or(eq(transportBookings.id, numId), eq(transportBookings.transportCode, rawId))
-            : eq(transportBookings.transportCode, rawId)
-        )
-        .limit(1)
-    )[0];
+    let existing = isNumeric
+      ? (await db.select().from(transportBookings).where(eq(transportBookings.id, numId)).limit(1))[0]
+      : (await db.select().from(transportBookings).where(eq(transportBookings.transportCode, rawId)).limit(1))[0];
+    if (!existing && isNumeric) {
+      existing = (await db.select().from(transportBookings).where(eq(transportBookings.transportCode, rawId)).limit(1))[0];
+    }
 
     if (!existing) {
       return res.status(404).json({ error: "TRANSPORT_NOT_FOUND", message: `Transportation booking '${rawId}' was not found.` });
@@ -1727,21 +1729,20 @@ export function createProcurementApi() {
       return res.status(400).json({ error: "CANNOT_CANCEL_IN_TRANSIT", message: "Cannot cancel a vehicle that is currently in transit." });
     }
 
-    // Strict 30-minute cancellation rule: cancellation allowed ONLY until 30 minutes before scheduled transport pickup time
-    const scheduledStart = parseScheduledStartTime(existing.scheduledDate, existing.timeSlot);
+    // 30-minute cancellation rule: cancellation allowed within 30 minutes of creation time
+    const createdAtTime = new Date(existing.createdAt).getTime();
     const now = Date.now();
     const thirtyMinutesMs = 30 * 60 * 1000;
-    if (scheduledStart) {
-      const cancellationDeadline = scheduledStart.getTime() - thirtyMinutesMs;
-      if (now > cancellationDeadline) {
-        return res.status(400).json({
-          success: false,
-          error: "CANCELLATION_DEADLINE_EXCEEDED",
-          message: "Cancellation is available only until 30 minutes before the scheduled time.",
-          scheduledTime: scheduledStart.toISOString(),
-          cancellationDeadline: new Date(cancellationDeadline).toISOString(),
-        });
-      }
+    const cancellationDeadline = createdAtTime + thirtyMinutesMs;
+
+    if (now > cancellationDeadline) {
+      return res.status(400).json({
+        success: false,
+        error: "CANCELLATION_DEADLINE_EXCEEDED",
+        message: "Cancellation window has expired (available for 30 minutes from transport booking creation).",
+        createdAt: new Date(createdAtTime).toISOString(),
+        cancellationDeadline: new Date(cancellationDeadline).toISOString(),
+      });
     }
 
     await db.update(transportBookings).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(transportBookings.id, existing.id));
@@ -1803,17 +1804,12 @@ export function createProcurementApi() {
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
 
-    const existing = (
-      await db
-        .select()
-        .from(transportBookings)
-        .where(
-          isNumeric
-            ? or(eq(transportBookings.id, numId), eq(transportBookings.transportCode, rawId))
-            : eq(transportBookings.transportCode, rawId)
-        )
-        .limit(1)
-    )[0];
+    let existing = isNumeric
+      ? (await db.select().from(transportBookings).where(eq(transportBookings.id, numId)).limit(1))[0]
+      : (await db.select().from(transportBookings).where(eq(transportBookings.transportCode, rawId)).limit(1))[0];
+    if (!existing && isNumeric) {
+      existing = (await db.select().from(transportBookings).where(eq(transportBookings.transportCode, rawId)).limit(1))[0];
+    }
 
     if (!existing) {
       return res.status(404).json({
