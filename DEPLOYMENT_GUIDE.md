@@ -27,7 +27,17 @@ Render provides free lifetime hosting for full-stack web applications with zero 
    - **Instance Type**: `Free`
 5. Click **Create Web Service**.
 
-### Step 3: Your Lifetime URL is Live!
+### Step 3: Enable 24/7 Permanent Database Persistence (Recommended)
+By default, Render's free tier spins down after 15 minutes of inactivity and uses an ephemeral disk. To ensure farmer registrations, bookings, and payments persist permanently:
+1. Create a free cloud MySQL database (e.g. on [TiDB Cloud Serverless](https://tidbcloud.com/), [Aiven MySQL](https://aiven.io/), or [Railway MySQL](https://railway.app/)).
+2. Copy your MySQL connection URL (e.g. `mysql://user:password@host:port/dbname?ssl={"rejectUnauthorized":true}`).
+3. In your Render Dashboard, open your web service → **Environment** tab.
+4. Add environment variable:
+   - **Key**: `DATABASE_URL`
+   - **Value**: `your_mysql_connection_string`
+5. Render will automatically redeploy and connect directly to your persistent cloud database.
+
+### Step 4: Your Lifetime URL is Live!
 Render will build the Vite client and Node.js server. Within 2 minutes, you will get your permanent live URL:
 `https://smart-procurement-portal.onrender.com`
 

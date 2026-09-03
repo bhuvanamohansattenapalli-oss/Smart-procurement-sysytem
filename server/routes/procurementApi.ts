@@ -587,15 +587,15 @@ export function createProcurementApi() {
     const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
     if (!farmer) {
       console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=FARMER_NOT_FOUND`);
-      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
+      return res.status(401).json({ error: "FARMER_NOT_FOUND", message: "No registered farmer found with this mobile number. Please register first or verify your number." });
     }
     if (!verifyPassword(input.password, farmer.passwordHash)) {
       console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=PASSWORD_MISMATCH`);
-      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Mobile number or password is incorrect." });
+      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Incorrect password. Please verify your password and try again." });
     }
     if (farmer.status !== "APPROVED") {
       console.info(`[Auth Audit] Farmer login deferred: phone=${cleanPhone} status=${farmer.status}`);
-      return res.status(403).json({ error: "REGISTRATION_NOT_APPROVED", message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`, status: farmer.status });
+      return res.status(403).json({ error: "REGISTRATION_NOT_APPROVED", message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`, status: farmer.status, farmer: formatFarmer(farmer) });
     }
     const token = await issueAccessToken({ id: farmer.id, role: "farmer", code: farmer.farmerCode, name: farmer.name });
     console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${cleanPhone} code=${farmer.farmerCode}`);
