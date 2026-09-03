@@ -4,9 +4,38 @@ This guide walks you through deploying your **Smart Procurement Management Syste
 
 ---
 
-## Method 1: Deploy for Free on Render.com (Recommended - Lifetime Free)
+## Method 1: Deploy on Vercel (Fastest & Easiest)
 
-Render provides free lifetime hosting for full-stack web applications with zero maintenance.
+Vercel provides ultra-fast global hosting with automatic SSL, instant CI/CD from GitHub, and serverless API functions.
+
+### Step 1: Push your code to GitHub
+The project is already configured and ready in your GitHub repository:
+[`bhuvanamohansattenapalli-oss/Smart-procurement-sysytem`](https://github.com/bhuvanamohansattenapalli-oss/Smart-procurement-sysytem).
+
+### Step 2: Import Project on Vercel
+1. Go to [https://vercel.com](https://vercel.com) and log in with your **GitHub** account.
+2. On your Vercel Dashboard, click **"Add New..."** → **"Project"**.
+3. Under **"Import Git Repository"**, find and click **Import** next to `Smart-procurement-sysytem`.
+4. In the **Configure Project** screen:
+   - **Framework Preset**: Auto-detected as **Vite**
+   - **Root Directory**: `./` (leave default)
+   - **Build Command**: `npm run build` (auto-detected)
+   - **Output Directory**: `dist/public` (auto-detected from `vercel.json`)
+   - **Install Command**: `npm install` (default)
+5. (Optional) **Environment Variables**:
+   - If you have a free cloud database URL (e.g. Supabase, TiDB Cloud, Aiven), you can add `DATABASE_URL`.
+   - If not, you can leave it empty — the built-in serverless fallback store will initialize automatically!
+6. Click **"Deploy"**!
+
+### Step 3: Your Live Vercel Link
+Within 1 to 2 minutes, Vercel will build the frontend and serverless API. You will receive a live URL such as:
+`https://smart-procurement-sysytem.vercel.app`
+
+---
+
+## Method 2: Deploy for Free on Render.com (Lifetime Free)
+
+Render provides free hosting for full-stack web applications with zero maintenance.
 
 ### Step 1: Upload code to GitHub
 1. Create a free account on [GitHub.com](https://github.com) (if you don't already have one).

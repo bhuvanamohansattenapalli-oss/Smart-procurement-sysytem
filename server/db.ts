@@ -138,7 +138,12 @@ function evaluateCondition(row: Record<string, any>, condition: any): boolean {
 class LocalDatabaseStore {
   private tables = new Map<string, Record<string, any>[]>();
   private autoIncrements = new Map<string, number>();
-  private storageFilePath = path.resolve(process.cwd(), ".data", "procureflow_db.json");
+  private getStorageFilePath(): string {
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT) {
+      return path.resolve("/tmp", "procureflow_db.json");
+    }
+    return path.resolve(process.cwd(), ".data", "procureflow_db.json");
+  }
 
   constructor() {
     this.initTables();
@@ -174,8 +179,16 @@ class LocalDatabaseStore {
 
   private loadFromDisk() {
     try {
-      if (fs.existsSync(this.storageFilePath)) {
-        const raw = fs.readFileSync(this.storageFilePath, "utf-8");
+      const targetPath = this.getStorageFilePath();
+      let readPath = targetPath;
+      if (!fs.existsSync(readPath)) {
+        const fallback = path.resolve(process.cwd(), ".data", "procureflow_db.json");
+        if (fs.existsSync(fallback)) {
+          readPath = fallback;
+        }
+      }
+      if (fs.existsSync(readPath)) {
+        const raw = fs.readFileSync(readPath, "utf-8");
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") {
           if (parsed.tables && typeof parsed.tables === "object") {
@@ -192,7 +205,7 @@ class LocalDatabaseStore {
               }
             }
           }
-          console.log(`[Database] Loaded persistent local store from ${this.storageFilePath} (${this.tables.get("farmers")?.length ?? 0} farmers, ${this.tables.get("bookings")?.length ?? 0} bookings).`);
+          console.log(`[Database] Loaded persistent local store from ${readPath} (${this.tables.get("farmers")?.length ?? 0} farmers, ${this.tables.get("bookings")?.length ?? 0} bookings).`);
         }
       }
     } catch (err) {
@@ -202,7 +215,8 @@ class LocalDatabaseStore {
 
   saveToDisk() {
     try {
-      const dir = path.dirname(this.storageFilePath);
+      const targetPath = this.getStorageFilePath();
+      const dir = path.dirname(targetPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
@@ -211,7 +225,7 @@ class LocalDatabaseStore {
         autoIncrements: Object.fromEntries(this.autoIncrements.entries()),
         lastSaved: new Date().toISOString(),
       };
-      fs.writeFileSync(this.storageFilePath, JSON.stringify(data, null, 2), "utf-8");
+      fs.writeFileSync(targetPath, JSON.stringify(data, null, 2), "utf-8");
     } catch (err) {
       console.warn("[Database] Failed to persist local store to disk:", err);
     }
