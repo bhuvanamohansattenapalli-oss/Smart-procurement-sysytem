@@ -1354,6 +1354,161 @@ export function createProcurementApi() {
     return res.json({ bookings: await Promise.all(found.map(async booking => publicBooking(await getBookingContext(booking.id)))) });
   });
 
+  api.get("/farmers/:id/history", requireApiAuth, async (req: AuthenticatedRequest, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    const farmerId = idSchema.safeParse(req.params.id);
+    if (!farmerId.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+    if (req.principal?.role === "farmer" && req.principal.id !== farmerId.data) {
+      return res.status(403).json({ error: "FORBIDDEN", message: "You cannot access another farmer's activity history." });
+    }
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+
+    // 1. Fetch farmer bookings with full context
+    const foundBookings = await db.select().from(bookings).where(eq(bookings.farmerId, farmerId.data)).orderBy(desc(bookings.createdAt));
+    const fullBookings = await Promise.all(foundBookings.map(async b => publicBooking(await getBookingContext(b.id))));
+
+    // 2. Fetch transport bookings
+    const foundTransports = await db.select().from(transportBookings).where(eq(transportBookings.farmerId, farmerId.data)).orderBy(desc(transportBookings.createdAt));
+    const allCentres = await db.select().from(procurementCentres);
+    const centreMap = new Map(allCentres.map(c => [c.id, c.name]));
+
+    const formattedTransports = foundTransports.map(item => {
+      const createdAtTime = new Date(item.createdAt).getTime();
+      const thirtyMinutesMs = 30 * 60 * 1000;
+      const cancellationDeadline = new Date(createdAtTime + thirtyMinutesMs);
+      const isPastDeadline = Date.now() > cancellationDeadline.getTime();
+      const canCancel = (item.status === "REQUESTED" || item.status === "ASSIGNED") && !isPastDeadline;
+      return {
+        id: item.id,
+        transportCode: item.transportCode,
+        bookingId: item.bookingId,
+        vehicleType: item.vehicleType,
+        vehicleNumber: item.vehicleNumber || "Assigned shortly",
+        driverName: item.driverName || "Mandi Logistics Driver",
+        driverPhone: item.driverPhone || "1800-425-0012",
+        pickupVillage: item.pickupVillage,
+        destinationCentre: centreMap.get(item.centreId) || `Centre #${item.centreId}`,
+        centreId: item.centreId,
+        scheduledDate: item.scheduledDate,
+        timeSlot: item.timeSlot,
+        estimatedLoadQuintals: Number(item.estimatedLoadQuintals),
+        distanceKm: Number(item.distanceKm),
+        baseFare: Number(item.baseFare),
+        subsidyAmount: Number(item.subsidyAmount),
+        netPayable: Number(item.netPayable),
+        status: item.status,
+        canCancel,
+        createdAt: item.createdAt,
+      };
+    });
+
+    // 3. Fetch payments
+    const paymentRows = (await Promise.all(foundBookings.map(async b => {
+      const pRows = await db.select().from(payments).where(eq(payments.bookingId, b.id)).orderBy(desc(payments.createdAt));
+      return pRows.map(p => ({
+        ...paymentView(p),
+        bookingCode: b.bookingCode,
+        bookingId: b.id,
+        paddyVariety: b.paddyVariety,
+      }));
+    }))).flat();
+
+    // 4. Construct unified timeline
+    const historyItems: Array<{
+      id: string | number;
+      type: "BOOKING" | "TRANSPORT" | "PAYMENT";
+      title: string;
+      code: string;
+      crop: string;
+      quantity?: number;
+      centre?: string;
+      date?: string;
+      timeSlot?: string;
+      amount?: number;
+      status: string;
+      tokenNumber?: string;
+      paymentMethod?: string;
+      rawTimestamp: string;
+      details: Record<string, any>;
+    }> = [];
+
+    fullBookings.forEach(b => {
+      historyItems.push({
+        id: `bk-${b.id}`,
+        type: "BOOKING",
+        title: `Procurement Slot: ${b.paddyVariety}`,
+        code: b.bookingCode,
+        crop: b.paddyVariety,
+        quantity: b.expectedQuantityQuintals,
+        centre: b.centre?.name,
+        date: b.slot?.date,
+        timeSlot: b.slot ? `${b.slot.startTime} - ${b.slot.endTime}` : undefined,
+        amount: b.paymentQuote?.demoPayable,
+        status: b.status,
+        tokenNumber: b.tokenNumber,
+        rawTimestamp: b.createdAt || new Date().toISOString(),
+        details: b,
+      });
+    });
+
+    formattedTransports.forEach(t => {
+      historyItems.push({
+        id: `tr-${t.id}`,
+        type: "TRANSPORT",
+        title: `Transport: ${t.pickupVillage} → ${t.destinationCentre}`,
+        code: t.transportCode,
+        crop: `${t.vehicleType} (${t.estimatedLoadQuintals} Qtl)`,
+        quantity: t.estimatedLoadQuintals,
+        centre: t.destinationCentre,
+        date: t.scheduledDate,
+        timeSlot: t.timeSlot,
+        amount: t.netPayable,
+        status: t.status,
+        rawTimestamp: t.createdAt || new Date().toISOString(),
+        details: t,
+      });
+    });
+
+    paymentRows.forEach(p => {
+      historyItems.push({
+        id: `pay-${p.id}`,
+        type: "PAYMENT",
+        title: `Direct Benefit Transfer: ${p.bookingCode}`,
+        code: p.paymentId || p.transactionReference,
+        crop: p.paddyVariety || "Procurement Payout",
+        amount: p.amount,
+        status: p.status,
+        paymentMethod: p.paymentMethod || "Aadhaar DBT / NEFT",
+        date: p.completedAt || p.createdAt,
+        rawTimestamp: p.createdAt || new Date().toISOString(),
+        details: p,
+      });
+    });
+
+    historyItems.sort((a, b) => new Date(b.rawTimestamp).getTime() - new Date(a.rawTimestamp).getTime());
+
+    const totalPaidAmount = paymentRows
+      .filter(p => p.status === "SUCCESS" || p.status === "COMPLETED")
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    return res.json({
+      farmerId: farmerId.data,
+      summary: {
+        totalBookings: fullBookings.length,
+        activeBookings: fullBookings.filter(b => b.status === "ACTIVE").length,
+        totalTransport: formattedTransports.length,
+        activeTransport: formattedTransports.filter(t => t.status === "REQUESTED" || t.status === "ASSIGNED" || t.status === "IN_TRANSIT").length,
+        totalPayments: paymentRows.length,
+        totalPaidAmount,
+      },
+      bookings: fullBookings,
+      transport: formattedTransports,
+      payments: paymentRows,
+      timeline: historyItems,
+    });
+  });
+
   api.get("/queue/:bookingId", requireApiAuth, async (req: AuthenticatedRequest, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     const id = idSchema.safeParse(req.params.bookingId); if (!id.success) return res.status(400).json({ error: "VALIDATION_ERROR" });

@@ -87,6 +87,7 @@ import { MapView } from "@/components/Map";
 
 import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
+import { CROP_CATALOGUE, filterCrops, getCatalogueCropImage, CropItem } from "@/lib/cropCatalogue";
 
 function getInitials(name?: string | null, fallback = "SO"): string {
   if (!name || typeof name !== "string") return fallback;
@@ -106,6 +107,7 @@ type Screen =
   | "weather"
   | "farmerAnalytics"
   | "transportation"
+  | "history"
   | "centres"
   | "centre"
   | "slot"
@@ -274,6 +276,7 @@ const farmerOnlyScreens: Screen[] = [
   "cropPrices",
   "farmerAnalytics",
   "transportation",
+  "history",
   "centres",
   "centre",
   "slot",
@@ -315,13 +318,7 @@ export const CROP_PHOTO_CATALOG: Record<string, string> = {
 
 export function getCropImageUrl(cropName: string): string {
   if (!cropName) return "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=800&q=80";
-  if (CROP_PHOTO_CATALOG[cropName]) return CROP_PHOTO_CATALOG[cropName];
-  for (const [key, url] of Object.entries(CROP_PHOTO_CATALOG)) {
-    if (cropName.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cropName.toLowerCase())) {
-      return url;
-    }
-  }
-  return "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=800&q=80";
+  return getCatalogueCropImage(cropName);
 }
 
 const centres: Centre[] = [
@@ -355,6 +352,7 @@ const navItems: { screen: Screen; label: string; icon: typeof Sprout }[] = [
   { screen: "weather", label: "Live Weather", icon: CloudSun },
   { screen: "farmerAnalytics", label: "Analytics", icon: BarChart3 },
   { screen: "transportation", label: "Transportation", icon: Truck },
+  { screen: "history", label: "History", icon: History },
   { screen: "token", label: "My token", icon: Ticket },
   { screen: "queue", label: "Live queue", icon: UsersRound },
   { screen: "status", label: "Procurement", icon: ClipboardCheck },
@@ -676,6 +674,25 @@ export default function Home() {
   const [backendSlots, setBackendSlots] = useState<BackendSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [bookingCropCategory, setBookingCropCategory] = useState<string>("ALL");
+  const [bookingCropSearch, setBookingCropSearch] = useState<string>("");
+  const [centreSearchQuery, setCentreSearchQuery] = useState<string>("");
+  const [historyFilter, setHistoryFilter] = useState<"ALL" | "BOOKINGS" | "TRANSPORT" | "PAYMENTS">("ALL");
+  const [historySearchQuery, setHistorySearchQuery] = useState<string>("");
+  const [farmerHistoryData, setFarmerHistoryData] = useState<{
+    summary: {
+      totalBookings: number;
+      activeBookings: number;
+      totalTransport: number;
+      activeTransport: number;
+      totalPayments: number;
+      totalPaidAmount: number;
+    };
+    bookings: any[];
+    transport: any[];
+    payments: any[];
+    timeline: any[];
+  } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [expectedQuantity, setExpectedQuantity] = useState<number>(18);
   const [paymentDone, setPaymentDone] = useState(false);
   const [paymentMode, setPaymentMode] = useState("UPI");
@@ -963,6 +980,7 @@ export default function Home() {
         void loadFarmerStats(farmerToken);
         void loadFarmerAnalytics(farmerToken);
         void loadNotifications(farmerToken, farmerId);
+        void loadFarmerHistory(farmerId);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Cancellation failed.");
@@ -995,6 +1013,7 @@ export default function Home() {
       if (farmerToken && farmerId) {
         void loadFarmerTransportBookings(farmerToken, farmerId);
         void loadFarmerAnalytics(farmerToken);
+        void loadFarmerHistory(farmerId);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Cancellation failed.");
@@ -1475,6 +1494,7 @@ export default function Home() {
         if (data.transport) {
           setTransportBookingsList(prev => [data.transport, ...prev.filter(b => b.id !== data.transport.id && b.transportCode !== data.transport.transportCode)]);
           toast.success(`Vehicle Booked! 30% Govt subsidy (₹${Number(data.transport.subsidyAmount || 0).toFixed(2)}) applied. Driver: ${data.transport.driverName || "Assigned"}.`);
+          if (farmerId) void loadFarmerHistory(farmerId);
         }
       } else {
         const err = await response.json().catch(() => ({}));
@@ -1750,6 +1770,118 @@ export default function Home() {
       return () => clearInterval(timer);
     }
   }, [screen, farmerToken, farmerId, bookingId]);
+
+  const loadFarmerHistory = async (targetFarmerId?: number) => {
+    const id = targetFarmerId || farmerId || profileRecord?.id || (farmerSession?.farmer as any)?.id;
+    const token = farmerToken || farmerSession?.token;
+    if (!id) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/farmers/${id}/history`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFarmerHistoryData(data);
+      } else {
+        const [bkRes, trRes, payRes] = await Promise.allSettled([
+          fetch(apiUrl(`/farmers/${id}/bookings`), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" }),
+          fetch(apiUrl(`/farmers/${id}/transport`), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" }),
+          fetch(apiUrl(`/farmers/${id}/payments`), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" }),
+        ]);
+
+        const rawBookings = bkRes.status === "fulfilled" && bkRes.value.ok ? (await bkRes.value.json()).bookings || [] : [];
+        const rawTransport = trRes.status === "fulfilled" && trRes.value.ok ? (await trRes.value.json()).transport || [] : [];
+        const rawPayments = payRes.status === "fulfilled" && payRes.value.ok ? (await payRes.value.json()).payments || [] : [];
+
+        const timeline: any[] = [];
+        rawBookings.forEach((b: any) => {
+          timeline.push({
+            id: `bk-${b.id}`,
+            type: "BOOKING",
+            title: `Procurement Slot: ${b.paddyVariety}`,
+            code: b.bookingCode,
+            crop: b.paddyVariety,
+            quantity: b.expectedQuantityQuintals,
+            centre: b.centre?.name,
+            date: b.slot?.date,
+            timeSlot: b.slot ? `${b.slot.startTime} - ${b.slot.endTime}` : undefined,
+            amount: b.paymentQuote?.demoPayable,
+            status: b.status,
+            tokenNumber: b.tokenNumber,
+            rawTimestamp: b.createdAt || new Date().toISOString(),
+            details: b,
+          });
+        });
+
+        rawTransport.forEach((t: any) => {
+          timeline.push({
+            id: `tr-${t.id}`,
+            type: "TRANSPORT",
+            title: `Transport: ${t.pickupVillage} → ${t.destinationCentre || "Centre"}`,
+            code: t.transportCode,
+            crop: `${t.vehicleType} (${t.estimatedLoadQuintals || 0} Qtl)`,
+            quantity: t.estimatedLoadQuintals,
+            centre: t.destinationCentre,
+            date: t.scheduledDate,
+            timeSlot: t.timeSlot,
+            amount: t.netPayable,
+            status: t.status,
+            rawTimestamp: t.createdAt || new Date().toISOString(),
+            details: t,
+          });
+        });
+
+        rawPayments.forEach((p: any) => {
+          timeline.push({
+            id: `pay-${p.id}`,
+            type: "PAYMENT",
+            title: `Direct Benefit Transfer: ${p.bookingCode || p.transactionReference}`,
+            code: p.paymentId || p.transactionReference,
+            crop: p.paddyVariety || "Procurement Payout",
+            amount: p.amount,
+            status: p.status,
+            paymentMethod: p.paymentMethod || "Aadhaar DBT / NEFT",
+            date: p.completedAt || p.createdAt,
+            rawTimestamp: p.createdAt || new Date().toISOString(),
+            details: p,
+          });
+        });
+
+        timeline.sort((a, b) => new Date(b.rawTimestamp).getTime() - new Date(a.rawTimestamp).getTime());
+
+        const totalPaid = rawPayments
+          .filter((p: any) => p.status === "SUCCESS" || p.status === "COMPLETED")
+          .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+
+        setFarmerHistoryData({
+          summary: {
+            totalBookings: rawBookings.length,
+            activeBookings: rawBookings.filter((b: any) => b.status === "ACTIVE").length,
+            totalTransport: rawTransport.length,
+            activeTransport: rawTransport.filter((t: any) => t.status === "REQUESTED" || t.status === "ASSIGNED" || t.status === "IN_TRANSIT").length,
+            totalPayments: rawPayments.length,
+            totalPaidAmount: totalPaid,
+          },
+          bookings: rawBookings,
+          transport: rawTransport,
+          payments: rawPayments,
+          timeline,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load farmer activity history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (screen === "history" && farmerToken && farmerId) {
+      void loadFarmerHistory(farmerId);
+    }
+  }, [screen, farmerToken, farmerId]);
   const loadFarmerStats = async (token: string) => { const response = await fetch(apiUrl("/stats/farmer"), { headers: { Authorization: `Bearer ${token}` } }); if (response.ok) setFarmerStats((await response.json()).stats); };
   const loadOfficerStats = async (token: string) => { const response = await fetch(apiUrl("/stats/officer"), { headers: { Authorization: `Bearer ${token}` } }); if (response.ok) setOfficerStats((await response.json()).stats); };
   const loadOfficerAnalytics = async (token: string) => {
@@ -2454,6 +2586,7 @@ export default function Home() {
       setQueueAhead(data.booking.queue?.peopleAhead ?? 0);
       await loadNotifications(farmerToken, data.booking.farmer.id);
       await loadFarmerStats(farmerToken);
+      if (farmerId) void loadFarmerHistory(farmerId);
       navigate("token");
       toast.success("Booking confirmed and real API token generated.");
     } catch (error) {
@@ -3109,21 +3242,32 @@ export default function Home() {
   );
 
   const bookingCrops = useMemo(() => {
-    const list = cropPricesList.length > 0 ? cropPricesList : [
-      { id: 1, cropName: "Paddy (Common)", variety: "Standard / MTU 1010", category: "Cereals", mspPerQuintal: 2300, effectiveRatePerQuintal: 2300, govtBonusPerQuintal: 0, maxMoisturePercent: 17 },
-      { id: 2, cropName: "Paddy (Grade A)", variety: "Grade A / BPT 5204", category: "Cereals", mspPerQuintal: 2320, effectiveRatePerQuintal: 2370, govtBonusPerQuintal: 50, maxMoisturePercent: 17 },
-      { id: 3, cropName: "Paddy (Parboiled)", variety: "Boiled Grade A", category: "Cereals", mspPerQuintal: 2320, effectiveRatePerQuintal: 2350, govtBonusPerQuintal: 30, maxMoisturePercent: 15 },
-      { id: 4, cropName: "Wheat (Gehun)", variety: "Kalyan Sona / Sharbati", category: "Cereals", mspPerQuintal: 2275, effectiveRatePerQuintal: 2275, govtBonusPerQuintal: 0, maxMoisturePercent: 12 },
-      { id: 5, cropName: "Maize (Makka)", variety: "Hybrid Yellow", category: "Coarse Cereals", mspPerQuintal: 2225, effectiveRatePerQuintal: 2225, govtBonusPerQuintal: 0, maxMoisturePercent: 14 },
-      { id: 6, cropName: "Cotton (Long Staple)", variety: "BT Cotton / DCH-32", category: "Commercial", mspPerQuintal: 7521, effectiveRatePerQuintal: 7521, govtBonusPerQuintal: 0, maxMoisturePercent: 8 },
-    ];
-    const filtered = bookingCropCategory === "ALL" ? list : list.filter(c => (c.category || "").toLowerCase() === bookingCropCategory.toLowerCase());
-    return [...filtered].sort((a, b) => a.cropName.localeCompare(b.cropName, undefined, { sensitivity: "base" }));
-  }, [cropPricesList, bookingCropCategory]);
+    return filterCrops(CROP_CATALOGUE, bookingCropCategory, bookingCropSearch);
+  }, [bookingCropCategory, bookingCropSearch]);
 
   const selectedCropRecord = useMemo(() => {
-    return cropPricesList.find(c => selectedPaddy.includes(c.cropName) || `${c.cropName} — ${c.variety}` === selectedPaddy) ?? cropPricesList[0];
+    const fromCat = CROP_CATALOGUE.find(c =>
+      selectedPaddy.toLowerCase().includes(c.cropName.toLowerCase()) ||
+      `${c.cropName} — ${c.variety}`.toLowerCase() === selectedPaddy.toLowerCase()
+    );
+    if (fromCat) return fromCat;
+    return (
+      cropPricesList.find(c => selectedPaddy.includes(c.cropName) || `${c.cropName} — ${c.variety}` === selectedPaddy) ??
+      CROP_CATALOGUE[0]
+    );
   }, [cropPricesList, selectedPaddy]);
+
+  const filteredCentres = useMemo(() => {
+    const q = centreSearchQuery.trim().toLowerCase();
+    if (!q) return apiCentres;
+    return apiCentres.filter(centre => {
+      const branchCode = getCentreBranchCode(centre).toLowerCase();
+      const name = (centre.name || "").toLowerCase();
+      const place = (centre.place || "").toLowerCase();
+      const district = (centre.district || "").toLowerCase();
+      return name.includes(q) || place.includes(q) || district.includes(q) || branchCode.includes(q);
+    });
+  }, [apiCentres, centreSearchQuery]);
 
   const paddy = farmerShell(
     <>
@@ -3136,9 +3280,45 @@ export default function Home() {
         <div>
           <StepTrack current={1} />
 
+          {/* Prominent Crop Search Bar */}
+          <div className="crop-search-bar-wrap mb-3">
+            <div className="relative flex items-center">
+              <Search className="absolute left-3.5 text-slate-400 pointer-events-none" size={18} />
+              <input
+                type="text"
+                value={bookingCropSearch}
+                onChange={e => setBookingCropSearch(e.target.value)}
+                placeholder="Search crop by name (e.g. Tomato, Mango, Rice, Wheat, Cotton)..."
+                className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent shadow-xs transition-all"
+              />
+              {bookingCropSearch && (
+                <button
+                  type="button"
+                  onClick={() => setBookingCropSearch("")}
+                  className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            {bookingCropSearch && (
+              <div className="flex items-center justify-between mt-1.5 px-1 text-xs text-slate-500">
+                <span>Showing results for "<b>{bookingCropSearch}</b>" ({bookingCrops.length} {bookingCrops.length === 1 ? "crop" : "crops"} found)</span>
+                <button
+                  type="button"
+                  onClick={() => setBookingCropSearch("")}
+                  className="text-emerald-700 font-semibold hover:underline"
+                >
+                  Clear filter
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Category Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-4 text-xs font-semibold scrollbar-none">
-            {["ALL", "Cereals", "Coarse Cereals", "Pulses", "Oilseeds", "Commercial"].map(cat => (
+            {["ALL", "Cereals", "Pulses", "Oilseeds", "Commercial", "Vegetables", "Fruits"].map(cat => (
               <button
                 type="button"
                 key={cat}
@@ -3149,48 +3329,94 @@ export default function Home() {
                     : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                 }`}
               >
-                {cat === "ALL" ? "All Crops" : cat}
+                {cat === "ALL" ? "All Categories" : cat}
               </button>
             ))}
           </div>
 
+          {/* Crop Selection Grid */}
           <div className="choice-grid paddy-grid">
-            {bookingCrops.map((crop, index) => {
-              const fullLabel = `${crop.cropName} — ${crop.variety}`;
-              const isSelected = selectedPaddy === fullLabel || selectedPaddy.includes(crop.cropName);
-              return (
+            {bookingCrops.length === 0 ? (
+              <div className="col-span-full py-10 px-4 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                <Leaf className="mx-auto text-slate-300 dark:text-slate-600 mb-2" size={36} />
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">No crops found matching "{bookingCropSearch}"</h4>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Try searching for a different crop name, variety, or reset the category filter.
+                </p>
                 <button
-                  key={crop.id}
                   type="button"
-                  onClick={() => setSelectedPaddy(fullLabel)}
-                  className={`paddy-choice text-left ${isSelected ? "selected ring-2 ring-emerald-600 bg-emerald-50/50" : ""}`}
+                  onClick={() => { setBookingCropSearch(""); setBookingCropCategory("ALL"); }}
+                  className="mt-3 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors inline-block"
                 >
-                  <span className={`grain-art g${(index % 3) + 1}`}>
-                    <Wheat />
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Pill kind={crop.category === "Pulses" ? "yellow" : crop.category === "Oilseeds" ? "blue" : "green"}>
-                        {crop.category}
-                      </Pill>
-                      {crop.govtBonusPerQuintal > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                          +₹{crop.govtBonusPerQuintal} Bonus
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">{crop.cropName}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">{crop.variety} · Max moisture: {crop.maxMoisturePercent}%</p>
-                    <b className="text-emerald-800 font-extrabold text-sm block mt-1.5">
-                      ₹{crop.effectiveRatePerQuintal.toLocaleString("en-IN")} / quintal
-                    </b>
-                  </div>
-                  <span className="select-ring">
-                    {isSelected && <Check size={14} className="text-emerald-700" />}
-                  </span>
+                  Reset all filters
                 </button>
-              );
-            })}
+              </div>
+            ) : (
+              bookingCrops.map((crop) => {
+                const fullLabel = `${crop.cropName} — ${crop.variety}`;
+                const isSelected = selectedPaddy === fullLabel || selectedPaddy.toLowerCase().includes(crop.cropName.toLowerCase());
+                return (
+                  <button
+                    key={crop.id}
+                    type="button"
+                    onClick={() => setSelectedPaddy(fullLabel)}
+                    className={`crop-catalog-card text-left group relative p-3 rounded-2xl border transition-all ${
+                      isSelected
+                        ? "selected ring-2 ring-emerald-600 border-emerald-600 bg-emerald-50/70 shadow-xs"
+                        : "border-slate-200 hover:border-emerald-300 hover:shadow-xs bg-white dark:bg-slate-900"
+                    }`}
+                  >
+                    <div className="flex gap-3">
+                      {/* Real Photograph */}
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
+                        <img
+                          src={crop.imageUrl}
+                          alt={crop.cropName}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-emerald-900/30 backdrop-blur-[1px] flex items-center justify-center">
+                            <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                              <Check size={14} />
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <Pill kind={crop.category === "Pulses" ? "yellow" : crop.category === "Oilseeds" ? "blue" : crop.category === "Vegetables" || crop.category === "Fruits" ? "green" : "gray"}>
+                            {crop.category}
+                          </Pill>
+                          {crop.govtBonusPerQuintal > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                              +₹{crop.govtBonusPerQuintal} Bonus
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate leading-snug">{crop.cropName}</h3>
+                        <p className="text-xs text-slate-500 truncate mt-0.5">{crop.variety}</p>
+                        <div className="flex items-baseline justify-between mt-1.5">
+                          <b className="text-emerald-800 dark:text-emerald-400 font-extrabold text-sm">
+                            ₹{crop.effectiveRatePerQuintal.toLocaleString("en-IN")} <span className="text-[10px] font-normal text-slate-500">/ quintal</span>
+                          </b>
+                          <span className="text-[10px] text-slate-400 font-medium">Max {crop.maxMoisturePercent}% moist</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selected badge status */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                      <span className="text-[11px] text-slate-400">{crop.season}</span>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${isSelected ? "bg-emerald-600 text-white" : "text-emerald-700 bg-emerald-50 group-hover:bg-emerald-100"}`}>
+                        {isSelected ? "Selected ✓" : "Select crop"}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
 
           <article className="quantity-card mt-4">
@@ -3235,15 +3461,26 @@ export default function Home() {
           <div className="tip-line"><ShieldCheck /> Direct Benefit Transfer (DBT) enabled.</div>
           <div className="tip-line"><MapPin /> Centre availability updates live from server.</div>
           {selectedCropRecord && (
-            <div className="mt-4 p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">Selected Crop Summary</span>
-              <div className="flex justify-between font-bold text-slate-900">
-                <span>{selectedCropRecord.cropName}</span>
-                <span>₹{selectedCropRecord.effectiveRatePerQuintal}/qtl</span>
+            <div className="mt-4 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Selected Crop Summary</span>
+              <div className="flex items-center gap-2">
+                <img
+                  src={selectedCropRecord.imageUrl}
+                  alt={selectedCropRecord.cropName}
+                  className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{selectedCropRecord.cropName}</div>
+                  <div className="text-[11px] text-slate-500 truncate">{selectedCropRecord.variety}</div>
+                </div>
+              </div>
+              <div className="flex justify-between items-baseline pt-1 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-slate-500">Government Rate:</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">₹{selectedCropRecord.effectiveRatePerQuintal}/qtl</span>
               </div>
               <div className="flex justify-between text-slate-500 text-[11px]">
                 <span>Est. Payout ({expectedQuantity} Qtl):</span>
-                <b className="text-emerald-700 font-bold">
+                <b className="text-emerald-700 dark:text-emerald-400 font-bold">
                   ₹{(expectedQuantity * selectedCropRecord.effectiveRatePerQuintal).toLocaleString("en-IN")}
                 </b>
               </div>
@@ -3264,6 +3501,43 @@ export default function Home() {
       <div className="booking-layout centres-layout">
         <div>
           <StepTrack current={2}/>
+
+          {/* Prominent Centre Search Bar */}
+          <div className="centre-search-bar-wrap mb-4">
+            <div className="relative flex items-center">
+              <Search className="absolute left-3.5 text-slate-400 pointer-events-none" size={18} />
+              <input
+                type="text"
+                value={centreSearchQuery}
+                onChange={e => setCentreSearchQuery(e.target.value)}
+                placeholder="Search procurement centre by name, district, place, or code (e.g. Vijayawada, Guntur, KNL, VJA)..."
+                className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent shadow-xs transition-all"
+              />
+              {centreSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setCentreSearchQuery("")}
+                  className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            {centreSearchQuery && (
+              <div className="flex items-center justify-between mt-1.5 px-1 text-xs text-slate-500">
+                <span>Showing results for "<b>{centreSearchQuery}</b>" ({filteredCentres.length} {filteredCentres.length === 1 ? "centre" : "centres"} found)</span>
+                <button
+                  type="button"
+                  onClick={() => setCentreSearchQuery("")}
+                  className="text-emerald-700 font-semibold hover:underline"
+                >
+                  Clear filter
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="map-toolbar">
             <div>
               <LocateFixed size={17}/>
@@ -3291,7 +3565,7 @@ export default function Home() {
           </div>
           <div className="centre-map real-map-wrap">
             <MapView
-              centres={apiCentres}
+              centres={filteredCentres}
               selectedCentreId={selectedCentre.id}
               initialCenter={{ lat: 16.2970, lng: 80.4350 }}
               initialZoom={8}
@@ -3300,32 +3574,49 @@ export default function Home() {
           </div>
           <div className="list-heading">
             <h2>Andhra Pradesh Centres</h2>
-            <span>{apiCentres.length} available</span>
+            <span>{filteredCentres.length} available</span>
           </div>
           <div className="centre-list">
-            {apiCentres.map(centre => (
-              <button
-                key={centre.id}
-                className={selectedCentre.id === centre.id ? "selected" : ""}
-                onClick={() => {
-                  setSelectedCentre(centre);
-                  navigate("centre");
-                }}
-              >
-                <span className={`centre-status ${(centre.status || "active").toLowerCase()}`}>
-                  <MapPin size={17}/>
-                </span>
-                <div>
-                  <h3>{centre.name}</h3>
-                  <p>{centre.place} · {centre.distance}</p>
-                  <span>{centre.queue} in queue <i/> {centre.wait} wait <i/> {centre.slots} slots</span>
-                </div>
-                <Pill kind={centre.status === "Open" ? "green" : centre.status === "Busy" ? "yellow" : "blue"}>
-                  {centre.status}
-                </Pill>
-                <ChevronRight />
-              </button>
-            ))}
+            {filteredCentres.length === 0 ? (
+              <div className="py-10 px-4 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                <MapPin className="mx-auto text-slate-300 dark:text-slate-600 mb-2" size={36} />
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">No procurement centres found matching "{centreSearchQuery}"</h4>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Check your spelling or search by district (e.g. Guntur, Krishna, Kurnool) or branch code (e.g. VJA, GNT).
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCentreSearchQuery("")}
+                  className="mt-3 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors inline-block"
+                >
+                  Reset centre search
+                </button>
+              </div>
+            ) : (
+              filteredCentres.map(centre => (
+                <button
+                  key={centre.id}
+                  className={selectedCentre.id === centre.id ? "selected" : ""}
+                  onClick={() => {
+                    setSelectedCentre(centre);
+                    navigate("centre");
+                  }}
+                >
+                  <span className={`centre-status ${(centre.status || "active").toLowerCase()}`}>
+                    <MapPin size={17}/>
+                  </span>
+                  <div>
+                    <h3>{centre.name}</h3>
+                    <p>{centre.place} · {centre.distance}</p>
+                    <span>{centre.queue} in queue <i/> {centre.wait} wait <i/> {centre.slots} slots</span>
+                  </div>
+                  <Pill kind={centre.status === "Open" ? "green" : centre.status === "Busy" ? "yellow" : "blue"}>
+                    {centre.status}
+                  </Pill>
+                  <ChevronRight />
+                </button>
+              ))
+            )}
           </div>
         </div>
         <aside className="booking-aside availability-aside">
@@ -7394,6 +7685,442 @@ export default function Home() {
     </>
   );
 
+  const filteredTimeline = useMemo(() => {
+    if (!farmerHistoryData) return [];
+    let list = farmerHistoryData.timeline || [];
+    if (historyFilter === "BOOKINGS") list = list.filter(i => i.type === "BOOKING");
+    else if (historyFilter === "TRANSPORT") list = list.filter(i => i.type === "TRANSPORT");
+    else if (historyFilter === "PAYMENTS") list = list.filter(i => i.type === "PAYMENT");
+
+    const q = historySearchQuery.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(i => {
+      const code = (i.code || "").toLowerCase();
+      const title = (i.title || "").toLowerCase();
+      const crop = (i.crop || "").toLowerCase();
+      const centre = (i.centre || "").toLowerCase();
+      const status = (i.status || "").toLowerCase();
+      const token = (i.tokenNumber || "").toLowerCase();
+      const method = (i.paymentMethod || "").toLowerCase();
+      return code.includes(q) || title.includes(q) || crop.includes(q) || centre.includes(q) || status.includes(q) || token.includes(q) || method.includes(q);
+    });
+  }, [farmerHistoryData, historyFilter, historySearchQuery]);
+
+  const historyScreen = farmerShell(
+    <>
+      <SectionTitle
+        eyebrow="FARMER ACTIVITY TIMELINE"
+        title="Procurement & Service History"
+        body="Track all your government slot bookings, mandi arrivals, subsidized transportation, and direct benefit payments in one place."
+        action={
+          <button
+            type="button"
+            onClick={() => void loadFarmerHistory()}
+            disabled={historyLoading}
+            className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 shadow-xs transition-all"
+          >
+            <RefreshCw size={14} className={historyLoading ? "animate-spin text-emerald-700" : ""} />
+            {historyLoading ? "Refreshing..." : "Refresh History"}
+          </button>
+        }
+      />
+
+      {/* 4 Summary Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <CalendarDays size={16} />
+            </span>
+            <span className="text-xs font-bold text-slate-500">Slot Bookings</span>
+          </div>
+          <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100">
+            {farmerHistoryData?.summary.totalBookings ?? 0}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {farmerHistoryData?.summary.activeBookings ?? 0} active in queue
+          </p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+              <Truck size={16} />
+            </span>
+            <span className="text-xs font-bold text-slate-500">Transportation</span>
+          </div>
+          <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100">
+            {farmerHistoryData?.summary.totalTransport ?? 0}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {farmerHistoryData?.summary.activeTransport ?? 0} vehicle in transit
+          </p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+              <WalletCards size={16} />
+            </span>
+            <span className="text-xs font-bold text-slate-500">DBT Payouts</span>
+          </div>
+          <div className="text-xl font-extrabold text-emerald-800 dark:text-emerald-400">
+            ₹{(farmerHistoryData?.summary.totalPaidAmount ?? 0).toLocaleString("en-IN")}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {farmerHistoryData?.summary.totalPayments ?? 0} transaction records
+          </p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
+              <CheckCircle2 size={16} />
+            </span>
+            <span className="text-xs font-bold text-slate-500">Aadhaar DBT</span>
+          </div>
+          <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100 truncate">
+            {profileRecord?.farmerCode || "Verified"}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1 truncate">
+            {profileRecord?.village || "AP Mandi Network"}
+          </p>
+        </div>
+      </div>
+
+      {/* Controls: Filter Pills and Search */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: "ALL", label: "All Activity", count: farmerHistoryData?.timeline.length ?? 0 },
+            { id: "BOOKINGS", label: "Slot Bookings", count: farmerHistoryData?.bookings.length ?? 0 },
+            { id: "TRANSPORT", label: "Transportation", count: farmerHistoryData?.transport.length ?? 0 },
+            { id: "PAYMENTS", label: "DBT Payments", count: farmerHistoryData?.payments.length ?? 0 },
+          ].map(f => (
+            <button
+              type="button"
+              key={f.id}
+              onClick={() => setHistoryFilter(f.id as any)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                historyFilter === f.id
+                  ? "bg-emerald-700 text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300"
+              }`}
+            >
+              <span>{f.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${historyFilter === f.id ? "bg-emerald-800 text-emerald-100" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"}`}>
+                {f.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 text-slate-400 pointer-events-none" size={15} />
+          <input
+            type="text"
+            value={historySearchQuery}
+            onChange={e => setHistorySearchQuery(e.target.value)}
+            placeholder="Search bookings, crops, transport, payments..."
+            className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all"
+          />
+          {historySearchQuery && (
+            <button
+              type="button"
+              onClick={() => setHistorySearchQuery("")}
+              className="absolute right-2.5 top-2 p-0.5 rounded-full text-slate-400 hover:text-slate-600"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* History Items List */}
+      <div className="space-y-3.5">
+        {historyLoading && !farmerHistoryData ? (
+          <div className="py-12 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+            <LoaderCircle className="animate-spin mx-auto text-emerald-700 mb-2" size={32} />
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Loading your verified procurement history…</p>
+          </div>
+        ) : filteredTimeline.length === 0 ? (
+          <div className="py-12 px-4 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+            <History className="mx-auto text-slate-300 dark:text-slate-600 mb-3" size={40} />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {historySearchQuery ? `No history records found matching "${historySearchQuery}"` : "No Activity Records Found"}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              {historySearchQuery
+                ? "Try searching with a different term or clear the search filter."
+                : "You haven't made any bookings or transport requests yet. Reserve your first government MSP slot today."}
+            </p>
+            {historySearchQuery ? (
+              <button
+                type="button"
+                onClick={() => setHistorySearchQuery("")}
+                className="mt-3 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors inline-block"
+              >
+                Clear search filter
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate("paddy")}
+                className="mt-3 px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl shadow-xs transition-colors inline-flex items-center gap-1.5"
+              >
+                <CalendarDays size={14} /> Book a Procurement Slot
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredTimeline.map(item => {
+            if (item.type === "BOOKING") {
+              const b = item.details;
+              const isCancelled = item.status === "CANCELLED";
+              const isCompleted = item.status === "COMPLETED";
+              const isActive = item.status === "ACTIVE";
+              const cropImg = getCropImageUrl(item.crop);
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-4 rounded-2xl bg-white dark:bg-slate-900 border transition-all shadow-xs ${
+                    isActive ? "border-emerald-200 dark:border-emerald-900/40 ring-1 ring-emerald-600/10" : "border-slate-200 dark:border-slate-800"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                        <CalendarDays size={16} />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                            Slot Booking
+                          </span>
+                          <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
+                            {item.code}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          Booked on {new Date(item.rawTimestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Pill kind={isCompleted ? "blue" : isCancelled ? "yellow" : "green"}>
+                        {item.status}
+                      </Pill>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl mb-3 text-xs">
+                    {/* Crop & Quantity */}
+                    <div className="flex items-center gap-2.5">
+                      <img
+                        src={cropImg}
+                        alt={item.crop}
+                        className="w-12 h-12 rounded-xl object-cover shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Crop & Variety</span>
+                        <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{item.crop}</div>
+                        <span className="text-slate-500 font-semibold">{item.quantity} Quintals expected</span>
+                      </div>
+                    </div>
+
+                    {/* Centre & Location */}
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Procurement Centre</span>
+                      <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{item.centre || "Assigned Centre"}</div>
+                      <span className="text-slate-500">📅 {item.date || "Date scheduled"} {item.timeSlot ? `· ${item.timeSlot}` : ""}</span>
+                    </div>
+
+                    {/* Token & Queue */}
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Queue Token & Status</span>
+                      <div className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
+                        <Ticket size={13} /> {item.tokenNumber || "Token Generated"}
+                      </div>
+                      <span className="text-slate-500">
+                        {b.procurement?.status ? `Stage: ${b.procurement.status.replaceAll("_", " ")}` : b.queue?.status || "In Queue"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer with actions */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <div className="text-slate-500">
+                      Est. MSP Value: <b className="text-slate-900 dark:text-slate-100">₹{(item.amount || (Number(item.quantity || 18) * 2300)).toLocaleString("en-IN")}</b>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isActive && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => { setBookingRecord(b); navigate("token"); }}
+                            className="px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-1"
+                          >
+                            <Ticket size={12} /> View Token
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setBookingRecord(b); navigate("queue"); }}
+                            className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1"
+                          >
+                            <UsersRound size={12} /> Live Queue
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.type === "TRANSPORT") {
+              const t = item.details;
+              const isCancelled = item.status === "CANCELLED";
+              const isDelivered = item.status === "DELIVERED_AT_CENTRE" || item.status === "COMPLETED";
+
+              return (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+                        <Truck size={16} />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-md">
+                            Subsidized Transport
+                          </span>
+                          <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
+                            {item.code}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          Requested on {new Date(item.rawTimestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Pill kind={isDelivered ? "green" : isCancelled ? "yellow" : "blue"}>
+                        {item.status}
+                      </Pill>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl mb-3 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Vehicle & Load</span>
+                      <div className="font-bold text-slate-900 dark:text-slate-100">{t.vehicleType?.replaceAll("_", " ")}</div>
+                      <span className="text-slate-500">Cap: {t.estimatedLoadQuintals} Quintals load</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Route & Schedule</span>
+                      <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{t.pickupVillage} → {t.destinationCentre}</div>
+                      <span className="text-slate-500">📅 {t.scheduledDate} · {t.timeSlot}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned Driver</span>
+                      <div className="font-bold text-slate-900 dark:text-slate-100">{t.driverName}</div>
+                      <span className="text-slate-500 font-mono text-[11px]">{t.vehicleNumber}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">Net Fare:</span>
+                      <strong className="text-emerald-800 dark:text-emerald-400 font-bold">₹{Number(t.netPayable).toFixed(2)}</strong>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">
+                        30% Govt Subsidy Applied
+                      </span>
+                    </div>
+                    {t.driverPhone && !isCancelled && (
+                      <a
+                        href={`tel:${t.driverPhone}`}
+                        className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <PhoneCall size={12} /> Call Driver ({t.driverPhone})
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.type === "PAYMENT") {
+              const p = item.details;
+              const isSuccess = item.status === "SUCCESS" || item.status === "COMPLETED";
+
+              return (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+                        <WalletCards size={16} />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-800 bg-purple-100/80 px-2 py-0.5 rounded-md">
+                            Direct Benefit Transfer
+                          </span>
+                          <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
+                            {item.code}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          Settlement on {new Date(item.rawTimestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Pill kind={isSuccess ? "green" : "yellow"}>
+                      {item.status}
+                    </Pill>
+                  </div>
+
+                  <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl mb-2 flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase block tracking-wider">Transferred Payout</span>
+                      <div className="text-xl font-black text-emerald-900 dark:text-emerald-300">
+                        ₹{Number(item.amount).toLocaleString("en-IN")}
+                      </div>
+                    </div>
+                    <div className="text-right text-xs">
+                      <span className="text-[10px] text-slate-400 block">Payment Mode</span>
+                      <b className="text-slate-800 dark:text-slate-200">{item.paymentMethod || "Aadhaar DBT / NEFT"}</b>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                    <span>Related Booking: <code className="font-mono text-slate-700 dark:text-slate-300">{p.bookingCode || "Mandi Procurement"}</code></span>
+                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Aadhaar DBT Verified
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })
+        )}
+      </div>
+    </>
+  );
+
   const staffManagementScreen = officerShell(
     <>
       <SectionTitle
@@ -8028,6 +8755,7 @@ export default function Home() {
       case "weather": return weatherScreen;
       case "farmerAnalytics": return farmerAnalyticsScreen;
       case "transportation": return transportationScreen;
+      case "history": return historyScreen;
       case "centres": return centresScreen;
       case "centre": return centreDetail;
       case "slot": return slot;

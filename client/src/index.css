@@ -1183,4 +1183,52 @@
   }
 }
 
+/* =========================================================
+   CROP CATALOGUE & SEARCH BAR ENHANCEMENTS
+   ========================================================= */
+.crop-search-bar-wrap,
+.centre-search-bar-wrap {
+  width: 100%;
+}
 
+.paddy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.crop-catalog-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1.5px solid #e4eae3;
+  border-radius: 18px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(18, 54, 38, 0.03);
+}
+
+.crop-catalog-card:hover {
+  border-color: #79bc92;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(19, 94, 61, 0.08);
+}
+
+.crop-catalog-card.selected {
+  border-color: #176b4a;
+  background: #f4faf6;
+  box-shadow: 0 8px 24px rgba(23, 107, 74, 0.12);
+}
+
+@media (max-width: 640px) {
+  .paddy-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .crop-catalog-card {
+    padding: 12px;
+  }
+}
