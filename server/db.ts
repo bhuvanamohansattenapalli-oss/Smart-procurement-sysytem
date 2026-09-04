@@ -526,69 +526,96 @@ export function getPgPool(): pg.Pool | null {
   return _pool;
 }
 
-export async function getDb(): Promise<ReturnType<typeof drizzle>> {
-  if (!_db) {
-    const connectionString = process.env.DATABASE_URL;
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMsg: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMsg)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
-    if (connectionString && connectionString.trim().length > 0) {
-      const masked = maskConnectionString(connectionString);
-      console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
+let _initDbPromise: Promise<ReturnType<typeof drizzle>> | null = null;
 
-      try {
-        const isSslRequired =
-          connectionString.includes("supabase.co") ||
-          connectionString.includes("pooler.supabase.com") ||
-          connectionString.includes("render.com") ||
-          connectionString.includes("aivencloud.com") ||
-          connectionString.includes("sslmode=require") ||
-          process.env.NODE_ENV === "production";
+async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
+  const connectionString = process.env.DATABASE_URL;
 
-        const pool = new Pool({
-          connectionString,
-          ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
-          connectionTimeoutMillis: 10000,
-          idleTimeoutMillis: 30000,
-          max: 10,
-        });
+  if (connectionString && connectionString.trim().length > 0) {
+    const masked = maskConnectionString(connectionString);
+    console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
 
-        // Fail-Fast: Test connection immediately
-        const testRes = await pool.query("SELECT 1 AS connected");
-        if (!testRes || !testRes.rows || testRes.rows.length === 0) {
-          throw new Error("PostgreSQL handshake returned empty response.");
-        }
+    try {
+      const isSslRequired =
+        connectionString.includes("supabase.co") ||
+        connectionString.includes("pooler.supabase.com") ||
+        connectionString.includes("render.com") ||
+        connectionString.includes("aivencloud.com") ||
+        connectionString.includes("sslmode=require") ||
+        process.env.NODE_ENV === "production";
 
-        console.log(`[Database] PostgreSQL connection established successfully at ${masked}.`);
-        _pool = pool;
-        _db = drizzle(pool);
-        _isPostgres = true;
-      } catch (error: any) {
-        console.error(
-          "\n================================================================================\n" +
-          "[DATABASE FATAL ERROR] Failed to connect to PostgreSQL database using DATABASE_URL!\n" +
-          `Connection target: ${masked}\n` +
-          `Error Details: ${error?.message || error}\n\n` +
-          "DIAGNOSTIC GUIDANCE FOR RENDER DEPLOYMENT:\n" +
-          "1. In Render Dashboard, verify your 'DATABASE_URL' environment variable is correctly set.\n" +
-          "2. For Supabase PostgreSQL, ensure you copied the 'URI' connection string (starts with postgresql:// or postgres://).\n" +
-          "3. If your password contains special characters like '@', '#', or '%', URL-encode them.\n" +
-          "4. In Supabase Settings -> Database, verify the project is Active and not paused.\n" +
-          "5. If using transaction pooling (port 6543), verify the pooler user and host are correct.\n" +
-          "================================================================================\n"
-        );
-        // CRITICAL: Fail loudly so we never silently fall back to an empty database in production
-        throw new Error(
-          `[Database] PostgreSQL connection failed: ${error?.message || error}. Review Render environment variables.`
-        );
-      }
-    } else {
-      console.log(
-        "[Database] No DATABASE_URL configured in environment. Running in development mode with persistent local store (.data/procureflow_db.json)."
+      const pool = new Pool({
+        connectionString,
+        ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
+        connectionTimeoutMillis: 8000,
+        idleTimeoutMillis: 30000,
+        max: 10,
+        statement_timeout: 10000,
+        query_timeout: 10000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+      });
+
+      // Fail-Fast: Test connection immediately with an 8-second timeout
+      const testRes = await withTimeout(
+        pool.query("SELECT 1 AS connected"),
+        8000,
+        `PostgreSQL connection probe to ${masked} timed out after 8000ms.`
       );
-      _db = localStore as any;
-      _isPostgres = false;
+      if (!testRes || !testRes.rows || testRes.rows.length === 0) {
+        throw new Error("PostgreSQL handshake returned empty response.");
+      }
+
+      console.log(`[Database] PostgreSQL connection established successfully at ${masked}.`);
+      _pool = pool;
+      _db = drizzle(pool);
+      _isPostgres = true;
+      return _db;
+    } catch (error: any) {
+      console.error(
+        "\n================================================================================\n" +
+        "[DATABASE ERROR] Failed to connect to PostgreSQL database using DATABASE_URL!\n" +
+        `Connection target: ${masked}\n` +
+        `Error Details: ${error?.message || error}\n\n` +
+        "DIAGNOSTIC GUIDANCE FOR RENDER DEPLOYMENT:\n" +
+        "1. In Render Dashboard, verify your 'DATABASE_URL' environment variable is correctly set.\n" +
+        "2. For Supabase PostgreSQL, ensure you copied the 'URI' connection string (starts with postgresql:// or postgres://).\n" +
+        "3. If your password contains special characters like '@', '#', or '%', URL-encode them.\n" +
+        "4. In Supabase Settings -> Database, verify the project is Active and not paused.\n" +
+        "5. If using Session Pooler on port 5432, verify user is postgres.[project-ref] or direct postgres user.\n" +
+        "================================================================================\n"
+      );
+      throw new Error(
+        `[Database] PostgreSQL connection failed: ${error?.message || error}. Review Render environment variables.`
+      );
     }
+  } else {
+    console.log(
+      "[Database] No DATABASE_URL configured in environment. Running in development mode with persistent local store (.data/procureflow_db.json)."
+    );
+    _db = localStore as any;
+    _isPostgres = false;
+    return _db;
   }
-  return _db;
+}
+
+export async function getDb(): Promise<ReturnType<typeof drizzle>> {
+  if (_db) return _db;
+  if (!_initDbPromise) {
+    _initDbPromise = initDbInternal().catch((err) => {
+      _initDbPromise = null;
+      throw err;
+    });
+  }
+  return _initDbPromise;
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {

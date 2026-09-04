@@ -37679,34 +37679,49 @@ function isPostgresActive() {
 function getPgPool() {
   return _pool;
 }
-async function getDb() {
-  if (!_db) {
-    const connectionString = process.env.DATABASE_URL;
-    if (connectionString && connectionString.trim().length > 0) {
-      const masked = maskConnectionString(connectionString);
-      console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
-      try {
-        const isSslRequired = connectionString.includes("supabase.co") || connectionString.includes("pooler.supabase.com") || connectionString.includes("render.com") || connectionString.includes("aivencloud.com") || connectionString.includes("sslmode=require") || process.env.NODE_ENV === "production";
-        const pool = new Pool3({
-          connectionString,
-          ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
-          connectionTimeoutMillis: 1e4,
-          idleTimeoutMillis: 3e4,
-          max: 10
-        });
-        const testRes = await pool.query("SELECT 1 AS connected");
-        if (!testRes || !testRes.rows || testRes.rows.length === 0) {
-          throw new Error("PostgreSQL handshake returned empty response.");
-        }
-        console.log(`[Database] PostgreSQL connection established successfully at ${masked}.`);
-        _pool = pool;
-        _db = drizzle(pool);
-        _isPostgres = true;
-      } catch (error46) {
-        console.error(
-          `
+function withTimeout(promise2, ms, timeoutMsg) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMsg)), ms);
+  });
+  return Promise.race([promise2, timeout]).finally(() => clearTimeout(timer));
+}
+async function initDbInternal() {
+  const connectionString = process.env.DATABASE_URL;
+  if (connectionString && connectionString.trim().length > 0) {
+    const masked = maskConnectionString(connectionString);
+    console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
+    try {
+      const isSslRequired = connectionString.includes("supabase.co") || connectionString.includes("pooler.supabase.com") || connectionString.includes("render.com") || connectionString.includes("aivencloud.com") || connectionString.includes("sslmode=require") || process.env.NODE_ENV === "production";
+      const pool = new Pool3({
+        connectionString,
+        ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
+        connectionTimeoutMillis: 8e3,
+        idleTimeoutMillis: 3e4,
+        max: 10,
+        statement_timeout: 1e4,
+        query_timeout: 1e4,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 1e4
+      });
+      const testRes = await withTimeout(
+        pool.query("SELECT 1 AS connected"),
+        8e3,
+        `PostgreSQL connection probe to ${masked} timed out after 8000ms.`
+      );
+      if (!testRes || !testRes.rows || testRes.rows.length === 0) {
+        throw new Error("PostgreSQL handshake returned empty response.");
+      }
+      console.log(`[Database] PostgreSQL connection established successfully at ${masked}.`);
+      _pool = pool;
+      _db = drizzle(pool);
+      _isPostgres = true;
+      return _db;
+    } catch (error46) {
+      console.error(
+        `
 ================================================================================
-[DATABASE FATAL ERROR] Failed to connect to PostgreSQL database using DATABASE_URL!
+[DATABASE ERROR] Failed to connect to PostgreSQL database using DATABASE_URL!
 Connection target: ${masked}
 Error Details: ${error46?.message || error46}
 
@@ -37715,25 +37730,34 @@ DIAGNOSTIC GUIDANCE FOR RENDER DEPLOYMENT:
 2. For Supabase PostgreSQL, ensure you copied the 'URI' connection string (starts with postgresql:// or postgres://).
 3. If your password contains special characters like '@', '#', or '%', URL-encode them.
 4. In Supabase Settings -> Database, verify the project is Active and not paused.
-5. If using transaction pooling (port 6543), verify the pooler user and host are correct.
+5. If using Session Pooler on port 5432, verify user is postgres.[project-ref] or direct postgres user.
 ================================================================================
 `
-        );
-        throw new Error(
-          `[Database] PostgreSQL connection failed: ${error46?.message || error46}. Review Render environment variables.`
-        );
-      }
-    } else {
-      console.log(
-        "[Database] No DATABASE_URL configured in environment. Running in development mode with persistent local store (.data/procureflow_db.json)."
       );
-      _db = localStore;
-      _isPostgres = false;
+      throw new Error(
+        `[Database] PostgreSQL connection failed: ${error46?.message || error46}. Review Render environment variables.`
+      );
     }
+  } else {
+    console.log(
+      "[Database] No DATABASE_URL configured in environment. Running in development mode with persistent local store (.data/procureflow_db.json)."
+    );
+    _db = localStore;
+    _isPostgres = false;
+    return _db;
   }
-  return _db;
 }
-var Pool3, _db, _pool, _isPostgres, LocalDatabaseStore, localStore;
+async function getDb() {
+  if (_db) return _db;
+  if (!_initDbPromise) {
+    _initDbPromise = initDbInternal().catch((err) => {
+      _initDbPromise = null;
+      throw err;
+    });
+  }
+  return _initDbPromise;
+}
+var Pool3, _db, _pool, _isPostgres, LocalDatabaseStore, localStore, _initDbPromise;
 var init_db2 = __esm({
   "server/db.ts"() {
     "use strict";
@@ -38077,12 +38101,20 @@ var init_db2 = __esm({
       }
     };
     localStore = new LocalDatabaseStore();
+    _initDbPromise = null;
   }
 });
 
 // server/scripts/migratePostgres.ts
 import fs2 from "fs";
 import path2 from "path";
+function withTimeout2(promise2, ms, errorMsg) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(errorMsg)), ms);
+  });
+  return Promise.race([promise2, timeout]).finally(() => clearTimeout(timer));
+}
 async function ensurePostgresSchema(pool) {
   const sqlPath = path2.resolve(process.cwd(), "drizzle", "0000_init_postgres.sql");
   if (!fs2.existsSync(sqlPath)) {
@@ -38090,7 +38122,11 @@ async function ensurePostgresSchema(pool) {
   }
   const sqlContent = fs2.readFileSync(sqlPath, "utf-8");
   console.log("[Database Migration] Ensuring PostgreSQL schema tables exist...");
-  await pool.query(sqlContent);
+  await withTimeout2(
+    pool.query(sqlContent),
+    15e3,
+    "PostgreSQL schema initialization timed out after 15000ms"
+  );
   console.log("[Database Migration] PostgreSQL schema initialized successfully.");
 }
 async function verifyTablesExist(pool) {

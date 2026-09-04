@@ -24,6 +24,14 @@ export const REQUIRED_TABLES = [
   "transportBookings",
 ] as const;
 
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(errorMsg)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export async function ensurePostgresSchema(pool: pg.Pool): Promise<void> {
   const sqlPath = path.resolve(process.cwd(), "drizzle", "0000_init_postgres.sql");
   if (!fs.existsSync(sqlPath)) {
@@ -32,7 +40,11 @@ export async function ensurePostgresSchema(pool: pg.Pool): Promise<void> {
 
   const sqlContent = fs.readFileSync(sqlPath, "utf-8");
   console.log("[Database Migration] Ensuring PostgreSQL schema tables exist...");
-  await pool.query(sqlContent);
+  await withTimeout(
+    pool.query(sqlContent),
+    15000,
+    "PostgreSQL schema initialization timed out after 15000ms"
+  );
   console.log("[Database Migration] PostgreSQL schema initialized successfully.");
 }
 

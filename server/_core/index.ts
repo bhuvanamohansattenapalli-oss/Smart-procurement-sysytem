@@ -29,6 +29,26 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+async function initDatabaseAndSeeds(): Promise<void> {
+  try {
+    const { getDb, isPostgresActive, getPgPool } = await import("../db");
+    await getDb();
+    if (isPostgresActive()) {
+      const pool = getPgPool();
+      if (pool) {
+        const { ensurePostgresSchema } = await import("../scripts/migratePostgres");
+        await ensurePostgresSchema(pool);
+      }
+    }
+
+    // Seed database with prototype data on startup
+    const { ensurePrototypeSeed } = await import("../services/seedService");
+    await ensurePrototypeSeed();
+  } catch (err: any) {
+    console.error("[Database Startup Warning] Background initialization:", err?.message || err);
+  }
+}
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -48,20 +68,6 @@ async function startServer() {
       createContext,
     })
   );
-  // Initialize database connection & ensure PostgreSQL schema if DATABASE_URL is configured
-  const { getDb, isPostgresActive, getPgPool } = await import("../db");
-  await getDb();
-  if (isPostgresActive()) {
-    const pool = getPgPool();
-    if (pool) {
-      const { ensurePostgresSchema } = await import("../scripts/migratePostgres");
-      await ensurePostgresSchema(pool);
-    }
-  }
-
-  // Seed database with prototype data on startup
-  const { ensurePrototypeSeed } = await import("../services/seedService");
-  await ensurePrototypeSeed();
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "production") {
@@ -70,15 +76,20 @@ async function startServer() {
     await setupVite(app, server);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const host = process.env.HOST || "0.0.0.0";
+  const preferredPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  // In production (Render/Cloud), bind directly to the assigned PORT without temporary port probing
+  const port = process.env.PORT ? preferredPort : await findAvailablePort(preferredPort);
 
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
-  }
+  server.listen(port, host, () => {
+    console.log(`Server listening on ${host}:${port}`);
+    console.log(`Server running on http://localhost:${port}/ and accessible on network at http://${host}:${port}/`);
+  });
 
-  server.listen(port, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${port}/ and accessible on network at http://0.0.0.0:${port}/`);
+  // Asynchronously initialize database, auto-migration, and seed data in background
+  // without blocking the HTTP server from binding the port.
+  initDatabaseAndSeeds().catch((err) => {
+    console.error("[Database Startup Error]", err?.message || err);
   });
 }
 
