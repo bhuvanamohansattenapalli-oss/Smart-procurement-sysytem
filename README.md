@@ -6,11 +6,11 @@ ProcureFlow is a **hackathon prototype** for a farmer-first paddy procurement jo
 
 ## Technology and Configuration
 
-The project uses React and Vite on the client and Node.js, Express, Drizzle ORM, and the project-provided MySQL/TiDB database on the server. The built-in project database is used instead of SQLite or PostgreSQL because it is already configured by the hosting environment.
+The project uses React and Vite on the client and Node.js, Express, Drizzle ORM, and PostgreSQL (Supabase / Render / Neon) on the server, with a local JSON store fallback (.data/procureflow_db.json) for offline development.
 
 | Variable | Purpose | Required |
 |---|---|---:|
-| `DATABASE_URL` | MySQL/TiDB connection used by Drizzle | Yes |
+| `DATABASE_URL` | PostgreSQL connection string (Supabase / Render URI) used by Drizzle ORM | Yes in Prod |
 | `JWT_SECRET` | Signs server-issued farmer and officer bearer tokens | Yes |
 | `CORS_ORIGIN` | Comma-separated allowed origins for a separately hosted frontend | No |
 | `VITE_API_BASE_URL` | Client-side API base; defaults to `/api` | No |
@@ -27,7 +27,7 @@ The project uses React and Vite on the client and Node.js, Express, Drizzle ORM,
 For local work, create an ignored `.env` file using the following template and replace the placeholder values. **Do not commit `.env` files.** The managed project environment keeps these values in protected configuration rather than a committed `.env.example` file.
 
 ```env
-DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/procureflow
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 JWT_SECRET=replace-with-a-long-random-secret
 CORS_ORIGIN=http://localhost:3000
 VITE_API_BASE_URL=/api
@@ -41,12 +41,11 @@ RAZORPAY_MODE=test
 
 ## Local Start and Database Setup
 
-Install dependencies with `pnpm install`, then start the integrated client/server development process with `pnpm dev`. The schema lives in `drizzle/schema.ts`. Generate a migration using `pnpm drizzle-kit generate`, review the generated SQL under `drizzle/`, and apply it to your configured MySQL/TiDB instance through the project database migration workflow. The REST router seeds its idempotent prototype data automatically on the first API request.
+Install dependencies with `npm install` (or `pnpm install`), then start the integrated client/server development process with `npm run dev`. The schema lives in `drizzle/schema.ts`. When `DATABASE_URL` is set, the server automatically ensures the PostgreSQL schema exists on startup. You can also run `npm run db:migrate` or import existing JSON records with `npm run db:import-json`.
 
 ```bash
-pnpm install
-pnpm drizzle-kit generate
-pnpm dev
+npm install
+npm run dev
 ```
 
 Run quality checks with the following commands.

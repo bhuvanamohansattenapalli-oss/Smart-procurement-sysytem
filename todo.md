@@ -1,7 +1,7 @@
 # ProcureFlow Backend Integration Checklist
 
 - [x] Upgrade the existing static prototype to enable server, database, and environment-secret support.
-- [x] Define a MySQL/TiDB-backed data model covering farmers, registrations, officers, centres, slots, bookings, queues, procurement records, payments, and notifications.
+- [x] Define a PostgreSQL (Supabase)-backed data model covering farmers, registrations, officers, centres, slots, bookings, queues, procurement records, payments, and notifications.
 - [x] Implement authentication, authorization middleware, validation, and idempotent prototype seed records.
 - [x] Implement the requested REST endpoints and booking, token, queue, procurement, payment, notification, and mock-AI logic.
 - [x] Add one configurable frontend API base URL without rebuilding the existing user interface.

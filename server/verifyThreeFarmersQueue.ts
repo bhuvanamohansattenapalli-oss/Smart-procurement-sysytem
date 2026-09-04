@@ -21,6 +21,7 @@ async function runVerification() {
       role: "PROCUREMENT_OFFICER",
       department: "Procurement",
       branch: "GNT",
+      district: "Guntur",
       status: "ACTIVE"
     });
     officer = (await db.select().from(officers).where(eq(officers.officerCode, "OFF-TEST-01")).limit(1))[0];
@@ -79,11 +80,18 @@ async function runVerification() {
         village: "Guntur Rural",
         district: "Guntur",
         primaryCrop: "Paddy Common",
-        aadhaarMasked: "XXXX XXXX 1234",
         status: "APPROVED",
         passwordHash: pwdHash
       });
       existing = (await db.select().from(farmers).where(eq(farmers.phone, f.phone)).limit(1))[0];
+      if (existing) {
+        await db.insert(registrations).values({
+          farmerId: existing.id,
+          aadhaarMasked: "XXXX XXXX 1234",
+          declarationAccepted: 1,
+          status: "APPROVED"
+        });
+      }
     } else {
       await db.update(farmers).set({ status: "APPROVED" }).where(eq(farmers.id, existing.id));
     }

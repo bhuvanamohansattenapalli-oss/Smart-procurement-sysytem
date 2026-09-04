@@ -526,6 +526,17 @@ export function createProcurementApi() {
     res.setHeader("Expires", "0");
     next();
   });
+
+  api.get(["/health", "/health/db"], async (_req, res) => {
+    try {
+      const { runDatabaseHealthCheck } = await import("../services/dbHealthService");
+      const health = await runDatabaseHealthCheck();
+      res.status(health.status === "unhealthy" ? 503 : 200).json(health);
+    } catch (err: any) {
+      res.status(503).json({ status: "unhealthy", error: err?.message || err });
+    }
+  });
+
   api.use(async (_req, res, next) => { try { await ensurePrototypeSeed(); next(); } catch { res.status(503).json({ error: "SERVICE_UNAVAILABLE", message: "Prototype database is unavailable." }); } });
 
   api.post(["/registration", "/farmers/register"], async (req, res) => {
@@ -1388,8 +1399,8 @@ export function createProcurementApi() {
         driverName: item.driverName || "Mandi Logistics Driver",
         driverPhone: item.driverPhone || "1800-425-0012",
         pickupVillage: item.pickupVillage,
-        destinationCentre: centreMap.get(item.centreId) || `Centre #${item.centreId}`,
-        centreId: item.centreId,
+        destinationCentre: centreMap.get((item as any).centreId || item.destinationCentreId) || `Centre #${item.destinationCentreId}`,
+        centreId: item.destinationCentreId,
         scheduledDate: item.scheduledDate,
         timeSlot: item.timeSlot,
         estimatedLoadQuintals: Number(item.estimatedLoadQuintals),
@@ -1398,6 +1409,7 @@ export function createProcurementApi() {
         subsidyAmount: Number(item.subsidyAmount),
         netPayable: Number(item.netPayable),
         status: item.status,
+        cancellationDeadline: cancellationDeadline.toISOString(),
         canCancel,
         createdAt: item.createdAt,
       };
@@ -1433,7 +1445,7 @@ export function createProcurementApi() {
       details: Record<string, any>;
     }> = [];
 
-    fullBookings.forEach(b => {
+    fullBookings.filter(Boolean).forEach((b: any) => {
       historyItems.push({
         id: `bk-${b.id}`,
         type: "BOOKING",
@@ -1447,12 +1459,12 @@ export function createProcurementApi() {
         amount: b.paymentQuote?.demoPayable,
         status: b.status,
         tokenNumber: b.tokenNumber,
-        rawTimestamp: b.createdAt || new Date().toISOString(),
+        rawTimestamp: b.createdAt ? (b.createdAt instanceof Date ? b.createdAt.toISOString() : String(b.createdAt)) : new Date().toISOString(),
         details: b,
       });
     });
 
-    formattedTransports.forEach(t => {
+    formattedTransports.forEach((t: any) => {
       historyItems.push({
         id: `tr-${t.id}`,
         type: "TRANSPORT",
@@ -1465,23 +1477,23 @@ export function createProcurementApi() {
         timeSlot: t.timeSlot,
         amount: t.netPayable,
         status: t.status,
-        rawTimestamp: t.createdAt || new Date().toISOString(),
+        rawTimestamp: t.createdAt ? (t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt)) : new Date().toISOString(),
         details: t,
       });
     });
 
-    paymentRows.forEach(p => {
+    paymentRows.forEach((p: any) => {
       historyItems.push({
-        id: `pay-${p.id}`,
+        id: `pay-${p.paymentId || p.transactionReference}`,
         type: "PAYMENT",
         title: `Direct Benefit Transfer: ${p.bookingCode}`,
         code: p.paymentId || p.transactionReference,
         crop: p.paddyVariety || "Procurement Payout",
         amount: p.amount,
         status: p.status,
-        paymentMethod: p.paymentMethod || "Aadhaar DBT / NEFT",
-        date: p.completedAt || p.createdAt,
-        rawTimestamp: p.createdAt || new Date().toISOString(),
+        paymentMethod: p.method || "Aadhaar DBT / NEFT",
+        date: p.completedAt ? (p.completedAt instanceof Date ? p.completedAt.toISOString() : String(p.completedAt)) : (p.initiatedAt ? (p.initiatedAt instanceof Date ? p.initiatedAt.toISOString() : String(p.initiatedAt)) : undefined),
+        rawTimestamp: p.initiatedAt ? (p.initiatedAt instanceof Date ? p.initiatedAt.toISOString() : String(p.initiatedAt)) : new Date().toISOString(),
         details: p,
       });
     });
@@ -1489,20 +1501,22 @@ export function createProcurementApi() {
     historyItems.sort((a, b) => new Date(b.rawTimestamp).getTime() - new Date(a.rawTimestamp).getTime());
 
     const totalPaidAmount = paymentRows
-      .filter(p => p.status === "SUCCESS" || p.status === "COMPLETED")
+      .filter((p: any) => p.status === "SUCCESS" || (p.status as any) === "COMPLETED")
       .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    const validBookings = fullBookings.filter((b): b is NonNullable<typeof b> => Boolean(b));
 
     return res.json({
       farmerId: farmerId.data,
       summary: {
-        totalBookings: fullBookings.length,
-        activeBookings: fullBookings.filter(b => b.status === "ACTIVE").length,
+        totalBookings: validBookings.length,
+        activeBookings: validBookings.filter(b => b.status === "ACTIVE").length,
         totalTransport: formattedTransports.length,
-        activeTransport: formattedTransports.filter(t => t.status === "REQUESTED" || t.status === "ASSIGNED" || t.status === "IN_TRANSIT").length,
+        activeTransport: formattedTransports.filter((t: any) => t.status === "REQUESTED" || t.status === "ASSIGNED" || t.status === "IN_TRANSIT").length,
         totalPayments: paymentRows.length,
         totalPaidAmount,
       },
-      bookings: fullBookings,
+      bookings: validBookings,
       transport: formattedTransports,
       payments: paymentRows,
       timeline: historyItems,

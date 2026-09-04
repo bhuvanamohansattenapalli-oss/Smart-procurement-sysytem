@@ -48,6 +48,17 @@ async function startServer() {
       createContext,
     })
   );
+  // Initialize database connection & ensure PostgreSQL schema if DATABASE_URL is configured
+  const { getDb, isPostgresActive, getPgPool } = await import("../db");
+  await getDb();
+  if (isPostgresActive()) {
+    const pool = getPgPool();
+    if (pool) {
+      const { ensurePostgresSchema } = await import("../scripts/migratePostgres");
+      await ensurePostgresSchema(pool);
+    }
+  }
+
   // Seed database with prototype data on startup
   const { ensurePrototypeSeed } = await import("../services/seedService");
   await ensurePrototypeSeed();

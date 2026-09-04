@@ -56,15 +56,21 @@ Render provides free hosting for full-stack web applications with zero maintenan
    - **Instance Type**: `Free`
 5. Click **Create Web Service**.
 
-### Step 3: Enable 24/7 Permanent Database Persistence (Recommended)
-By default, Render's free tier spins down after 15 minutes of inactivity and uses an ephemeral disk. To ensure farmer registrations, bookings, and payments persist permanently:
-1. Create a free cloud MySQL database (e.g. on [TiDB Cloud Serverless](https://tidbcloud.com/), [Aiven MySQL](https://aiven.io/), or [Railway MySQL](https://railway.app/)).
-2. Copy your MySQL connection URL (e.g. `mysql://user:password@host:port/dbname?ssl={"rejectUnauthorized":true}`).
-3. In your Render Dashboard, open your web service → **Environment** tab.
-4. Add environment variable:
+### Step 3: Enable 24/7 Permanent Database Persistence with Supabase PostgreSQL (Recommended)
+By default, Render's free tier spins down after 15 minutes of inactivity and uses an ephemeral disk. To ensure farmer registrations, bookings, and payments persist permanently across Render sleep and restarts:
+1. In your [Supabase Dashboard](https://supabase.com/dashboard), go to your project.
+2. Go to **Project Settings** → **Database** → **Connection String** → select **URI**.
+3. Copy the URI (format: `postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres` or connection pooler URI on port 6543/5432).
+4. Replace `[YOUR-PASSWORD]` with your real database password.
+5. In your Render Dashboard, open your web service → **Environment** tab.
+6. Add environment variable:
    - **Key**: `DATABASE_URL`
-   - **Value**: `your_mysql_connection_string`
-5. Render will automatically redeploy and connect directly to your persistent cloud database.
+   - **Value**: `your_supabase_postgresql_uri`
+7. Click **Save Changes**. Render will redeploy and automatically connect to your persistent Supabase PostgreSQL database. All 16 tables are auto-verified on startup!
+8. (Optional) To import your existing 88+ farmers and historical records from `.data/procureflow_db.json` into Supabase, run locally:
+   ```bash
+   DATABASE_URL="your_supabase_uri" npm run db:import-json
+   ```
 
 ### Step 4: Your Lifetime URL is Live!
 Render will build the Vite client and Node.js server. Within 2 minutes, you will get your permanent live URL:

@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
+import pg from "pg";
 import { eq, desc, asc, type SQL } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
 import {
   users,
   farmers,
@@ -23,6 +24,8 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
+const { Pool } = pg;
+
 export function normalizePhone(raw: string | undefined | null): string {
   if (!raw) return "";
   const digits = String(raw).replace(/\D/g, "");
@@ -32,6 +35,16 @@ export function normalizePhone(raw: string | undefined | null): string {
 }
 
 let _db: any = null;
+let _pool: pg.Pool | null = null;
+let _isPostgres = false;
+
+function maskConnectionString(url: string): string {
+  try {
+    return url.replace(/:\/\/[^:]+:[^@]+@/, "://***:***@");
+  } catch {
+    return "postgresql://***:***@...";
+  }
+}
 
 function getTableName(table: any): string {
   if (!table) return "unknown";
@@ -135,7 +148,7 @@ function evaluateCondition(row: Record<string, any>, condition: any): boolean {
   }
 }
 
-class LocalDatabaseStore {
+export class LocalDatabaseStore {
   private tables = new Map<string, Record<string, any>[]>();
   private autoIncrements = new Map<string, number>();
   private getStorageFilePath(): string {
@@ -357,6 +370,7 @@ class LocalDatabaseStore {
 
         const runInsert = () => {
           const tableRows = self.getTableData(tableName);
+          const inserted: any[] = [];
           for (const row of rowsToInsert) {
             const newRow: Record<string, any> = {
               id: row.id !== undefined ? row.id : self.getNextId(tableName),
@@ -365,7 +379,7 @@ class LocalDatabaseStore {
               ...row,
             };
 
-            // Check for unique conflict on openId or phone
+            // Check for unique conflict on openId or phone or bookingCode
             if (tableName === "users" && row.openId) {
               const existingIdx = tableRows.findIndex((r) => r.openId === row.openId);
               if (existingIdx >= 0) {
@@ -376,20 +390,36 @@ class LocalDatabaseStore {
                     updatedAt: new Date(),
                   };
                 }
+                inserted.push(tableRows[existingIdx]);
                 continue;
               }
             }
 
             tableRows.push(newRow);
+            inserted.push(newRow);
           }
           self.saveToDisk();
-          return { insertId: rowsToInsert[0]?.id || 1 };
+          return inserted;
         };
 
         const executor: any = {
           onDuplicateKeyUpdate({ set }: { set: Record<string, any> }) {
             onDupUpdate = set;
             return executor;
+          },
+          onConflictDoUpdate({ target, set }: { target?: any; set: Record<string, any> }) {
+            onDupUpdate = set;
+            return executor;
+          },
+          returning(selection?: any) {
+            return {
+              then(onFulfilled?: any, onRejected?: any) {
+                return Promise.resolve().then(runInsert).then(onFulfilled, onRejected);
+              },
+              catch(onRejected?: any) {
+                return Promise.resolve().then(runInsert).catch(onRejected);
+              },
+            };
           },
           then(onFulfilled?: any, onRejected?: any) {
             return Promise.resolve().then(runInsert).then(onFulfilled, onRejected);
@@ -414,6 +444,7 @@ class LocalDatabaseStore {
         const runUpdate = () => {
           const tableRows = self.getTableData(tableName);
           let affectedRows = 0;
+          const updatedRows: any[] = [];
 
           for (let i = 0; i < tableRows.length; i++) {
             if (!whereCond || evaluateCondition(tableRows[i], whereCond)) {
@@ -423,16 +454,27 @@ class LocalDatabaseStore {
                 updatedAt: values.updatedAt || new Date(),
               };
               affectedRows++;
+              updatedRows.push(tableRows[i]);
             }
           }
           self.saveToDisk();
-          return { affectedRows };
+          return updatedRows;
         };
 
         const executor: any = {
           where(cond: any) {
             whereCond = cond;
             return executor;
+          },
+          returning() {
+            return {
+              then(onFulfilled?: any, onRejected?: any) {
+                return Promise.resolve().then(runUpdate).then(onFulfilled, onRejected);
+              },
+              catch(onRejected?: any) {
+                return Promise.resolve().then(runUpdate).catch(onRejected);
+              },
+            };
           },
           then(onFulfilled?: any, onRejected?: any) {
             return Promise.resolve().then(runUpdate).then(onFulfilled, onRejected);
@@ -476,19 +518,74 @@ class LocalDatabaseStore {
 
 const localStore = new LocalDatabaseStore();
 
+export function isPostgresActive(): boolean {
+  return _isPostgres;
+}
+
+export function getPgPool(): pg.Pool | null {
+  return _pool;
+}
+
 export async function getDb(): Promise<ReturnType<typeof drizzle>> {
   if (!_db) {
-    if (process.env.DATABASE_URL) {
+    const connectionString = process.env.DATABASE_URL;
+
+    if (connectionString && connectionString.trim().length > 0) {
+      const masked = maskConnectionString(connectionString);
+      console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
+
       try {
-        const masked = process.env.DATABASE_URL.replace(/:\/\/[^:]+:[^@]+@/, "://***:***@");
-        console.log(`[Database] Connecting to production MySQL database at ${masked}...`);
-        _db = drizzle(process.env.DATABASE_URL);
-      } catch (error) {
-        console.warn("[Database] MySQL connection failed, using persistent local store fallback:", error);
-        _db = localStore as any;
+        const isSslRequired =
+          connectionString.includes("supabase.co") ||
+          connectionString.includes("pooler.supabase.com") ||
+          connectionString.includes("render.com") ||
+          connectionString.includes("aivencloud.com") ||
+          connectionString.includes("sslmode=require") ||
+          process.env.NODE_ENV === "production";
+
+        const pool = new Pool({
+          connectionString,
+          ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
+          connectionTimeoutMillis: 10000,
+          idleTimeoutMillis: 30000,
+          max: 10,
+        });
+
+        // Fail-Fast: Test connection immediately
+        const testRes = await pool.query("SELECT 1 AS connected");
+        if (!testRes || !testRes.rows || testRes.rows.length === 0) {
+          throw new Error("PostgreSQL handshake returned empty response.");
+        }
+
+        console.log(`[Database] PostgreSQL connection established successfully at ${masked}.`);
+        _pool = pool;
+        _db = drizzle(pool);
+        _isPostgres = true;
+      } catch (error: any) {
+        console.error(
+          "\n================================================================================\n" +
+          "[DATABASE FATAL ERROR] Failed to connect to PostgreSQL database using DATABASE_URL!\n" +
+          `Connection target: ${masked}\n` +
+          `Error Details: ${error?.message || error}\n\n` +
+          "DIAGNOSTIC GUIDANCE FOR RENDER DEPLOYMENT:\n" +
+          "1. In Render Dashboard, verify your 'DATABASE_URL' environment variable is correctly set.\n" +
+          "2. For Supabase PostgreSQL, ensure you copied the 'URI' connection string (starts with postgresql:// or postgres://).\n" +
+          "3. If your password contains special characters like '@', '#', or '%', URL-encode them.\n" +
+          "4. In Supabase Settings -> Database, verify the project is Active and not paused.\n" +
+          "5. If using transaction pooling (port 6543), verify the pooler user and host are correct.\n" +
+          "================================================================================\n"
+        );
+        // CRITICAL: Fail loudly so we never silently fall back to an empty database in production
+        throw new Error(
+          `[Database] PostgreSQL connection failed: ${error?.message || error}. Review Render environment variables.`
+        );
       }
     } else {
+      console.log(
+        "[Database] No DATABASE_URL configured in environment. Running in development mode with persistent local store (.data/procureflow_db.json)."
+      );
       _db = localStore as any;
+      _isPostgres = false;
     }
   }
   return _db;
@@ -544,7 +641,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {

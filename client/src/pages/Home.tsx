@@ -157,11 +157,12 @@ type Centre = {
   id: number;
   name: string;
   place: string;
+  district?: string;
   distance: string;
   queue: number;
   wait: string;
   slots: number;
-  status: "Open" | "Busy" | "Limited";
+  status: "Open" | "Busy" | "Limited" | string;
   position: string;
   latitude?: number;
   longitude?: number;
@@ -187,6 +188,7 @@ type ApiBooking = {
   expectedQuantityQuintals: number;
   tokenNumber: string;
   createdAt?: string;
+  paymentStatus?: string;
   farmer: { id: number; farmerCode: string; name: string; phone: string; village: string; district: string; primaryCrop: string; status: string };
   centre: { id: number; name: string; place: string; distanceKm: number };
   slot: { id: number; date: string; startTime: string; endTime: string };
@@ -1772,8 +1774,8 @@ export default function Home() {
   }, [screen, farmerToken, farmerId, bookingId]);
 
   const loadFarmerHistory = async (targetFarmerId?: number) => {
-    const id = targetFarmerId || farmerId || profileRecord?.id || (farmerSession?.farmer as any)?.id;
-    const token = farmerToken || farmerSession?.token;
+    const id = targetFarmerId || farmerId || profileRecord?.id;
+    const token = farmerToken;
     if (!id) return;
     setHistoryLoading(true);
     try {
@@ -3465,7 +3467,7 @@ export default function Home() {
               <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Selected Crop Summary</span>
               <div className="flex items-center gap-2">
                 <img
-                  src={selectedCropRecord.imageUrl}
+                  src={(selectedCropRecord as any).imageUrl || getCatalogueCropImage(selectedCropRecord.cropName)}
                   alt={selectedCropRecord.cropName}
                   className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                 />
@@ -3952,7 +3954,7 @@ export default function Home() {
                       {bookingRecord?.farmer?.name ?? profileRecord?.name ?? "Ramesh Kumar"}
                     </strong>
                     <span className="text-xs text-slate-500">
-                      ID: {profileRecord?.farmerCode ?? "FMR-2026-11842"} · Aadhaar: {profileRecord?.aadhaarMasked ?? "XXXX XXXX 1234"}
+                      ID: {profileRecord?.farmerCode ?? "FMR-2026-11842"} · Aadhaar: {(profileRecord as any)?.aadhaarMasked ?? "XXXX XXXX 1234"}
                     </span>
                   </div>
 
