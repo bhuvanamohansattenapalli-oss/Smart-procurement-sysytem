@@ -2383,12 +2383,17 @@ export default function Home() {
       setRegChallengeId(data.challengeId);
       setRegCooldownSeconds(data.resendAvailableInSeconds || 30);
       setRegAttemptsRemaining(5);
-      if (data.developmentOtp) {
-        setRegDevOtp(data.developmentOtp);
-        toast.info(`Development Test OTP: ${data.developmentOtp}`);
+      const otpCode = data.demoOtp || data.developmentOtp;
+      if (otpCode) {
+        setRegDevOtp(otpCode);
+        if (data.isDemoMode) {
+          toast.info(`Demo OTP: ${otpCode}`);
+        } else {
+          toast.info(`Development Test OTP: ${otpCode}`);
+        }
       }
       setRegStep("OTP");
-      toast.success(data.message || "SMS OTP sent successfully!");
+      toast.success(data.message || (data.isDemoMode ? "Demo OTP generated!" : "SMS OTP sent successfully!"));
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to send SMS OTP.";
       setAuthError(msg);
@@ -2414,11 +2419,16 @@ export default function Home() {
         throw new Error(data.message || data.error || "Failed to resend OTP.");
       }
       setRegCooldownSeconds(data.resendAvailableInSeconds || 30);
-      if (data.developmentOtp) {
-        setRegDevOtp(data.developmentOtp);
-        toast.info(`Development Test OTP: ${data.developmentOtp}`);
+      const otpCode = data.demoOtp || data.developmentOtp;
+      if (otpCode) {
+        setRegDevOtp(otpCode);
+        if (data.isDemoMode) {
+          toast.info(`Demo OTP: ${otpCode}`);
+        } else {
+          toast.info(`Development Test OTP: ${otpCode}`);
+        }
       }
-      toast.success(data.message || "New OTP sent via SMS.");
+      toast.success(data.message || (data.isDemoMode ? "New Demo OTP generated!" : "New OTP sent via SMS."));
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to resend OTP.";
       setAuthError(msg);
@@ -2575,12 +2585,17 @@ export default function Home() {
       setForgotChallengeId(data.challengeId);
       setForgotCooldownSeconds(data.resendAvailableInSeconds || 30);
       setForgotAttemptsRemaining(5);
-      if (data.developmentOtp) {
-        setForgotDevOtp(data.developmentOtp);
-        toast.info(`Development Test OTP: ${data.developmentOtp}`);
+      const otpCode = data.demoOtp || data.developmentOtp;
+      if (otpCode) {
+        setForgotDevOtp(otpCode);
+        if (data.isDemoMode) {
+          toast.info(`Demo OTP: ${otpCode}`);
+        } else {
+          toast.info(`Development Test OTP: ${otpCode}`);
+        }
       }
       setForgotStep("OTP");
-      toast.success(data.message || "SMS OTP sent for password reset.");
+      toast.success(data.message || (data.isDemoMode ? "Demo OTP generated for password reset." : "SMS OTP sent for password reset."));
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to send OTP.";
       setForgotError(msg);
@@ -2606,11 +2621,16 @@ export default function Home() {
         throw new Error(data.message || data.error || "Failed to resend OTP.");
       }
       setForgotCooldownSeconds(data.resendAvailableInSeconds || 30);
-      if (data.developmentOtp) {
-        setForgotDevOtp(data.developmentOtp);
-        toast.info(`Development Test OTP: ${data.developmentOtp}`);
+      const otpCode = data.demoOtp || data.developmentOtp;
+      if (otpCode) {
+        setForgotDevOtp(otpCode);
+        if (data.isDemoMode) {
+          toast.info(`Demo OTP: ${otpCode}`);
+        } else {
+          toast.info(`Development Test OTP: ${otpCode}`);
+        }
       }
-      toast.success(data.message || "New OTP resent via SMS.");
+      toast.success(data.message || (data.isDemoMode ? "New Demo OTP generated!" : "New OTP resent via SMS."));
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to resend OTP.";
       setForgotError(msg);
@@ -3386,8 +3406,16 @@ export default function Home() {
               </div>
 
               {regDevOtp && (
-                <div className="auth-dev-badge mb-3">
-                  ⚠️ Development OTP: <b>{regDevOtp}</b> (visible only in test/development)
+                <div className="demo-otp-card" role="status" aria-live="polite">
+                  <div className="demo-otp-header">
+                    <span className="demo-otp-badge">Demo Mode Active</span>
+                    <span className="demo-otp-label">Demo OTP: <b>{regDevOtp}</b></span>
+                  </div>
+                  <div className="demo-otp-code">{regDevOtp}</div>
+                  <p className="demo-otp-note">
+                    For testing only — SMS delivery is disabled in demo mode.<br />
+                    SMS delivery will be enabled after DLT approval.
+                  </p>
                 </div>
               )}
 
@@ -3710,8 +3738,16 @@ export default function Home() {
                 </div>
 
                 {forgotDevOtp && (
-                  <div className="auth-dev-badge mb-3">
-                    ⚠️ Development OTP: <b>{forgotDevOtp}</b> (visible only in test/development)
+                  <div className="demo-otp-card" role="status" aria-live="polite">
+                    <div className="demo-otp-header">
+                      <span className="demo-otp-badge">Demo Mode Active</span>
+                      <span className="demo-otp-label">Demo OTP: <b>{forgotDevOtp}</b></span>
+                    </div>
+                    <div className="demo-otp-code">{forgotDevOtp}</div>
+                    <p className="demo-otp-note">
+                      For testing only — SMS delivery is disabled in demo mode.<br />
+                      SMS delivery will be enabled after DLT approval.
+                    </p>
                   </div>
                 )}
 

@@ -20,13 +20,13 @@ import {
 } from "../../drizzle/schema";
 import { getDb, normalizePhone } from "../db";
 import { requireApiAuth, requireRole } from "../middleware/apiAuth";
-import { createMockAssistantReply } from "../services/mockAiService";
 import { hashPassword, verifyPassword } from "../services/passwordService";
-import { OTP_MAX_ATTEMPTS, OTP_MAX_REQUESTS, OTP_RESEND_COOLDOWN_MS, OTP_TTL_MS, createOtpCode, deliverOtp, hashOtp, verifyOtp } from "../services/otpService";
+import { OTP_MAX_ATTEMPTS, OTP_MAX_REQUESTS, OTP_RESEND_COOLDOWN_MS, OTP_TTL_MS, createOtpCode, deliverOtp, getSmsProviderHealth, hashOtp, isOtpDemoMode, verifyOtp } from "../services/otpService";
 import { ensurePrototypeSeed, prototypeCropPrices, prototypeSlots } from "../services/seedService";
 import { issueAccessToken, verifyAccessToken, issueOtpVerificationToken, verifyOtpVerificationToken } from "../services/tokenService";
 import { paymentGateway, type PaymentOutcome } from "../services/paymentGatewayService";
 import { createRazorpayOrder, getRazorpayPublicConfig, isRazorpayConfigured, verifyRazorpaySignature } from "../services/razorpayService";
+import { createMockAssistantReply } from "../services/mockAiService";
 import type { AuthenticatedRequest, BookingContext, StaffRole } from "../types/api";
 
 const phoneSchema = z.string().trim().transform(normalizePhone).pipe(
@@ -552,10 +552,36 @@ export function createProcurementApi() {
     try {
       const { runDatabaseHealthCheck } = await import("../services/dbHealthService");
       const health = await runDatabaseHealthCheck();
-      res.status(health.status === "unhealthy" ? 503 : 200).json(health);
+      const smsHealth = getSmsProviderHealth();
+      res.status(health.status === "unhealthy" ? 503 : 200).json({
+        ...health,
+        smsProvider: smsHealth.provider,
+        smsConfigured: smsHealth.configured,
+        sms: {
+          provider: smsHealth.provider,
+          configured: smsHealth.configured,
+          demoMode: smsHealth.demoMode,
+          sms8Configured: smsHealth.sms8Configured,
+          msg91Configured: smsHealth.msg91Configured,
+          ...(smsHealth.deviceIdConfigured ? { deviceIdConfigured: true } : {}),
+        },
+      });
     } catch (err: any) {
       res.status(503).json({ status: "unhealthy", error: err?.message || err });
     }
+  });
+
+  api.get("/health/sms", (_req, res) => {
+    const smsHealth = getSmsProviderHealth();
+    res.json({
+      status: "ok",
+      smsProvider: smsHealth.provider,
+      configured: smsHealth.configured,
+      demoMode: smsHealth.demoMode,
+      sms8Configured: smsHealth.sms8Configured,
+      msg91Configured: smsHealth.msg91Configured,
+      ...(smsHealth.deviceIdConfigured ? { deviceIdConfigured: true } : {}),
+    });
   });
 
   api.use(async (_req, res, next) => { try { await ensurePrototypeSeed(); next(); } catch { res.status(503).json({ error: "SERVICE_UNAVAILABLE", message: "Prototype database is unavailable." }); } });
@@ -638,12 +664,16 @@ export function createProcurementApi() {
     }).returning();
 
     const challengeId = inserted[0]?.id || 1;
+    const isDemo = isOtpDemoMode();
+    const shouldReturnDemoOtp = isDemo || ((process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") && delivery.channel === "development");
+
     return res.json({
-      message: "OTP sent successfully via SMS.",
+      message: isDemo ? "Demo OTP generated. SMS delivery is disabled in demo mode." : "OTP sent successfully via SMS.",
       challengeId,
       resendAvailableInSeconds: Math.ceil(OTP_RESEND_COOLDOWN_MS / 1000),
       expiresInSeconds: Math.ceil(OTP_TTL_MS / 1000),
-      ...( (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") && delivery.channel === "development" ? { developmentOtp: delivery.developmentOtp } : {}),
+      isDemoMode: isDemo,
+      ...(shouldReturnDemoOtp && delivery.developmentOtp ? { demoOtp: delivery.developmentOtp, developmentOtp: delivery.developmentOtp } : {}),
     });
   });
 
@@ -791,12 +821,16 @@ export function createProcurementApi() {
       updatedAt: new Date(),
     }).where(eq(otpChallenges.id, challenge.id));
 
+    const isDemo = isOtpDemoMode();
+    const shouldReturnDemoOtp = isDemo || ((process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") && delivery.channel === "development");
+
     return res.json({
-      message: "OTP resent successfully via SMS.",
+      message: isDemo ? "Demo OTP regenerated. SMS delivery is disabled in demo mode." : "OTP resent successfully via SMS.",
       challengeId: challenge.id,
       resendAvailableInSeconds: Math.ceil(OTP_RESEND_COOLDOWN_MS / 1000),
       expiresInSeconds: Math.ceil(OTP_TTL_MS / 1000),
-      ...( (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") && delivery.channel === "development" ? { developmentOtp: delivery.developmentOtp } : {}),
+      isDemoMode: isDemo,
+      ...(shouldReturnDemoOtp && delivery.developmentOtp ? { demoOtp: delivery.developmentOtp, developmentOtp: delivery.developmentOtp } : {}),
     });
   });
 

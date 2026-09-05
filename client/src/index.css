@@ -1334,3 +1334,57 @@
   font-weight: 700;
 }
 
+.demo-otp-card {
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 2px dashed #059669;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);
+  margin-bottom: 16px;
+}
+
+.demo-otp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.demo-otp-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #d1fae5;
+  color: #065f46;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid #a7f3d0;
+}
+
+.demo-otp-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #047857;
+}
+
+.demo-otp-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: #064e3b;
+  margin: 6px 0;
+  user-select: all;
+}
+
+.demo-otp-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #065f46;
+  margin: 0;
+  font-weight: 500;
+}
+
+

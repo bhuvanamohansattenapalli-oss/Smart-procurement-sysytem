@@ -14,28 +14,32 @@ The project uses React and Vite on the client and Node.js, Express, Drizzle ORM,
 | `JWT_SECRET` | Signs server-issued farmer and officer bearer tokens | Yes |
 | `CORS_ORIGIN` | Comma-separated allowed origins for a separately hosted frontend | No |
 | `VITE_API_BASE_URL` | Client-side API base; defaults to `/api` | No |
-| `SMS_PROVIDER` | Server-only SMS provider name; use `DEVELOPMENT` only for a non-production test code | No |
-| `SMS_API_KEY` | Server-only credential for a future SMS provider adapter | No |
-| `SMS_SENDER_ID` | Server-only sender identity for a future SMS provider adapter | No |
-| `OTP_MODE` | Server-only override; set to `DEVELOPMENT` to force the logged development OTP when no SMS adapter is available | No |
+| `SMS_PROVIDER` | Active SMS provider: `demo` (display OTP on-screen), `msg91` (MSG91 gateway), or `sms8` (SMS8 gateway) | No |
+| `MSG91_AUTH_KEY` | Server-only credential for MSG91 SMS gateway | Yes if MSG91 |
+| `SMS8_API_KEY` | Server-only API key for SMS8 gateway (`https://app.sms8.io/services/send.php`) | Yes if SMS8 |
+| `SMS8_DEVICE_ID` | Optional SMS8 Android device/SIM identifier to route SMS delivery | No |
+| `OTP_DEMO_MODE` | Set to `true` to enable demo OTP display regardless of provider | No |
+| `OTP_MODE` | Set to `DEVELOPMENT` for local test OTP fallback | No |
 | `RAZORPAY_KEY_ID` | Server-only Razorpay test/live key ID used to create hosted checkout orders; its public key is returned only from the config endpoint | No |
 | `RAZORPAY_KEY_SECRET` | Server-only Razorpay secret used to create orders and verify checkout signatures | No |
 | `RAZORPAY_MODE` | Razorpay mode label exposed as non-secret metadata, normally `test` or `live` | No |
 | `VITE_FRONTEND_FORGE_API_URL` | Managed frontend proxy URL used by `MapView` for Google Maps JavaScript API loading | Managed |
 | `VITE_FRONTEND_FORGE_API_KEY` | Managed frontend proxy credential injected by the project runtime; do not replace with a Google key in source | Managed |
 
-For local work, create an ignored `.env` file using the following template and replace the placeholder values. **Do not commit `.env` files.** The managed project environment keeps these values in protected configuration rather than a committed `.env.example` file.
+For local work, create an ignored `.env` file using the following template or `.env.example` and replace the placeholder values. **Do not commit `.env` files.**
 
 ```env
 DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 JWT_SECRET=replace-with-a-long-random-secret
 CORS_ORIGIN=http://localhost:3000
 VITE_API_BASE_URL=/api
-SMS_PROVIDER=DEVELOPMENT
-# SMS_API_KEY=set only in protected project configuration for a real provider
-# SMS_SENDER_ID=PROCUREFLOW
-# RAZORPAY_KEY_ID=set only in protected project configuration when hosted checkout is enabled
-# RAZORPAY_KEY_SECRET=set only in protected project configuration; never expose it to the client
+
+# SMS Delivery Provider: demo | msg91 | sms8
+SMS_PROVIDER=demo
+# MSG91_AUTH_KEY=your_msg91_auth_key
+# SMS8_API_KEY=your_sms8_api_key
+# SMS8_DEVICE_ID=optional_device_id_for_sim_routing
+
 RAZORPAY_MODE=test
 ```
 
@@ -128,9 +132,14 @@ After an authenticated officer approves the registration through `PUT /api/offic
 
 Officer and farmer credentials use distinct backend endpoints and session-storage keys. An officer login does not create a farmer session, and the officer approval screen only uses records returned by the officer-protected pending-registration API.
 
-## SMS Provider Boundary and Development Fallback
+## SMS Provider Boundary and Delivery
 
-`server/services/otpService.ts` is the server-only delivery boundary for a future SMS provider. Configure the provider name, API key, and sender identity in protected project environment configuration; never expose them in frontend source or the API response. In non-production environments, or when `SMS_PROVIDER=DEVELOPMENT`, the server returns a separate development test code to permit hackathon validation. In production, an unavailable or unsupported SMS provider returns a delivery error and never reveals an OTP.
+`server/services/otpService.ts` and `server/services/sms8Service.ts` provide server-side OTP dispatching across three providers:
+- **`demo` (`SMS_PROVIDER=demo` or `OTP_DEMO_MODE=true`):** Generates and displays demo OTPs on screen without making gateway requests.
+- **`msg91` (`SMS_PROVIDER=msg91`):** Sends OTPs using the official MSG91 SMS gateway.
+- **`sms8` (`SMS_PROVIDER=sms8`):** Dispatches OTPs via connected Android SIM/phone using the SMS8 gateway (`https://app.sms8.io/services/send.php`). Configure `SMS8_API_KEY` (required) and optional `SMS8_DEVICE_ID` for SIM/device routing.
+
+Credentials must only reside in server-side environment variables and are never exposed to the frontend, client bundles, or API responses. Safe provider health can be verified via `GET /api/health` and `GET /api/health/sms`.
 
 ## Code Structure
 

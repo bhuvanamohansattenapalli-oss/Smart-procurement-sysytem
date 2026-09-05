@@ -3,6 +3,9 @@ import express from "express";
 import { createProcurementApi } from "./routes/procurementApi";
 import { ensurePrototypeSeed } from "./services/seedService";
 import { issueOtpVerificationToken } from "./services/tokenService";
+import { getDb } from "./db";
+import { farmers } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 describe("Farmer SMS OTP Authentication & Bypass Prevention Integration Tests", () => {
   let app: express.Express;
@@ -436,4 +439,119 @@ describe("Farmer SMS OTP Authentication & Bypass Prevention Integration Tests", 
       expect(data2.error).toBe("INVALID_VERIFICATION_TOKEN");
     });
   });
+
+  describe("4. OTP Demo Mode (OTP_DEMO_MODE=true) Tests", () => {
+    const demoPhone = `95${Math.floor(10000000 + Math.random() * 90000000)}`;
+
+    it("returns isDemoMode=true and demoOtp when OTP_DEMO_MODE is true", async () => {
+      process.env.OTP_DEMO_MODE = "true";
+
+      const res = await fetch(`${baseUrl}/auth/otp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: demoPhone, purpose: "REGISTRATION" }),
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.isDemoMode).toBe(true);
+      expect(data.demoOtp).toBeDefined();
+      expect(data.demoOtp).toMatch(/^\d{6}$/);
+
+      // Verify with incorrect OTP first
+      const failRes = await fetch(`${baseUrl}/auth/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId: data.challengeId, otp: "999999" }),
+      });
+      expect(failRes.status).toBe(400);
+      const failData = await failRes.json();
+      expect(failData.attemptsRemaining).toBe(4);
+
+      // Verify with the exact demo OTP
+      const verifyRes = await fetch(`${baseUrl}/auth/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId: data.challengeId, otp: data.demoOtp }),
+      });
+      expect(verifyRes.status).toBe(200);
+      const verifyData = await verifyRes.json();
+      expect(verifyData.verificationToken).toBeDefined();
+
+      // Complete registration with the verified token
+      const regRes = await fetch(`${baseUrl}/registration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Demo Registered Farmer",
+          phone: demoPhone,
+          aadhaarMasked: "XXXX XXXX 9988",
+          village: "Demo Village",
+          district: "Guntur",
+          primaryCrop: "Paddy",
+          password: "OriginalPassword@2026",
+          verificationToken: verifyData.verificationToken,
+          declarationAccepted: true,
+        }),
+      });
+      expect(regRes.status).toBe(201);
+      const regData = await regRes.json();
+      expect(regData.farmer.phone).toBe(demoPhone);
+
+      const db = await getDb();
+      if (db) {
+        await db.update(farmers).set({ status: "APPROVED" }).where(eq(farmers.phone, demoPhone));
+      }
+
+      delete process.env.OTP_DEMO_MODE;
+    });
+
+    it("resets password seamlessly in demo mode for existing farmer", async () => {
+      process.env.OTP_DEMO_MODE = "true";
+
+      const sendRes = await fetch(`${baseUrl}/auth/otp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: demoPhone, purpose: "PASSWORD_RESET" }),
+      });
+      expect(sendRes.status).toBe(200);
+      const sendData = await sendRes.json();
+      expect(sendData.isDemoMode).toBe(true);
+      expect(sendData.demoOtp).toBeDefined();
+
+      const verifyRes = await fetch(`${baseUrl}/auth/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId: sendData.challengeId, otp: sendData.demoOtp }),
+      });
+      expect(verifyRes.status).toBe(200);
+      const verifyData = await verifyRes.json();
+
+      const resetRes = await fetch(`${baseUrl}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          verificationToken: verifyData.verificationToken,
+          newPassword: "NewDemoFarmerPass@2026",
+        }),
+      });
+      expect(resetRes.status).toBe(200);
+
+      // Verify farmer can login with the new password
+      const loginRes = await fetch(`${baseUrl}/farmers/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: demoPhone,
+          password: "NewDemoFarmerPass@2026",
+        }),
+      });
+      expect(loginRes.status).toBe(200);
+      const loginData = await loginRes.json();
+      expect(loginData.farmer).toBeDefined();
+      expect(loginData.farmer.phone).toBe(demoPhone);
+
+      delete process.env.OTP_DEMO_MODE;
+    });
+  });
 });
+
