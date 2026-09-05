@@ -40,10 +40,34 @@ export async function verifyAccessToken(token: string): Promise<ApiPrincipal> {
     department: payload.department ? String(payload.department) : undefined,
     designation: payload.designation ? String(payload.designation) : undefined,
     branch: payload.branch ? String(payload.branch) : undefined,
-    centreId: payload.centreId !== undefined ? Number(payload.centreId) : undefined,
-    centreName: payload.centreName ? String(payload.centreName) : undefined,
     code: String(payload.code ?? ""),
     name: String(payload.name ?? ""),
     district: payload.district ? String(payload.district) : undefined,
+  };
+}
+
+export async function issueOtpVerificationToken(challengeId: number, phone: string, purpose: "REGISTRATION" | "PASSWORD_RESET"): Promise<string> {
+  return new SignJWT({
+    challengeId,
+    phone,
+    purpose,
+    type: "OTP_VERIFIED",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(phone)
+    .setIssuedAt()
+    .setExpirationTime("15m")
+    .sign(signingKey());
+}
+
+export async function verifyOtpVerificationToken(token: string): Promise<{ challengeId: number; phone: string; purpose: "REGISTRATION" | "PASSWORD_RESET" }> {
+  const { payload } = await jwtVerify(token, signingKey());
+  if (payload.type !== "OTP_VERIFIED" || !payload.challengeId || !payload.phone || !payload.purpose) {
+    throw new Error("Invalid or expired OTP verification token.");
+  }
+  return {
+    challengeId: Number(payload.challengeId),
+    phone: String(payload.phone),
+    purpose: payload.purpose as "REGISTRATION" | "PASSWORD_RESET",
   };
 }

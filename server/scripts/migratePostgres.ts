@@ -45,6 +45,29 @@ export async function ensurePostgresSchema(pool: pg.Pool): Promise<void> {
     15000,
     "PostgreSQL schema initialization timed out after 15000ms"
   );
+
+  // Upgrade otpChallenges table if needed
+  try {
+    await pool.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'otpChallenges' AND column_name = 'purpose') THEN
+          ALTER TABLE "otpChallenges" ADD COLUMN "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION';
+        END IF;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "name" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "passwordHash" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "village" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "district" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "primaryCrop" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "aadhaarMasked" DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+  } catch {
+    // Ignore if table schema is already updated
+  }
+
   console.log("[Database Migration] PostgreSQL schema initialized successfully.");
 }
 

@@ -71,18 +71,19 @@ export const registrations = pgTable("registrations", {
   reviewedAt: timestamp("reviewedAt"),
 });
 
-/** Temporary pre-registration record. An actual farmer account is created only after OTP verification. */
+/** Temporary pre-registration & verification record for SMS OTP. */
 export const otpChallenges = pgTable("otpChallenges", {
   id: serial("id").primaryKey(),
   phone: varchar("phone", { length: 20 }).notNull(),
-  activePhone: varchar("activePhone", { length: 20 }).unique(),
-  name: varchar("name", { length: 160 }).notNull(),
-  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
-  village: varchar("village", { length: 160 }).notNull(),
-  district: varchar("district", { length: 160 }).notNull(),
-  primaryCrop: varchar("primaryCrop", { length: 80 }).notNull(),
-  aadhaarMasked: varchar("aadhaarMasked", { length: 32 }).notNull(),
-  declarationAccepted: integer("declarationAccepted").notNull().default(1),
+  activePhone: varchar("activePhone", { length: 20 }),
+  purpose: varchar("purpose", { length: 32 }).$type<"REGISTRATION" | "PASSWORD_RESET">().default("REGISTRATION").notNull(),
+  name: varchar("name", { length: 160 }),
+  passwordHash: varchar("passwordHash", { length: 255 }),
+  village: varchar("village", { length: 160 }),
+  district: varchar("district", { length: 160 }),
+  primaryCrop: varchar("primaryCrop", { length: 80 }),
+  aadhaarMasked: varchar("aadhaarMasked", { length: 32 }),
+  declarationAccepted: integer("declarationAccepted").default(1),
   otpHash: varchar("otpHash", { length: 255 }).notNull(),
   status: varchar("status", { length: 32 }).$type<(typeof otpChallengeStatus)[number]>().default("PENDING").notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
@@ -93,6 +94,9 @@ export const otpChallenges = pgTable("otpChallenges", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
+
+export type OtpChallenge = typeof otpChallenges.$inferSelect;
+export type InsertOtpChallenge = typeof otpChallenges.$inferInsert;
 
 export const staffRoleEnum = [
   "HEAD_OFFICER",

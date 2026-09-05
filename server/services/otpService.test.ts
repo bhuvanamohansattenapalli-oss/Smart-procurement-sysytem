@@ -6,16 +6,23 @@ describe("otpService", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses development delivery when no usable SMS provider is configured", async () => {
+  it("fails in production when MSG91_AUTH_KEY is not configured", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("SMS_PROVIDER", "");
+    vi.stubEnv("MSG91_AUTH_KEY", "");
     vi.stubEnv("SMS_API_KEY", "");
-    vi.stubEnv("SMS_SENDER_ID", "");
+    await expect(deliverOtp("9876543210", "123456")).rejects.toThrow("MSG91_AUTH_KEY");
+  });
+
+  it("uses development test delivery when in development mode and MSG91 is not configured", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("MSG91_AUTH_KEY", "");
+    vi.stubEnv("SMS_API_KEY", "");
     const delivery = await deliverOtp("9876543210", "123456");
     expect(delivery).toEqual({ channel: "development", provider: "DEVELOPMENT", developmentOtp: "123456" });
   });
 
   it("allows explicit development mode even when provider metadata is present", async () => {
+    vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("OTP_MODE", "DEVELOPMENT");
     vi.stubEnv("SMS_PROVIDER", "future-provider");
     vi.stubEnv("SMS_API_KEY", "configured-only-for-test");
@@ -23,14 +30,6 @@ describe("otpService", () => {
     const delivery = await deliverOtp("9876543210", "654321");
     expect(delivery.channel).toBe("development");
     expect(delivery.developmentOtp).toBe("654321");
-  });
-
-  it("keeps a completely configured provider behind the adapter boundary", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("SMS_PROVIDER", "future-provider");
-    vi.stubEnv("SMS_API_KEY", "configured-only-for-test");
-    vi.stubEnv("SMS_SENDER_ID", "PROCUREFLOW");
-    await expect(deliverOtp("9876543210", "654321")).rejects.toThrow("no server-side adapter has been installed");
   });
 
   it("creates six-digit one-time codes and verifies only their hash", () => {

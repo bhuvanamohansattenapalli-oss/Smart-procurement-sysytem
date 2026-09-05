@@ -1232,3 +1232,105 @@
     padding: 12px;
   }
 }
+
+/* Farmer OTP Authentication & Password Reset Styles */
+.auth-step-tracker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  background: #f7faf8;
+  border: 1px solid #e1ebe4;
+  border-radius: 14px;
+  gap: 8px;
+}
+.auth-step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #798c82;
+}
+.auth-step-item.active {
+  color: var(--paddy-deep, #144933);
+}
+.auth-step-item.completed {
+  color: #107e4a;
+}
+.auth-step-num {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e2ede6;
+  color: #436354;
+  font-size: 10px;
+}
+.auth-step-item.active .auth-step-num {
+  background: #196f4c;
+  color: #fff;
+}
+.auth-step-item.completed .auth-step-num {
+  background: #e1f5eb;
+  color: #107e4a;
+}
+.auth-step-separator {
+  flex: 1;
+  height: 2px;
+  background: #e3ede6;
+  max-width: 32px;
+}
+.auth-step-separator.completed {
+  background: #7ccca3;
+}
+.otp-display-banner {
+  padding: 14px 16px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  color: #065f46;
+}
+.otp-input-control {
+  text-align: center;
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.35em;
+  padding: 10px 14px !important;
+  height: 52px !important;
+  background: #fdfefe !important;
+  border: 2px solid #b7dfc8 !important;
+  border-radius: 12px !important;
+}
+.otp-input-control:focus {
+  border-color: #186b49 !important;
+  box-shadow: 0 0 0 3px rgba(24, 107, 73, 0.15) !important;
+}
+.auth-error-banner {
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+.auth-dev-badge {
+  padding: 8px 12px;
+  background: #fefce8;
+  border: 1px dashed #ca8a04;
+  border-radius: 8px;
+  color: #854d0e;
+  font-size: 11px;
+  font-weight: 700;
+}
+

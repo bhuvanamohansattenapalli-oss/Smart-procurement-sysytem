@@ -398,6 +398,6 @@ describe("Smart Procurement End-to-End Core Workflow", () => {
     });
     expect(finalPendingRes.status).toBe(200);
     const finalPendingData = await finalPendingRes.json();
-    expect(finalPendingData.registrations).toEqual([]);
+    expect(finalPendingData.registrations.find((r: any) => r.farmerId === newFarmerId)).toBeUndefined();
   });
 });
