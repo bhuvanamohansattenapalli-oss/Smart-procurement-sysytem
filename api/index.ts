@@ -55,12 +55,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   }
 });
 
-// Primary Vercel serverless handler function
-export default function handler(req: any, res: any) {
-  return app(req, res);
-}
-
-// Preserve Express app methods on default export for testing frameworks (e.g. vitest supertest/app.listen)
-Object.setPrototypeOf(handler, app);
+// Primary Vercel serverless handler function & Express app
+export default app;
 
 export { app };

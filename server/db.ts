@@ -543,11 +543,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMsg: string): Pr
 }
 
 let _initDbPromise: Promise<ReturnType<typeof drizzle>> | null = null;
+let _lastConnectionAttempt = 0;
+const CONNECTION_COOLDOWN_MS = 8_000;
 
 async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString && connectionString.trim().length > 0) {
+    if (Date.now() - _lastConnectionAttempt < CONNECTION_COOLDOWN_MS && !_db) {
+      return null as any;
+    }
+    _lastConnectionAttempt = Date.now();
     const masked = maskConnectionString(connectionString);
     console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
 
@@ -601,17 +607,18 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
         "[DATABASE WARNING] Failed to connect to PostgreSQL database using DATABASE_URL!\n" +
         `Connection target: ${masked}\n` +
         `Error Details: ${error?.message || error}\n\n` +
-        "[DATABASE FALLBACK] Activating persistent local store so application remains operational.\n" +
         "DIAGNOSTIC GUIDANCE:\n" +
-        "1. If you deleted or changed your database, update the 'DATABASE_URL' environment variable in Vercel.\n" +
+        "1. If you deleted or changed your database, update the 'DATABASE_URL' environment variable in Vercel and .env.\n" +
         "2. For Supabase PostgreSQL, ensure you use the Connection Pooling or URI string (port 5432 or 6543).\n" +
         "3. Verify your Supabase project is active and not paused.\n" +
         "================================================================================\n"
       );
-      // Gracefully fall back to local store so that application endpoints continue to function
-      _db = localStore as any;
+      // In accordance with database requirements, do NOT silently fall back to local JSON store when DATABASE_URL is configured
+      _db = null;
+      _pool = null;
       _isPostgres = false;
-      return _db;
+      _initDbPromise = null; // Reset so retry can connect when new DATABASE_URL is supplied
+      return null as any;
     }
   } else {
     console.log(
@@ -623,16 +630,15 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
   }
 }
 
-export async function getDb(): Promise<ReturnType<typeof drizzle>> {
+export async function getDb(): Promise<ReturnType<typeof drizzle> | null> {
   if (_db) return _db;
   if (!_initDbPromise) {
     _initDbPromise = initDbInternal().catch((err) => {
       _initDbPromise = null;
       console.error("[Database] Failed to initialize DB:", err);
-      // Return localStore as ultimate fallback
-      _db = localStore as any;
+      _db = null;
       _isPostgres = false;
-      return _db;
+      return null as any;
     });
   }
   return _initDbPromise;

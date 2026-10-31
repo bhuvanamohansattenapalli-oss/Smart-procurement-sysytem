@@ -11,7 +11,7 @@ import {
   slots,
   transportBookings,
 } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { getDb, isPostgresActive } from "../db";
 import { hashPassword } from "./passwordService";
 
 let seedPromise: Promise<void> | null = null;
@@ -291,6 +291,12 @@ async function seedDatabase(): Promise<void> {
     if (s.bookedCount >= s.capacity) {
       await db.update(slots).set({ bookedCount: Math.min(5, Math.max(0, s.capacity - 10)) }).where(eq(slots.id, s.id));
     }
+  }
+
+  // In accordance with database requirements, do NOT fabricate farmer records in PostgreSQL production database
+  if (isPostgresActive() || process.env.NODE_ENV === "production") {
+    console.log("[Seed] Skipping farmer record fabrication for real PostgreSQL database.");
+    return;
   }
 
   const existingFarmer = await db.select().from(farmers).where(eq(farmers.phone, "9876543210")).limit(1);

@@ -605,28 +605,47 @@ export function createProcurementApi() {
     const input = respondValidation(res, forgotPasswordSchema, req.body);
     if (!input) return;
     const db = await getDb();
-    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-
-    const cleanPhone = normalizePhone(input.phone);
-    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
-    if (!farmer) {
-      return res.status(404).json({
-        error: "FARMER_NOT_FOUND",
-        message: "No registered farmer found with this mobile number. Please check the number or register first.",
+    if (!db) {
+      return res.status(503).json({
+        error: "DATABASE_UNAVAILABLE",
+        message: "Database service is currently unavailable. Please verify your PostgreSQL connection or retry shortly.",
       });
     }
 
-    const newHash = hashPassword(input.newPassword);
-    await db.update(farmers).set({
-      passwordHash: newHash,
-      updatedAt: new Date(),
-    }).where(eq(farmers.id, farmer.id));
+    const cleanPhone = normalizePhone(input.phone);
+    try {
+      const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+      if (!farmer) {
+        return res.status(404).json({
+          error: "FARMER_NOT_FOUND",
+          message: "No registered farmer found with this mobile number. Please check the number or register first.",
+        });
+      }
 
-    console.info(`[Auth Audit] Farmer password reset successfully: id=${farmer.id} phone=${cleanPhone}`);
-    return res.json({
-      message: "Password reset successfully. You can now login with your new password.",
-      phone: cleanPhone,
-    });
+      const newHash = hashPassword(input.newPassword);
+      await db.update(farmers).set({
+        passwordHash: newHash,
+        updatedAt: new Date(),
+      }).where(eq(farmers.id, farmer.id));
+
+      console.info(`[Auth Audit] Farmer password reset successfully: id=${farmer.id} phone=${cleanPhone}`);
+      return res.json({
+        message: "Password reset successfully. You can now login with your new password.",
+        phone: cleanPhone,
+      });
+    } catch (err: any) {
+      console.error("[Forgot Password Error]", err?.message || err);
+      if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT" || err?.code === "ENOTFOUND" || err?.message?.includes("timeout") || err?.message?.includes("connect")) {
+        return res.status(503).json({
+          error: "DATABASE_UNAVAILABLE",
+          message: "Database connection failed. Please verify your PostgreSQL connection or retry shortly.",
+        });
+      }
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "An unexpected error occurred while resetting your password. Please try again.",
+      });
+    }
   });
 
   // 2. Farmer Registration (Direct - No OTP)
@@ -634,128 +653,249 @@ export function createProcurementApi() {
     const input = respondValidation(res, registrationSchema, req.body);
     if (!input) return;
     const db = await getDb();
-    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    if (!db) {
+      return res.status(503).json({
+        error: "DATABASE_UNAVAILABLE",
+        message: "Database service is currently unavailable. Please verify your PostgreSQL connection or retry shortly.",
+      });
+    }
     const cleanPhone = normalizePhone(input.phone);
 
-    if ((await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0]) {
-      return res.status(409).json({ error: "PHONE_EXISTS", message: "A farmer is already registered with this mobile number. Please sign in or reset your password." });
+    try {
+      // 1. Check for duplicate registration
+      const existing = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+      if (existing) {
+        return res.status(409).json({
+          error: "PHONE_EXISTS",
+          message: "A farmer is already registered with this mobile number. Please sign in or reset your password.",
+        });
+      }
+
+      // 2. Create farmer record with securely hashed password
+      const farmerCode = `FMR-${new Date().getUTCFullYear()}-${String(Date.now()).slice(-6)}`;
+      await db.insert(farmers).values({
+        farmerCode,
+        name: input.name,
+        phone: cleanPhone,
+        passwordHash: hashPassword(input.password),
+        village: input.village,
+        district: input.district,
+        primaryCrop: input.primaryCrop,
+        status: "PENDING",
+      });
+
+      const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+      if (!farmer) {
+        return res.status(500).json({
+          error: "REGISTRATION_FAILED",
+          message: "Failed to create farmer record. Please try again.",
+        });
+      }
+
+      // 3. Create initial registration application record
+      await db.insert(registrations).values({
+        farmerId: farmer.id,
+        aadhaarMasked: input.aadhaarMasked,
+        declarationAccepted: 1,
+        status: "PENDING",
+      });
+      const registration = (await db.select().from(registrations).where(eq(registrations.farmerId, farmer.id)).limit(1))[0];
+
+      // 4. Create welcome notifications
+      try {
+        await db.insert(notifications).values({
+          farmerId: farmer.id,
+          title: "Registration submitted",
+          message: "Your registration has been submitted and is awaiting officer verification.",
+          category: "REGISTRATION",
+        });
+        await db.insert(notifications).values({
+          farmerId: farmer.id,
+          title: "New farmer registration submitted",
+          message: `Farmer ${farmer.name} (${cleanPhone}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
+          category: "REGISTRATION",
+        });
+      } catch (notifErr) {
+        console.warn("[Registration] Notification insert non-fatal notice:", notifErr);
+      }
+
+      console.info(`[Auth Audit] Farmer registered: id=${farmer.id} phone=${cleanPhone} code=${farmerCode}`);
+      return res.status(201).json({
+        message: "Registration submitted — awaiting officer verification.",
+        registrationId: registration?.id,
+        farmer: formatFarmer(farmer),
+        status: "PENDING",
+      });
+    } catch (err: any) {
+      console.error("[Registration Error]", err?.message || err);
+      if (err?.code === "23505" || err?.message?.includes("unique") || err?.message?.includes("duplicate")) {
+        return res.status(409).json({
+          error: "PHONE_EXISTS",
+          message: "A farmer is already registered with this mobile number. Please sign in or reset your password.",
+        });
+      }
+      if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT" || err?.code === "ENOTFOUND" || err?.message?.includes("timeout") || err?.message?.includes("connect")) {
+        return res.status(503).json({
+          error: "DATABASE_UNAVAILABLE",
+          message: "Database connection failed. Please verify your PostgreSQL connection or retry shortly.",
+        });
+      }
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "An unexpected error occurred during farmer registration. Please try again.",
+      });
     }
-    const farmerCode = `FMR-${new Date().getUTCFullYear()}-${String(Date.now()).slice(-6)}`;
-    await db.insert(farmers).values({
-      farmerCode,
-      name: input.name,
-      phone: cleanPhone,
-      passwordHash: hashPassword(input.password),
-      village: input.village,
-      district: input.district,
-      primaryCrop: input.primaryCrop,
-      status: "PENDING",
-    });
-    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
-    if (!farmer) return res.status(500).json({ error: "REGISTRATION_FAILED", message: "Failed to create farmer record." });
-    await db.insert(registrations).values({
-      farmerId: farmer.id,
-      aadhaarMasked: input.aadhaarMasked,
-      declarationAccepted: 1,
-      status: "PENDING",
-    });
-    const registration = (await db.select().from(registrations).where(eq(registrations.farmerId, farmer.id)).limit(1))[0];
-    // Create farmer notification
-    await db.insert(notifications).values({
-      farmerId: farmer.id,
-      title: "Registration submitted",
-      message: "Your registration has been submitted and is awaiting officer verification.",
-      category: "REGISTRATION",
-    });
-    // Create officer notification
-    await db.insert(notifications).values({
-      farmerId: farmer.id,
-      title: "New farmer registration submitted",
-      message: `Farmer ${farmer.name} (${cleanPhone}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
-      category: "REGISTRATION",
-    });
-    console.info(`[Auth Audit] Farmer registered: id=${farmer.id} phone=${cleanPhone} code=${farmerCode}`);
-    return res.status(201).json({
-      message: "Registration submitted — awaiting officer verification.",
-      registrationId: registration?.id,
-      farmer: formatFarmer(farmer),
-      status: "PENDING",
-    });
   });
 
+  // 3. Farmer Login (Mobile + Password -> JWT)
   api.post("/farmers/login", async (req, res) => {
-    const input = respondValidation(res, loginSchema, req.body); if (!input) return;
-    const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
+    const input = respondValidation(res, loginSchema, req.body);
+    if (!input) return;
+    const db = await getDb();
+    if (!db) {
+      return res.status(503).json({
+        error: "DATABASE_UNAVAILABLE",
+        message: "Database service is currently unavailable. Please verify your PostgreSQL connection or retry shortly.",
+      });
+    }
     const cleanPhone = normalizePhone(input.phone);
-    const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
-    if (!farmer) {
-      console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=FARMER_NOT_FOUND`);
-      return res.status(401).json({ error: "FARMER_NOT_FOUND", message: "No registered farmer found with this mobile number. Please register first or verify your number." });
+
+    try {
+      const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+      if (!farmer) {
+        console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=FARMER_NOT_FOUND`);
+        return res.status(401).json({
+          error: "FARMER_NOT_FOUND",
+          message: "No registered farmer found with this mobile number. Please register first or verify your number.",
+        });
+      }
+
+      if (!verifyPassword(input.password, farmer.passwordHash)) {
+        console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=PASSWORD_MISMATCH`);
+        return res.status(401).json({
+          error: "INVALID_CREDENTIALS",
+          message: "Incorrect password. Please verify your password and try again.",
+        });
+      }
+
+      if (farmer.status !== "APPROVED") {
+        console.info(`[Auth Audit] Farmer login deferred: phone=${cleanPhone} status=${farmer.status}`);
+        return res.status(403).json({
+          error: "REGISTRATION_NOT_APPROVED",
+          message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`,
+          status: farmer.status,
+          farmer: formatFarmer(farmer),
+        });
+      }
+
+      const token = await issueAccessToken({
+        id: farmer.id,
+        role: "farmer",
+        code: farmer.farmerCode,
+        name: farmer.name,
+      });
+      console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${cleanPhone} code=${farmer.farmerCode}`);
+      return res.json({
+        accessToken: token,
+        tokenType: "Bearer",
+        expiresInSeconds: 28800,
+        farmer: formatFarmer(farmer),
+      });
+    } catch (err: any) {
+      console.error("[Login Error]", err?.message || err);
+      if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT" || err?.code === "ENOTFOUND" || err?.message?.includes("timeout") || err?.message?.includes("connect")) {
+        return res.status(503).json({
+          error: "DATABASE_UNAVAILABLE",
+          message: "Database connection failed. Please verify your PostgreSQL connection or retry shortly.",
+        });
+      }
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "An unexpected error occurred during login. Please try again.",
+      });
     }
-    if (!verifyPassword(input.password, farmer.passwordHash)) {
-      console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=PASSWORD_MISMATCH`);
-      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Incorrect password. Please verify your password and try again." });
-    }
-    if (farmer.status !== "APPROVED") {
-      console.info(`[Auth Audit] Farmer login deferred: phone=${cleanPhone} status=${farmer.status}`);
-      return res.status(403).json({ error: "REGISTRATION_NOT_APPROVED", message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`, status: farmer.status, farmer: formatFarmer(farmer) });
-    }
-    const token = await issueAccessToken({ id: farmer.id, role: "farmer", code: farmer.farmerCode, name: farmer.name });
-    console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${cleanPhone} code=${farmer.farmerCode}`);
-    return res.json({ accessToken: token, tokenType: "Bearer", expiresInSeconds: 28800, farmer: formatFarmer(farmer) });
   });
 
+  // 4. Officer Login
   api.post("/officers/login", async (req, res) => {
-    const input = respondValidation(res, officerLoginSchema, req.body); if (!input) return;
-    const db = await getDb(); if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const officer = (await db.select().from(officers).where(or(eq(officers.officerCode, input.officerCode), eq(officers.employeeId, input.officerCode))).limit(1))[0];
-    if (!officer) {
-      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Officer Login ID or password is incorrect." });
-    }
-    if (officer.status === "PENDING_VERIFICATION") {
-      return res.status(403).json({
-        error: "ACCOUNT_PENDING_VERIFICATION",
-        message: "Your staff account is pending Head Officer verification. Please contact your Head Officer.",
-        status: "PENDING_VERIFICATION",
+    const input = respondValidation(res, officerLoginSchema, req.body);
+    if (!input) return;
+    const db = await getDb();
+    if (!db) {
+      return res.status(503).json({
+        error: "DATABASE_UNAVAILABLE",
+        message: "Database service is currently unavailable. Please verify your PostgreSQL connection or retry shortly.",
       });
-    }
-    if (officer.status === "DISABLED") {
-      return res.status(403).json({
-        error: "ACCOUNT_DISABLED",
-        message: "Your staff account has been disabled by the Head Officer. Access denied.",
-        status: "DISABLED",
-      });
-    }
-    if (officer.status === "REJECTED") {
-      return res.status(403).json({
-        error: "ACCOUNT_REJECTED",
-        message: `Your staff application was rejected: ${officer.rejectionReason || "Please contact your Head Officer."}`,
-        status: "REJECTED",
-      });
-    }
-    if (!verifyPassword(input.password, officer.passwordHash)) {
-      return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Officer Login ID or password is incorrect." });
     }
 
-    const token = await issueAccessToken({
-      id: officer.id,
-      role: "officer",
-      staffRole: officer.role as StaffRole,
-      department: officer.department ?? undefined,
-      designation: officer.designation ?? undefined,
-      branch: officer.branch ?? undefined,
-      centreId: officer.centreId ?? undefined,
-      centreName: officer.centreName ?? undefined,
-      code: officer.officerCode,
-      name: officer.name,
-      district: officer.district ?? undefined,
-    });
-    return res.json({
-      accessToken: token,
-      tokenType: "Bearer",
-      expiresInSeconds: 28800,
-      officer: formatOfficer(officer),
-    });
+    try {
+      const officer = (await db.select().from(officers).where(or(eq(officers.officerCode, input.officerCode), eq(officers.employeeId, input.officerCode))).limit(1))[0];
+      if (!officer) {
+        return res.status(401).json({
+          error: "INVALID_CREDENTIALS",
+          message: "Officer Login ID or password is incorrect.",
+        });
+      }
+      if (officer.status === "PENDING_VERIFICATION") {
+        return res.status(403).json({
+          error: "ACCOUNT_PENDING_VERIFICATION",
+          message: "Your staff account is pending Head Officer verification. Please contact your Head Officer.",
+          status: "PENDING_VERIFICATION",
+        });
+      }
+      if (officer.status === "DISABLED") {
+        return res.status(403).json({
+          error: "ACCOUNT_DISABLED",
+          message: "Your staff account has been disabled by the Head Officer. Access denied.",
+          status: "DISABLED",
+        });
+      }
+      if (officer.status === "REJECTED") {
+        return res.status(403).json({
+          error: "ACCOUNT_REJECTED",
+          message: `Your staff application was rejected: ${officer.rejectionReason || "Please contact your Head Officer."}`,
+          status: "REJECTED",
+        });
+      }
+      if (!verifyPassword(input.password, officer.passwordHash)) {
+        return res.status(401).json({
+          error: "INVALID_CREDENTIALS",
+          message: "Officer Login ID or password is incorrect.",
+        });
+      }
+
+      const token = await issueAccessToken({
+        id: officer.id,
+        role: "officer",
+        staffRole: officer.role as StaffRole,
+        department: officer.department ?? undefined,
+        designation: officer.designation ?? undefined,
+        branch: officer.branch ?? undefined,
+        centreId: officer.centreId ?? undefined,
+        centreName: officer.centreName ?? undefined,
+        code: officer.officerCode,
+        name: officer.name,
+        district: officer.district ?? undefined,
+      });
+      return res.json({
+        accessToken: token,
+        tokenType: "Bearer",
+        expiresInSeconds: 28800,
+        officer: formatOfficer(officer),
+      });
+    } catch (err: any) {
+      console.error("[Officer Login Error]", err?.message || err);
+      if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT" || err?.code === "ENOTFOUND" || err?.message?.includes("timeout") || err?.message?.includes("connect")) {
+        return res.status(503).json({
+          error: "DATABASE_UNAVAILABLE",
+          message: "Database connection failed. Please verify your PostgreSQL connection or retry shortly.",
+        });
+      }
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "An unexpected error occurred during officer login. Please try again.",
+      });
+    }
   });
 
   // Head Officer: Submit new staff onboarding request (Status: PENDING_VERIFICATION)

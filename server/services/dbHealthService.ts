@@ -25,6 +25,17 @@ export async function runDatabaseHealthCheck(): Promise<DatabaseHealthResult> {
 
   if (isPg && pool) {
     return runPostgresHealthCheck(pool, startTime);
+  } else if (process.env.DATABASE_URL) {
+    return {
+      status: "unhealthy",
+      database: "postgresql",
+      latencyMs: Date.now() - startTime,
+      tablesTotal: 0,
+      missingTables: [...REQUIRED_TABLES],
+      crudVerification: { insert: false, select: false, update: false, delete: false },
+      details: "PostgreSQL database connection to DATABASE_URL failed or is unavailable. Please check host, port, credentials, and Supabase project status.",
+      timestamp: new Date().toISOString(),
+    };
   } else {
     return runLocalStoreHealthCheck(startTime);
   }
