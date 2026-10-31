@@ -23,6 +23,7 @@ import {
   type InsertUser,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { ensurePostgresSchema } from "./scripts/migratePostgres";
 
 const { Pool } = pg;
 
@@ -555,47 +556,55 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
       const pool = new Pool({
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
-        connectionTimeoutMillis: 8000,
+        connectionTimeoutMillis: 3500,
         idleTimeoutMillis: 30000,
         max: 10,
-        statement_timeout: 10000,
-        query_timeout: 10000,
+        statement_timeout: 8000,
+        query_timeout: 8000,
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000,
       });
 
-      // Fail-Fast: Test connection immediately with an 8-second timeout
+      // Fail-Fast: Test connection probe with a 3500ms timeout
       const testRes = await withTimeout(
         pool.query("SELECT 1 AS connected"),
-        8000,
-        `PostgreSQL connection probe to ${masked} timed out after 8000ms.`
+        3500,
+        `PostgreSQL connection probe to ${masked} timed out after 3500ms.`
       );
       if (!testRes || !testRes.rows || testRes.rows.length === 0) {
         throw new Error("PostgreSQL handshake returned empty response.");
       }
 
       console.log(`[Database] PostgreSQL connection established successfully at ${masked}.`);
+
+      // Ensure all 16 tables and indexes exist (safe, idempotent CREATE TABLE IF NOT EXISTS)
+      try {
+        await ensurePostgresSchema(pool);
+      } catch (schemaErr: any) {
+        console.warn(`[Database Migration Warning] Schema check encountered an issue:`, schemaErr?.message || schemaErr);
+      }
+
       _pool = pool;
       _db = drizzle(pool);
       _isPostgres = true;
       return _db;
     } catch (error: any) {
-      console.error(
+      console.warn(
         "\n================================================================================\n" +
-        "[DATABASE ERROR] Failed to connect to PostgreSQL database using DATABASE_URL!\n" +
+        "[DATABASE WARNING] Failed to connect to PostgreSQL database using DATABASE_URL!\n" +
         `Connection target: ${masked}\n` +
         `Error Details: ${error?.message || error}\n\n` +
-        "DIAGNOSTIC GUIDANCE FOR RENDER DEPLOYMENT:\n" +
-        "1. In Render Dashboard, verify your 'DATABASE_URL' environment variable is correctly set.\n" +
-        "2. For Supabase PostgreSQL, ensure you copied the 'URI' connection string (starts with postgresql:// or postgres://).\n" +
-        "3. If your password contains special characters like '@', '#', or '%', URL-encode them.\n" +
-        "4. In Supabase Settings -> Database, verify the project is Active and not paused.\n" +
-        "5. If using Session Pooler on port 5432, verify user is postgres.[project-ref] or direct postgres user.\n" +
+        "[DATABASE FALLBACK] Activating persistent local store so application remains operational.\n" +
+        "DIAGNOSTIC GUIDANCE:\n" +
+        "1. If you deleted or changed your database, update the 'DATABASE_URL' environment variable in Vercel.\n" +
+        "2. For Supabase PostgreSQL, ensure you use the Connection Pooling or URI string (port 5432 or 6543).\n" +
+        "3. Verify your Supabase project is active and not paused.\n" +
         "================================================================================\n"
       );
-      throw new Error(
-        `[Database] PostgreSQL connection failed: ${error?.message || error}. Review Render environment variables.`
-      );
+      // Gracefully fall back to local store so that application endpoints continue to function
+      _db = localStore as any;
+      _isPostgres = false;
+      return _db;
     }
   } else {
     console.log(
@@ -612,7 +621,11 @@ export async function getDb(): Promise<ReturnType<typeof drizzle>> {
   if (!_initDbPromise) {
     _initDbPromise = initDbInternal().catch((err) => {
       _initDbPromise = null;
-      throw err;
+      console.error("[Database] Failed to initialize DB:", err);
+      // Return localStore as ultimate fallback
+      _db = localStore as any;
+      _isPostgres = false;
+      return _db;
     });
   }
   return _initDbPromise;

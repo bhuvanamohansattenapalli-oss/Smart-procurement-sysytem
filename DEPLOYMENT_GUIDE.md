@@ -22,14 +22,26 @@ The project is already configured and ready in your GitHub repository:
    - **Build Command**: `npm run build` (auto-detected)
    - **Output Directory**: `dist/public` (auto-detected from `vercel.json`)
    - **Install Command**: `npm install` (default)
-5. (Optional) **Environment Variables**:
-   - If you have a free cloud database URL (e.g. Supabase, TiDB Cloud, Aiven), you can add `DATABASE_URL`.
-   - If not, you can leave it empty — the built-in serverless fallback store will initialize automatically!
+5. **Environment Variables**:
+   - `DATABASE_URL`: Your PostgreSQL connection URI (e.g. from Supabase or Neon). If you deleted your old database, create a new free PostgreSQL database on Supabase or Neon, copy its URI string (`postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres`), and paste it as `DATABASE_URL` in Vercel Settings → Environment Variables.
+   - If `DATABASE_URL` is temporarily empty or unreachable, the application automatically uses its resilient built-in prototype store to ensure the portal remains online and functional without 500 errors.
+   - `JWT_SECRET`: (Optional) Long random string for JWT signing.
 6. Click **"Deploy"**!
 
-### Step 3: Your Live Vercel Link
+### Step 3: Database Auto-Initialization & Data Restoration
+- **Automatic Schema Migration**: When you provide a valid `DATABASE_URL`, ProcureFlow automatically creates all 16 tables and indexes on first connection using safe, idempotent `CREATE TABLE IF NOT EXISTS` DDL.
+- **Importing Historical Farmers & Bookings**: To populate your new PostgreSQL database with the 119 existing farmers, 216 bookings, and historical procurement records, run locally:
+  ```bash
+  DATABASE_URL="your_new_postgresql_uri" npm run db:import-json
+  ```
+- **Verification**: You can verify that your database has all tables and is healthy by running:
+  ```bash
+  DATABASE_URL="your_new_postgresql_uri" npm run db:check
+  ```
+
+### Step 4: Your Live Vercel Link
 Within 1 to 2 minutes, Vercel will build the frontend and serverless API. You will receive a live URL such as:
-`https://smart-procurement-sysytem.vercel.app`
+`https://smart-procurement-system-omega.vercel.app`
 
 ---
 

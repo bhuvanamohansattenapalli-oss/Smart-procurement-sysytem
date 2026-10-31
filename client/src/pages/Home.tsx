@@ -2741,7 +2741,7 @@ export default function Home() {
           if (data.farmer) setPendingFarmer(data.farmer);
           navigate("pending");
         }
-        throw new Error(data.message ?? "Your registration requires officer approval before login.");
+        throw new Error(data.message ?? (data.status === "PENDING" ? "Your registration requires officer approval before login." : (data.error ? `Login failed: ${data.error}` : "Login failed. Please check your credentials.")));
       }
 
       setFarmerToken(data.accessToken);
@@ -2782,7 +2782,7 @@ export default function Home() {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message ?? "Officer login failed.");
+      if (!response.ok) throw new Error(data.message ?? (data.error ? `Officer login failed: ${data.error}` : "Officer login failed."));
       
       setOfficerToken(data.accessToken);
       setOfficerProfile(data.officer);

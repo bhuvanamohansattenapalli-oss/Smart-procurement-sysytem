@@ -3,6 +3,12 @@
   "installCommand": "pnpm install --no-frozen-lockfile",
   "outputDirectory": "dist/public",
   "framework": "vite",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": ".data/**",
+      "maxDuration": 15
+    }
+  },
   "rewrites": [
     {
       "source": "/api",

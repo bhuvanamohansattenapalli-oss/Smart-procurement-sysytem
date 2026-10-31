@@ -538,8 +538,34 @@ function apiCors(req: AuthenticatedRequest, res: Response, next: NextFunction) {
 }
 
 
+function patchAsyncRouter(router: Router) {
+  const methods = ["get", "post", "put", "patch", "delete"] as const;
+  for (const m of methods) {
+    const orig = (router as any)[m].bind(router);
+    (router as any)[m] = (...args: any[]) => {
+      const wrappedArgs = args.map((arg: any) => {
+        if (typeof arg === "function" && arg.length <= 3) {
+          return (req: any, res: any, next: any) => {
+            try {
+              const result = arg(req, res, next);
+              if (result && typeof result.catch === "function") {
+                result.catch(next);
+              }
+            } catch (syncErr) {
+              next(syncErr);
+            }
+          };
+        }
+        return arg;
+      });
+      return orig(...wrappedArgs);
+    };
+  }
+}
+
 export function createProcurementApi() {
   const api = Router();
+  patchAsyncRouter(api);
   api.use(apiCors);
   api.use((_req, res, next) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -584,7 +610,15 @@ export function createProcurementApi() {
     });
   });
 
-  api.use(async (_req, res, next) => { try { await ensurePrototypeSeed(); next(); } catch { res.status(503).json({ error: "SERVICE_UNAVAILABLE", message: "Prototype database is unavailable." }); } });
+  api.use(async (_req, res, next) => {
+    try {
+      await ensurePrototypeSeed();
+      next();
+    } catch (err: any) {
+      console.warn("[ProcureFlow API] Prototype seed initialization note:", err?.message || err);
+      next();
+    }
+  });
 
   // 1. Send SMS OTP for Registration or Password Reset
   api.post("/auth/otp/send", async (req, res) => {
@@ -3365,9 +3399,30 @@ export function createProcurementApi() {
   });
 
   const apiErrorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
-    console.error("[ProcureFlow API]", error);
+    console.error("[ProcureFlow API Error]", error?.message || error);
     if (!res.headersSent) {
-      res.status(500).json({ error: "INTERNAL_ERROR", message: "The prototype API could not complete this request." });
+      const errStr = (error?.message || String(error)).toLowerCase();
+      const isDbError =
+        errStr.includes("database") ||
+        errStr.includes("relation") ||
+        errStr.includes("connection") ||
+        errStr.includes("pool") ||
+        error?.code === "ECONNREFUSED" ||
+        error?.code === "ETIMEDOUT";
+
+      const statusCode = typeof error?.status === "number" && error.status >= 400 && error.status < 600
+        ? error.status
+        : isDbError ? 503 : 500;
+      const errorCode = isDbError ? "DATABASE_ERROR" : (error?.code || "INTERNAL_ERROR");
+      const userMessage = isDbError
+        ? "Database connection is currently unavailable. Please verify database configuration."
+        : (error?.message || "The server could not complete this request.");
+
+      res.status(statusCode).json({
+        error: errorCode,
+        message: userMessage,
+        details: process.env.NODE_ENV !== "production" ? error?.message : undefined,
+      });
     }
   };
   api.use(apiErrorHandler);

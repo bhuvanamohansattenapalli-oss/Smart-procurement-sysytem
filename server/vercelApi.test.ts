@@ -87,4 +87,45 @@ describe("Vercel Serverless Function API Entry Point (api/index.ts)", () => {
     const data = await res.json();
     expect(data.error).toBe("NOT_FOUND");
   });
+
+  it("handles Officer Login on Vercel handler seamlessly", async () => {
+    const res = await fetch(`${baseUrl}/api/officers/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ officerCode: "OFF-NZM-104", password: "Officer@2026" }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accessToken).toBeDefined();
+    expect(data.officer).toBeDefined();
+    expect(data.officer.officerCode).toBe("OFF-NZM-104");
+    expect(data.officer.role).toBe("HEAD_OFFICER");
+  });
+
+  it("returns clean JSON 401 on incorrect password without throwing non-JSON or crashing", async () => {
+    const res = await fetch(`${baseUrl}/api/farmers/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "9876543210", password: "WrongPassword123" }),
+    });
+
+    expect(res.status).toBe(401);
+    const data = await res.json();
+    expect(data.error).toBe("INVALID_CREDENTIALS");
+    expect(data.message).toBeDefined();
+  });
+
+  it("returns clean JSON 401 on non-existent farmer phone number", async () => {
+    const res = await fetch(`${baseUrl}/api/farmers/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "9999999999", password: "AnyPassword123" }),
+    });
+
+    expect(res.status).toBe(401);
+    const data = await res.json();
+    expect(data.error).toBe("FARMER_NOT_FOUND");
+    expect(data.message).toBeDefined();
+  });
 });

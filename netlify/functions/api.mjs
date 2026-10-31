@@ -37576,9 +37576,375 @@ var init_env = __esm({
   }
 });
 
-// server/db.ts
+// server/scripts/migratePostgres.ts
 import fs from "fs";
 import path from "path";
+function withTimeout(promise2, ms, errorMsg) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(errorMsg)), ms);
+  });
+  return Promise.race([promise2, timeout]).finally(() => clearTimeout(timer));
+}
+async function ensurePostgresSchema(pool) {
+  let sqlContent = EMBEDDED_POSTGRES_SCHEMA_SQL;
+  try {
+    const sqlPath = path.resolve(process.cwd(), "drizzle", "0000_init_postgres.sql");
+    if (fs.existsSync(sqlPath)) {
+      sqlContent = fs.readFileSync(sqlPath, "utf-8");
+    }
+  } catch {
+  }
+  console.log("[Database Migration] Ensuring PostgreSQL schema tables exist...");
+  await withTimeout(
+    pool.query(sqlContent),
+    15e3,
+    "PostgreSQL schema initialization timed out after 15000ms"
+  );
+  try {
+    await pool.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'otpChallenges' AND column_name = 'purpose') THEN
+          ALTER TABLE "otpChallenges" ADD COLUMN "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION';
+        END IF;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "name" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "passwordHash" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "village" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "district" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "primaryCrop" DROP NOT NULL;
+        ALTER TABLE "otpChallenges" ALTER COLUMN "aadhaarMasked" DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+  } catch {
+  }
+  console.log("[Database Migration] PostgreSQL schema initialized successfully.");
+}
+async function verifyTablesExist(pool) {
+  const query = `
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+  `;
+  const res = await pool.query(query);
+  const existing = res.rows.map((r) => r.table_name);
+  const missing = REQUIRED_TABLES.filter((t2) => !existing.includes(t2));
+  return { existing, missing };
+}
+async function runStandaloneMigration() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error("[Database Migration Error] DATABASE_URL environment variable is required to run migration.");
+    process.exit(1);
+  }
+  const isSsl = connectionString.includes("supabase.co") || connectionString.includes("pooler.supabase.com") || connectionString.includes("render.com") || connectionString.includes("sslmode=require") || process.env.NODE_ENV === "production";
+  const pool = new Pool3({
+    connectionString,
+    ssl: isSsl ? { rejectUnauthorized: false } : void 0,
+    connectionTimeoutMillis: 1e4
+  });
+  try {
+    console.log("[Database Migration] Connecting to PostgreSQL database...");
+    await pool.query("SELECT 1 AS connected");
+    console.log("[Database Migration] Connected successfully.");
+    await ensurePostgresSchema(pool);
+    const { existing, missing } = await verifyTablesExist(pool);
+    console.log(`[Database Migration] Verified ${existing.length} public tables in database.`);
+    if (missing.length > 0) {
+      console.error(`[Database Migration Error] Missing expected tables: ${missing.join(", ")}`);
+      process.exit(1);
+    }
+    console.log(`[Database Migration] All ${REQUIRED_TABLES.length} required tables are present and ready!`);
+  } catch (err) {
+    console.error("[Database Migration Error] Migration failed:", err?.message || err);
+    process.exit(1);
+  } finally {
+    await pool.end();
+  }
+}
+var Pool3, REQUIRED_TABLES, EMBEDDED_POSTGRES_SCHEMA_SQL;
+var init_migratePostgres = __esm({
+  "server/scripts/migratePostgres.ts"() {
+    "use strict";
+    init_config();
+    init_esm();
+    ({ Pool: Pool3 } = esm_default);
+    REQUIRED_TABLES = [
+      "users",
+      "farmers",
+      "registrations",
+      "otpChallenges",
+      "officers",
+      "staffAuditLogs",
+      "staffNotifications",
+      "procurementCentres",
+      "slots",
+      "bookings",
+      "queueEntries",
+      "procurements",
+      "payments",
+      "notifications",
+      "cropPrices",
+      "transportBookings"
+    ];
+    EMBEDDED_POSTGRES_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS "users" (
+  "id" SERIAL PRIMARY KEY,
+  "openId" VARCHAR(64) NOT NULL UNIQUE,
+  "name" TEXT,
+  "email" VARCHAR(320),
+  "loginMethod" VARCHAR(64),
+  "role" VARCHAR(32) NOT NULL DEFAULT 'user',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "lastSignedIn" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "farmers" (
+  "id" SERIAL PRIMARY KEY,
+  "farmerCode" VARCHAR(32) NOT NULL UNIQUE,
+  "name" VARCHAR(160) NOT NULL,
+  "phone" VARCHAR(20) NOT NULL UNIQUE,
+  "passwordHash" VARCHAR(255) NOT NULL,
+  "village" VARCHAR(160) NOT NULL,
+  "district" VARCHAR(160) NOT NULL,
+  "primaryCrop" VARCHAR(80) NOT NULL,
+  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "registrations" (
+  "id" SERIAL PRIMARY KEY,
+  "farmerId" INTEGER NOT NULL UNIQUE,
+  "aadhaarMasked" VARCHAR(32) NOT NULL,
+  "declarationAccepted" INTEGER NOT NULL DEFAULT 1,
+  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  "rejectionReason" TEXT,
+  "reviewedByOfficerId" INTEGER,
+  "submittedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "reviewedAt" TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "otpChallenges" (
+  "id" SERIAL PRIMARY KEY,
+  "phone" VARCHAR(20) NOT NULL,
+  "activePhone" VARCHAR(20) UNIQUE,
+  "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION',
+  "name" VARCHAR(160),
+  "passwordHash" VARCHAR(255),
+  "village" VARCHAR(160),
+  "district" VARCHAR(160),
+  "primaryCrop" VARCHAR(80),
+  "aadhaarMasked" VARCHAR(32),
+  "declarationAccepted" INTEGER NOT NULL DEFAULT 1,
+  "otpHash" VARCHAR(255) NOT NULL,
+  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  "expiresAt" TIMESTAMP NOT NULL,
+  "resendAvailableAt" TIMESTAMP NOT NULL,
+  "requestCount" INTEGER NOT NULL DEFAULT 1,
+  "attemptCount" INTEGER NOT NULL DEFAULT 0,
+  "verifiedAt" TIMESTAMP,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "officers" (
+  "id" SERIAL PRIMARY KEY,
+  "officerCode" VARCHAR(40) NOT NULL UNIQUE,
+  "employeeId" VARCHAR(64),
+  "name" VARCHAR(160) NOT NULL,
+  "email" VARCHAR(320),
+  "phone" VARCHAR(20),
+  "passwordHash" VARCHAR(255) NOT NULL,
+  "role" VARCHAR(64) NOT NULL DEFAULT 'HEAD_OFFICER',
+  "department" VARCHAR(100) NOT NULL DEFAULT 'Administration',
+  "designation" VARCHAR(120),
+  "branch" VARCHAR(160) NOT NULL DEFAULT 'Guntur',
+  "centreId" INTEGER,
+  "centreName" VARCHAR(160),
+  "district" VARCHAR(160) NOT NULL,
+  "status" VARCHAR(40) NOT NULL DEFAULT 'ACTIVE',
+  "mustChangePassword" INTEGER NOT NULL DEFAULT 0,
+  "approvedByOfficerId" INTEGER,
+  "approvedAt" TIMESTAMP,
+  "rejectionReason" TEXT,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "staffAuditLogs" (
+  "id" SERIAL PRIMARY KEY,
+  "performedByOfficerId" INTEGER NOT NULL,
+  "performedByOfficerName" VARCHAR(160) NOT NULL,
+  "targetOfficerId" INTEGER,
+  "targetOfficerName" VARCHAR(160),
+  "action" VARCHAR(64) NOT NULL,
+  "details" TEXT,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "staffNotifications" (
+  "id" SERIAL PRIMARY KEY,
+  "officerId" INTEGER NOT NULL,
+  "title" VARCHAR(180) NOT NULL,
+  "message" TEXT NOT NULL,
+  "category" VARCHAR(48) NOT NULL DEFAULT 'ONBOARDING',
+  "isRead" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "procurementCentres" (
+  "id" SERIAL PRIMARY KEY,
+  "name" VARCHAR(180) NOT NULL,
+  "place" VARCHAR(180) NOT NULL,
+  "district" VARCHAR(160) NOT NULL,
+  "state" VARCHAR(100) NOT NULL DEFAULT 'Andhra Pradesh',
+  "latitude" NUMERIC(10, 7) NOT NULL,
+  "longitude" NUMERIC(10, 7) NOT NULL,
+  "distanceKm" NUMERIC(5, 2) NOT NULL,
+  "status" VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+  "queueCapacity" INTEGER NOT NULL DEFAULT 50,
+  "cropCategories" VARCHAR(255) DEFAULT 'Cereals, Pulses, Oilseeds',
+  "currentToken" VARCHAR(32) DEFAULT 'P-001',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "slots" (
+  "id" SERIAL PRIMARY KEY,
+  "centreId" INTEGER NOT NULL,
+  "slotDate" VARCHAR(16) NOT NULL,
+  "startTime" VARCHAR(16) NOT NULL,
+  "endTime" VARCHAR(16) NOT NULL,
+  "capacity" INTEGER NOT NULL,
+  "bookedCount" INTEGER NOT NULL DEFAULT 0,
+  "isActive" INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS "bookings" (
+  "id" SERIAL PRIMARY KEY,
+  "bookingCode" VARCHAR(40) NOT NULL UNIQUE,
+  "farmerId" INTEGER NOT NULL,
+  "centreId" INTEGER NOT NULL,
+  "slotId" INTEGER NOT NULL,
+  "paddyVariety" VARCHAR(120) NOT NULL,
+  "paddyGrade" VARCHAR(32) NOT NULL,
+  "expectedQuantityQuintals" NUMERIC(8, 2) NOT NULL,
+  "tokenNumber" VARCHAR(32) NOT NULL,
+  "status" VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "queueEntries" (
+  "id" SERIAL PRIMARY KEY,
+  "bookingId" INTEGER NOT NULL UNIQUE,
+  "centreId" INTEGER NOT NULL,
+  "position" INTEGER NOT NULL,
+  "estimatedWaitMinutes" INTEGER NOT NULL,
+  "status" VARCHAR(32) NOT NULL DEFAULT 'WAITING',
+  "joinedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "procurements" (
+  "id" SERIAL PRIMARY KEY,
+  "bookingId" INTEGER NOT NULL UNIQUE,
+  "status" VARCHAR(48) NOT NULL DEFAULT 'BOOKED',
+  "weighedQuantityQuintals" NUMERIC(8, 2),
+  "qualityGrade" VARCHAR(32),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "payments" (
+  "id" SERIAL PRIMARY KEY,
+  "bookingId" INTEGER NOT NULL,
+  "paymentCode" VARCHAR(40) NOT NULL UNIQUE,
+  "transactionReference" VARCHAR(64) NOT NULL UNIQUE,
+  "receiptNumber" VARCHAR(48),
+  "amount" NUMERIC(12, 2) NOT NULL,
+  "method" VARCHAR(32) NOT NULL,
+  "gateway" VARCHAR(80) NOT NULL DEFAULT 'PROCUREFLOW_TEST_GATEWAY',
+  "gatewayPaymentId" VARCHAR(96),
+  "officerId" INTEGER,
+  "status" VARCHAR(48) NOT NULL DEFAULT 'PENDING',
+  "failureReason" VARCHAR(240),
+  "isDemo" INTEGER NOT NULL DEFAULT 1,
+  "initiatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "processedAt" TIMESTAMP,
+  "completedAt" TIMESTAMP,
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "notifications" (
+  "id" SERIAL PRIMARY KEY,
+  "farmerId" INTEGER NOT NULL,
+  "title" VARCHAR(180) NOT NULL,
+  "message" TEXT NOT NULL,
+  "category" VARCHAR(48) NOT NULL,
+  "isRead" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "cropPrices" (
+  "id" SERIAL PRIMARY KEY,
+  "cropName" VARCHAR(120) NOT NULL,
+  "variety" VARCHAR(120) NOT NULL,
+  "category" VARCHAR(80) NOT NULL,
+  "mspPerQuintal" NUMERIC(10, 2) NOT NULL,
+  "marketRatePerQuintal" NUMERIC(10, 2) NOT NULL,
+  "govtBonusPerQuintal" NUMERIC(10, 2) NOT NULL DEFAULT '0.00',
+  "maxMoisturePercent" NUMERIC(4, 1) NOT NULL DEFAULT '17.0',
+  "effectiveSeason" VARCHAR(80) NOT NULL DEFAULT 'Kharif 2025-26',
+  "notificationRef" VARCHAR(120) DEFAULT 'MoA&FW/CACP-2025/MSP-04',
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "transportBookings" (
+  "id" SERIAL PRIMARY KEY,
+  "transportCode" VARCHAR(40) NOT NULL UNIQUE,
+  "farmerId" INTEGER NOT NULL,
+  "bookingId" INTEGER,
+  "vehicleType" VARCHAR(32) NOT NULL,
+  "pickupVillage" VARCHAR(160) NOT NULL,
+  "destinationCentreId" INTEGER NOT NULL,
+  "scheduledDate" VARCHAR(24) NOT NULL,
+  "timeSlot" VARCHAR(32) NOT NULL DEFAULT 'Morning (07:00 - 11:00 AM)',
+  "estimatedLoadQuintals" NUMERIC(8, 2) NOT NULL,
+  "driverName" VARCHAR(120),
+  "driverPhone" VARCHAR(20),
+  "vehicleNumber" VARCHAR(32),
+  "distanceKm" NUMERIC(6, 2) NOT NULL DEFAULT '12.00',
+  "baseFare" NUMERIC(10, 2) NOT NULL,
+  "subsidyAmount" NUMERIC(10, 2) NOT NULL DEFAULT '0.00',
+  "netPayable" NUMERIC(10, 2) NOT NULL,
+  "status" VARCHAR(32) NOT NULL DEFAULT 'REQUESTED',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS "idx_farmers_phone" ON "farmers" ("phone");
+CREATE INDEX IF NOT EXISTS "idx_farmers_code" ON "farmers" ("farmerCode");
+CREATE INDEX IF NOT EXISTS "idx_bookings_code" ON "bookings" ("bookingCode");
+CREATE INDEX IF NOT EXISTS "idx_bookings_farmer" ON "bookings" ("farmerId");
+CREATE INDEX IF NOT EXISTS "idx_bookings_centre" ON "bookings" ("centreId");
+CREATE INDEX IF NOT EXISTS "idx_slots_centre" ON "slots" ("centreId", "slotDate");
+CREATE INDEX IF NOT EXISTS "idx_queue_centre" ON "queueEntries" ("centreId", "status");
+CREATE INDEX IF NOT EXISTS "idx_payments_code" ON "payments" ("paymentCode");
+CREATE INDEX IF NOT EXISTS "idx_notifications_farmer" ON "notifications" ("farmerId");
+`;
+    if (process.argv[1] && process.argv[1].includes("migratePostgres")) {
+      runStandaloneMigration().catch(console.error);
+    }
+  }
+});
+
+// server/db.ts
+import fs2 from "fs";
+import path2 from "path";
 function normalizePhone(raw) {
   if (!raw) return "";
   const digits = String(raw).replace(/\D/g, "");
@@ -37680,7 +38046,7 @@ function isPostgresActive() {
 function getPgPool() {
   return _pool;
 }
-function withTimeout(promise2, ms, timeoutMsg) {
+function withTimeout2(promise2, ms, timeoutMsg) {
   let timer;
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(timeoutMsg)), ms);
@@ -37694,50 +38060,54 @@ async function initDbInternal() {
     console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
     try {
       const isSslRequired = connectionString.includes("supabase.co") || connectionString.includes("pooler.supabase.com") || connectionString.includes("render.com") || connectionString.includes("aivencloud.com") || connectionString.includes("sslmode=require") || process.env.NODE_ENV === "production";
-      const pool = new Pool3({
+      const pool = new Pool4({
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
-        connectionTimeoutMillis: 8e3,
+        connectionTimeoutMillis: 3500,
         idleTimeoutMillis: 3e4,
         max: 10,
-        statement_timeout: 1e4,
-        query_timeout: 1e4,
+        statement_timeout: 8e3,
+        query_timeout: 8e3,
         keepAlive: true,
         keepAliveInitialDelayMillis: 1e4
       });
-      const testRes = await withTimeout(
+      const testRes = await withTimeout2(
         pool.query("SELECT 1 AS connected"),
-        8e3,
-        `PostgreSQL connection probe to ${masked} timed out after 8000ms.`
+        3500,
+        `PostgreSQL connection probe to ${masked} timed out after 3500ms.`
       );
       if (!testRes || !testRes.rows || testRes.rows.length === 0) {
         throw new Error("PostgreSQL handshake returned empty response.");
       }
       console.log(`[Database] PostgreSQL connection established successfully at ${masked}.`);
+      try {
+        await ensurePostgresSchema(pool);
+      } catch (schemaErr) {
+        console.warn(`[Database Migration Warning] Schema check encountered an issue:`, schemaErr?.message || schemaErr);
+      }
       _pool = pool;
       _db = drizzle(pool);
       _isPostgres = true;
       return _db;
     } catch (error46) {
-      console.error(
+      console.warn(
         `
 ================================================================================
-[DATABASE ERROR] Failed to connect to PostgreSQL database using DATABASE_URL!
+[DATABASE WARNING] Failed to connect to PostgreSQL database using DATABASE_URL!
 Connection target: ${masked}
 Error Details: ${error46?.message || error46}
 
-DIAGNOSTIC GUIDANCE FOR RENDER DEPLOYMENT:
-1. In Render Dashboard, verify your 'DATABASE_URL' environment variable is correctly set.
-2. For Supabase PostgreSQL, ensure you copied the 'URI' connection string (starts with postgresql:// or postgres://).
-3. If your password contains special characters like '@', '#', or '%', URL-encode them.
-4. In Supabase Settings -> Database, verify the project is Active and not paused.
-5. If using Session Pooler on port 5432, verify user is postgres.[project-ref] or direct postgres user.
+[DATABASE FALLBACK] Activating persistent local store so application remains operational.
+DIAGNOSTIC GUIDANCE:
+1. If you deleted or changed your database, update the 'DATABASE_URL' environment variable in Vercel.
+2. For Supabase PostgreSQL, ensure you use the Connection Pooling or URI string (port 5432 or 6543).
+3. Verify your Supabase project is active and not paused.
 ================================================================================
 `
       );
-      throw new Error(
-        `[Database] PostgreSQL connection failed: ${error46?.message || error46}. Review Render environment variables.`
-      );
+      _db = localStore;
+      _isPostgres = false;
+      return _db;
     }
   } else {
     console.log(
@@ -37753,12 +38123,15 @@ async function getDb() {
   if (!_initDbPromise) {
     _initDbPromise = initDbInternal().catch((err) => {
       _initDbPromise = null;
-      throw err;
+      console.error("[Database] Failed to initialize DB:", err);
+      _db = localStore;
+      _isPostgres = false;
+      return _db;
     });
   }
   return _initDbPromise;
 }
-var Pool3, _db, _pool, _isPostgres, LocalDatabaseStore, localStore, _initDbPromise;
+var Pool4, _db, _pool, _isPostgres, LocalDatabaseStore, localStore, _initDbPromise;
 var init_db2 = __esm({
   "server/db.ts"() {
     "use strict";
@@ -37766,7 +38139,8 @@ var init_db2 = __esm({
     init_node_postgres();
     init_schema2();
     init_env();
-    ({ Pool: Pool3 } = esm_default);
+    init_migratePostgres();
+    ({ Pool: Pool4 } = esm_default);
     _db = null;
     _pool = null;
     _isPostgres = false;
@@ -37775,9 +38149,9 @@ var init_db2 = __esm({
       autoIncrements = /* @__PURE__ */ new Map();
       getStorageFilePath() {
         if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT) {
-          return path.resolve("/tmp", "procureflow_db.json");
+          return path2.resolve("/tmp", "procureflow_db.json");
         }
-        return path.resolve(process.cwd(), ".data", "procureflow_db.json");
+        return path2.resolve(process.cwd(), ".data", "procureflow_db.json");
       }
       constructor() {
         this.initTables();
@@ -37813,14 +38187,14 @@ var init_db2 = __esm({
         try {
           const targetPath = this.getStorageFilePath();
           let readPath = targetPath;
-          if (!fs.existsSync(readPath)) {
-            const fallback = path.resolve(process.cwd(), ".data", "procureflow_db.json");
-            if (fs.existsSync(fallback)) {
+          if (!fs2.existsSync(readPath)) {
+            const fallback = path2.resolve(process.cwd(), ".data", "procureflow_db.json");
+            if (fs2.existsSync(fallback)) {
               readPath = fallback;
             }
           }
-          if (fs.existsSync(readPath)) {
-            const raw = fs.readFileSync(readPath, "utf-8");
+          if (fs2.existsSync(readPath)) {
+            const raw = fs2.readFileSync(readPath, "utf-8");
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === "object") {
               if (parsed.tables && typeof parsed.tables === "object") {
@@ -37847,16 +38221,16 @@ var init_db2 = __esm({
       saveToDisk() {
         try {
           const targetPath = this.getStorageFilePath();
-          const dir = path.dirname(targetPath);
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+          const dir = path2.dirname(targetPath);
+          if (!fs2.existsSync(dir)) {
+            fs2.mkdirSync(dir, { recursive: true });
           }
           const data = {
             tables: Object.fromEntries(this.tables.entries()),
             autoIncrements: Object.fromEntries(this.autoIncrements.entries()),
             lastSaved: (/* @__PURE__ */ new Date()).toISOString()
           };
-          fs.writeFileSync(targetPath, JSON.stringify(data, null, 2), "utf-8");
+          fs2.writeFileSync(targetPath, JSON.stringify(data, null, 2), "utf-8");
         } catch (err) {
           console.warn("[Database] Failed to persist local store to disk:", err);
         }
@@ -38103,122 +38477,6 @@ var init_db2 = __esm({
     };
     localStore = new LocalDatabaseStore();
     _initDbPromise = null;
-  }
-});
-
-// server/scripts/migratePostgres.ts
-import fs2 from "fs";
-import path2 from "path";
-function withTimeout2(promise2, ms, errorMsg) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(errorMsg)), ms);
-  });
-  return Promise.race([promise2, timeout]).finally(() => clearTimeout(timer));
-}
-async function ensurePostgresSchema(pool) {
-  const sqlPath = path2.resolve(process.cwd(), "drizzle", "0000_init_postgres.sql");
-  if (!fs2.existsSync(sqlPath)) {
-    throw new Error(`Migration SQL file not found at ${sqlPath}`);
-  }
-  const sqlContent = fs2.readFileSync(sqlPath, "utf-8");
-  console.log("[Database Migration] Ensuring PostgreSQL schema tables exist...");
-  await withTimeout2(
-    pool.query(sqlContent),
-    15e3,
-    "PostgreSQL schema initialization timed out after 15000ms"
-  );
-  try {
-    await pool.query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'otpChallenges' AND column_name = 'purpose') THEN
-          ALTER TABLE "otpChallenges" ADD COLUMN "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION';
-        END IF;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "name" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "passwordHash" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "village" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "district" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "primaryCrop" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "aadhaarMasked" DROP NOT NULL;
-      EXCEPTION
-        WHEN others THEN NULL;
-      END $$;
-    `);
-  } catch {
-  }
-  console.log("[Database Migration] PostgreSQL schema initialized successfully.");
-}
-async function verifyTablesExist(pool) {
-  const query = `
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-  `;
-  const res = await pool.query(query);
-  const existing = res.rows.map((r) => r.table_name);
-  const missing = REQUIRED_TABLES.filter((t2) => !existing.includes(t2));
-  return { existing, missing };
-}
-async function runStandaloneMigration() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    console.error("[Database Migration Error] DATABASE_URL environment variable is required to run migration.");
-    process.exit(1);
-  }
-  const isSsl = connectionString.includes("supabase.co") || connectionString.includes("pooler.supabase.com") || connectionString.includes("render.com") || connectionString.includes("sslmode=require") || process.env.NODE_ENV === "production";
-  const pool = new Pool4({
-    connectionString,
-    ssl: isSsl ? { rejectUnauthorized: false } : void 0,
-    connectionTimeoutMillis: 1e4
-  });
-  try {
-    console.log("[Database Migration] Connecting to PostgreSQL database...");
-    await pool.query("SELECT 1 AS connected");
-    console.log("[Database Migration] Connected successfully.");
-    await ensurePostgresSchema(pool);
-    const { existing, missing } = await verifyTablesExist(pool);
-    console.log(`[Database Migration] Verified ${existing.length} public tables in database.`);
-    if (missing.length > 0) {
-      console.error(`[Database Migration Error] Missing expected tables: ${missing.join(", ")}`);
-      process.exit(1);
-    }
-    console.log(`[Database Migration] All ${REQUIRED_TABLES.length} required tables are present and ready!`);
-  } catch (err) {
-    console.error("[Database Migration Error] Migration failed:", err?.message || err);
-    process.exit(1);
-  } finally {
-    await pool.end();
-  }
-}
-var Pool4, REQUIRED_TABLES;
-var init_migratePostgres = __esm({
-  "server/scripts/migratePostgres.ts"() {
-    "use strict";
-    init_config();
-    init_esm();
-    ({ Pool: Pool4 } = esm_default);
-    REQUIRED_TABLES = [
-      "users",
-      "farmers",
-      "registrations",
-      "otpChallenges",
-      "officers",
-      "staffAuditLogs",
-      "staffNotifications",
-      "procurementCentres",
-      "slots",
-      "bookings",
-      "queueEntries",
-      "procurements",
-      "payments",
-      "notifications",
-      "cropPrices",
-      "transportBookings"
-    ];
-    if (process.argv[1] && process.argv[1].includes("migratePostgres")) {
-      runStandaloneMigration().catch(console.error);
-    }
   }
 });
 
@@ -54093,7 +54351,13 @@ var prototypeCropPrices = [
   { cropName: "Sugarcane", variety: "Co 86032 / Mandya", category: "Commercial", mspPerQuintal: "340.00", marketRatePerQuintal: "335.00", govtBonusPerQuintal: "15.00", maxMoisturePercent: "10.0", effectiveSeason: "Annual 2025-26", notificationRef: "MoA&FW/CACP-2025/FRP-18" }
 ];
 async function ensurePrototypeSeed() {
-  if (!seedPromise) seedPromise = seedDatabase();
+  if (!seedPromise) {
+    seedPromise = seedDatabase().catch((err) => {
+      console.warn("[Seed Error] Prototype seed deferred:", err?.message || err);
+      seedPromise = null;
+      throw err;
+    });
+  }
   return seedPromise;
 }
 async function seedDatabase() {
@@ -55038,8 +55302,33 @@ function apiCors(req, res, next) {
   if (req.method === "OPTIONS") return res.sendStatus(204);
   return next();
 }
+function patchAsyncRouter(router2) {
+  const methods = ["get", "post", "put", "patch", "delete"];
+  for (const m of methods) {
+    const orig = router2[m].bind(router2);
+    router2[m] = (...args) => {
+      const wrappedArgs = args.map((arg) => {
+        if (typeof arg === "function" && arg.length <= 3) {
+          return (req, res, next) => {
+            try {
+              const result = arg(req, res, next);
+              if (result && typeof result.catch === "function") {
+                result.catch(next);
+              }
+            } catch (syncErr) {
+              next(syncErr);
+            }
+          };
+        }
+        return arg;
+      });
+      return orig(...wrappedArgs);
+    };
+  }
+}
 function createProcurementApi() {
   const api = (0, import_express.Router)();
+  patchAsyncRouter(api);
   api.use(apiCors);
   api.use((_req, res, next) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -55085,8 +55374,9 @@ function createProcurementApi() {
     try {
       await ensurePrototypeSeed();
       next();
-    } catch {
-      res.status(503).json({ error: "SERVICE_UNAVAILABLE", message: "Prototype database is unavailable." });
+    } catch (err) {
+      console.warn("[ProcureFlow API] Prototype seed initialization note:", err?.message || err);
+      next();
     }
   });
   api.post("/auth/otp/send", async (req, res) => {
@@ -57488,9 +57778,18 @@ function createProcurementApi() {
     });
   });
   const apiErrorHandler = (error46, _req, res, _next) => {
-    console.error("[ProcureFlow API]", error46);
+    console.error("[ProcureFlow API Error]", error46?.message || error46);
     if (!res.headersSent) {
-      res.status(500).json({ error: "INTERNAL_ERROR", message: "The prototype API could not complete this request." });
+      const errStr = (error46?.message || String(error46)).toLowerCase();
+      const isDbError = errStr.includes("database") || errStr.includes("relation") || errStr.includes("connection") || errStr.includes("pool") || error46?.code === "ECONNREFUSED" || error46?.code === "ETIMEDOUT";
+      const statusCode = typeof error46?.status === "number" && error46.status >= 400 && error46.status < 600 ? error46.status : isDbError ? 503 : 500;
+      const errorCode = isDbError ? "DATABASE_ERROR" : error46?.code || "INTERNAL_ERROR";
+      const userMessage = isDbError ? "Database connection is currently unavailable. Please verify database configuration." : error46?.message || "The server could not complete this request.";
+      res.status(statusCode).json({
+        error: errorCode,
+        message: userMessage,
+        details: process.env.NODE_ENV !== "production" ? error46?.message : void 0
+      });
     }
   };
   api.use(apiErrorHandler);

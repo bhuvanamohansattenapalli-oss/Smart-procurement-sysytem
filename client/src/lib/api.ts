@@ -98,6 +98,28 @@ export async function apiFetch<T = any>(path: string, init?: RequestInit): Promi
   return data;
 }
 
+// Install safe JSON parsing guard on Response.prototype for browser environment
+// Prevents unhandled "Unexpected token 'A', 'A server e'... is not valid JSON" SyntaxErrors across the app
+if (typeof window !== "undefined" && typeof Response !== "undefined" && Response.prototype) {
+  const originalJson = Response.prototype.json;
+  Response.prototype.json = async function () {
+    try {
+      return await originalJson.call(this);
+    } catch (parseError: any) {
+      console.warn(`[Safe JSON Guard] Intercepted non-JSON response from server (HTTP ${this.status}):`, parseError?.message);
+      const isServerError = this.status >= 500;
+      return {
+        error: isServerError ? "SERVER_ERROR" : "INVALID_RESPONSE",
+        message: isServerError
+          ? `Server error (HTTP ${this.status}). Please verify backend and database configuration.`
+          : `Server returned an invalid response (HTTP ${this.status}).`,
+        status: this.status,
+        nonJson: true,
+      };
+    }
+  };
+}
+
 if (typeof window !== "undefined") {
   (window as any).apiUrl = apiUrl;
   (window as any).API_BASE_URL = API_BASE_URL;

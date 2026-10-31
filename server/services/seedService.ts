@@ -140,7 +140,13 @@ export const prototypeCropPrices = [
 ];
 
 export async function ensurePrototypeSeed(): Promise<void> {
-  if (!seedPromise) seedPromise = seedDatabase();
+  if (!seedPromise) {
+    seedPromise = seedDatabase().catch((err) => {
+      console.warn("[Seed Error] Prototype seed deferred:", err?.message || err);
+      seedPromise = null;
+      throw err;
+    });
+  }
   return seedPromise;
 }
 
