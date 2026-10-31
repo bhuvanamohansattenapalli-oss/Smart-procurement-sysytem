@@ -12,7 +12,7 @@ async function check() {
     console.log(`[DB Check Status] ${result.status.toUpperCase()}`);
     console.log(`Database Engine : ${result.database === "postgresql" ? "PostgreSQL (Supabase/Production)" : "Local JSON Store (Development)"}`);
     console.log(`Response Latency: ${result.latencyMs} ms`);
-    console.log(`Tables Available: ${result.tablesTotal} / 15`);
+    console.log(`Tables Available: ${result.tablesTotal} / 16`);
     if (result.missingTables.length > 0) {
       console.log(`Missing Tables  : ${result.missingTables.join(", ")}`);
     }

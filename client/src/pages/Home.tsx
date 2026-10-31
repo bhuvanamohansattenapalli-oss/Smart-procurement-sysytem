@@ -76,6 +76,8 @@ import {
   Shield,
   RefreshCw,
   ShieldAlert,
+  Send,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -129,7 +131,8 @@ type Screen =
   | "bookings"
   | "quality"
   | "officerLogistics"
-  | "officerPayments";
+  | "officerPayments"
+  | "officerAiCopilot";
 
 export type StaffRecord = {
   id: number;
@@ -701,8 +704,18 @@ export default function Home() {
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [queueAhead, setQueueAhead] = useState(18);
   const [chatInput, setChatInput] = useState("");
-  const [chat, setChat] = useState([{ role: "assistant", text: "Namaste, Ramesh. I can help you plan your visit to the procurement centre." }]);
-  const [officerView, setOfficerView] = useState<"overview" | "staff" | "pending" | "approved" | "bookings" | "quality" | "logistics" | "payments">("overview");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState<string>(() => `farmer-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const [chat, setChat] = useState<Array<{ role: string; text: string; source?: string; model?: string; warning?: string }>>([
+    { role: "assistant", text: "Namaste, Ramesh. I can help you plan your visit to the procurement centre.", source: "gemini", model: "gemini-3.5-flash-lite" }
+  ]);
+  const [officerChatInput, setOfficerChatInput] = useState("");
+  const [officerChatLoading, setOfficerChatLoading] = useState(false);
+  const [officerChatSessionId, setOfficerChatSessionId] = useState<string>(() => `officer-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const [officerChat, setOfficerChat] = useState<Array<{ role: string; text: string; source?: string; model?: string; warning?: string }>>([
+    { role: "assistant", text: "Welcome to ProcureFlow AI Copilot. Ask any operational query regarding Fair Average Quality (FAQ) standards, weighbridge calibration, queue dispatch, or farmer document verification.", source: "gemini", model: "gemini-3.5-flash-lite" }
+  ]);
+  const [officerView, setOfficerView] = useState<"overview" | "staff" | "pending" | "approved" | "bookings" | "quality" | "logistics" | "payments" | "aiCopilot">("overview");
   const [officerProfile, setOfficerProfile] = useState<StaffRecord | null>(null);
   const [officerLoginForm, setOfficerLoginForm] = useState({ officerCode: "OFF-NZM-104", password: "Officer@2026" });
   const [staffList, setStaffList] = useState<StaffRecord[]>([]);
@@ -2797,11 +2810,21 @@ export default function Home() {
     setChat(items => [...items, { role: "user", text: prompt }]);
     setChatInput("");
     setLiveInterimTranscript("");
+    setChatLoading(true);
 
     let reply = "";
+    let source = "gemini";
+    let model = "gemini-3.5-flash-lite";
+    let warning: string | undefined = undefined;
+
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (farmerToken) headers["Authorization"] = `Bearer ${farmerToken}`;
+
+      const history = chat.map(m => ({
+        role: m.role as "user" | "assistant",
+        content: m.text,
+      })).slice(-6);
 
       const response = await fetch(apiUrl("/ai/chat"), {
         method: "POST",
@@ -2810,6 +2833,9 @@ export default function Home() {
           question: prompt,
           bookingId: bookingId || undefined,
           language,
+          role: "farmer",
+          sessionId: chatSessionId,
+          history,
         }),
       });
 
@@ -2817,17 +2843,103 @@ export default function Home() {
         const data = await response.json();
         if (data.response) {
           reply = data.response;
+          source = data.source || "gemini";
+          model = data.model || "gemini-3.5-flash-lite";
+          warning = data.warning;
         }
       }
     } catch {}
 
     if (!reply) {
       reply = getClientAiReply(prompt, language);
+      source = "fallback";
     }
-    setChat(items => [...items, { role: "assistant", text: reply }]);
+
+    setChatLoading(false);
+    setChat(items => [...items, { role: "assistant", text: reply, source, model, warning }]);
     if (!isMuted) {
       speak(reply);
     }
+  };
+
+  const clearChat = async () => {
+    try {
+      await fetch(apiUrl("/ai/chat/clear"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: chatSessionId }),
+      });
+    } catch {}
+    setChat([]);
+    toast.success("Chat history cleared.");
+  };
+
+  const officerAssistantReply = async (question: string) => {
+    const prompt = question.trim();
+    if (!prompt) return;
+    setOfficerChat(items => [...items, { role: "user", text: prompt }]);
+    setOfficerChatInput("");
+    setOfficerChatLoading(true);
+
+    let reply = "";
+    let source = "gemini";
+    let model = "gemini-3.5-flash-lite";
+    let warning: string | undefined = undefined;
+
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (officerToken) headers["Authorization"] = `Bearer ${officerToken}`;
+
+      const history = officerChat.map(m => ({
+        role: m.role as "user" | "assistant",
+        content: m.text,
+      })).slice(-6);
+
+      const response = await fetch(apiUrl("/ai/chat"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          question: prompt,
+          language,
+          role: "officer",
+          sessionId: officerChatSessionId,
+          history,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.response) {
+          reply = data.response;
+          source = data.source || "gemini";
+          model = data.model || "gemini-3.5-flash-lite";
+          warning = data.warning;
+        }
+      }
+    } catch {}
+
+    if (!reply) {
+      reply = "Fair Average Quality (FAQ) norms mandate that paddy moisture must be <= 17.0%, foreign matter <= 1.0%, and damaged grains <= 5.0%. Please use the Officer Dashboard controls directly to execute administrative updates.";
+      source = "fallback";
+    }
+
+    setOfficerChatLoading(false);
+    setOfficerChat(items => [...items, { role: "assistant", text: reply, source, model, warning }]);
+    if (!isMuted) {
+      speak(reply);
+    }
+  };
+
+  const clearOfficerChat = async () => {
+    try {
+      await fetch(apiUrl("/ai/chat/clear"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: officerChatSessionId }),
+      });
+    } catch {}
+    setOfficerChat([]);
+    toast.success("Officer Copilot conversation cleared.");
   };
 
   const stopListening = () => {
@@ -5234,7 +5346,17 @@ export default function Home() {
                 </small>
               </div>
             </div>
-            <LanguagePicker language={language} setLanguage={changeLanguage} />
+            <div className="flex items-center gap-2">
+              <LanguagePicker language={language} setLanguage={changeLanguage} />
+              <button
+                type="button"
+                onClick={clearChat}
+                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-slate-200"
+                title="Clear Chat Conversation"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
 
           <div className="assistant-category-chips">
@@ -5291,7 +5413,9 @@ export default function Home() {
                           <Bot size={14} className="text-emerald-700" /> ProcureFlow Krishi AI
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="assistant-role-pill">Official Agri-Advisor</span>
+                          <span className={`ai-source-badge ${message.source === "fallback" ? "fallback" : "gemini"}`}>
+                            {message.source === "fallback" ? "🌾 Offline Advisory" : "✨ Powered by Gemini"}
+                          </span>
                           <button
                             onClick={() => speak(message.text)}
                             aria-label="Listen to response"
@@ -5302,6 +5426,11 @@ export default function Home() {
                           </button>
                         </div>
                       </div>
+                      {message.warning && (
+                        <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 mb-1">
+                          ⚠️ {message.warning}
+                        </p>
+                      )}
                       <p>{message.text}</p>
                     </>
                   ) : (
@@ -5312,6 +5441,20 @@ export default function Home() {
                   )}
                 </div>
               ))
+            )}
+
+            {chatLoading && (
+              <div className="chat-bubble assistant">
+                <div className="ai-typing-indicator">
+                  <Bot size={14} className="animate-pulse" />
+                  <span>{tUi("ProcureFlow Krishi AI is thinking...", language)}</span>
+                  <div className="flex items-center gap-1 ml-1">
+                    <span className="ai-typing-dot" />
+                    <span className="ai-typing-dot" />
+                    <span className="ai-typing-dot" />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
@@ -5490,6 +5633,7 @@ export default function Home() {
         { key: "quality", label: "Quality Control", icon: ShieldCheck, target: "quality" as Screen, badge: 0 },
         { key: "logistics", label: "Logistics & Transport", icon: Truck, target: "officerLogistics" as Screen, badge: officerLogisticsList.filter(l => l.status === "REQUESTED" || l.status === "ASSIGNED").length },
         { key: "payments", label: "Payment Settlement", icon: WalletCards, target: "officerPayments" as Screen, badge: 0 },
+        { key: "aiCopilot", label: "AI Officer Copilot", icon: Bot, target: "officerAiCopilot" as Screen, badge: 0 },
       ];
     }
     if (role === "PROCUREMENT_OFFICER") {
@@ -5499,29 +5643,34 @@ export default function Home() {
         { key: "approved", label: "Registered Farmers", icon: Users, target: "approved" as Screen, badge: officerFarmersList.length },
         { key: "bookings", label: "Bookings & queue", icon: CalendarDays, target: "bookings" as Screen, badge: 0 },
         { key: "payments", label: "Payment Settlement", icon: WalletCards, target: "officerPayments" as Screen, badge: 0 },
+        { key: "aiCopilot", label: "AI Officer Copilot", icon: Bot, target: "officerAiCopilot" as Screen, badge: 0 },
       ];
     }
     if (role === "QUALITY_CONTROL_INSPECTOR") {
       return [
         { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
         { key: "quality", label: "Quality Control Inspection", icon: ShieldCheck, target: "quality" as Screen, badge: 0 },
+        { key: "aiCopilot", label: "AI Officer Copilot", icon: Bot, target: "officerAiCopilot" as Screen, badge: 0 },
       ];
     }
     if (role === "LOGISTICS_OFFICER") {
       return [
         { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
         { key: "logistics", label: "Logistics & Transport", icon: Truck, target: "officerLogistics" as Screen, badge: officerLogisticsList.filter(l => l.status === "REQUESTED" || l.status === "ASSIGNED").length },
+        { key: "aiCopilot", label: "AI Officer Copilot", icon: Bot, target: "officerAiCopilot" as Screen, badge: 0 },
       ];
     }
     if (role === "PAYMENT_OFFICER") {
       return [
         { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
         { key: "payments", label: "Payment Settlement", icon: WalletCards, target: "officerPayments" as Screen, badge: 0 },
+        { key: "aiCopilot", label: "AI Officer Copilot", icon: Bot, target: "officerAiCopilot" as Screen, badge: 0 },
       ];
     }
     return [
       { key: "overview", label: "Overview", icon: Sprout, target: "officerDashboard" as Screen, badge: 0 },
       { key: "pending", label: "Pending farmers", icon: UserCheck, target: "registrations" as Screen, badge: pendingRegistrations.length },
+      { key: "aiCopilot", label: "AI Officer Copilot", icon: Bot, target: "officerAiCopilot" as Screen, badge: 0 },
     ];
   }, [officerProfile, staffList, pendingRegistrations, officerLogisticsList, officerFarmersList]);
 
@@ -9177,6 +9326,178 @@ export default function Home() {
     </>
   );
 
+  const officerAiCopilotScreen = officerShell(
+    <>
+      <SectionTitle
+        eyebrow="AI OFFICER COPILOT · OPERATIONAL ADVISORY SUITE"
+        title="ProcureFlow Officer Operational Copilot"
+        body="Ask any operational question regarding Fair Average Quality (FAQ) standards, electronic weighbridge calibration, queue dispatch, or farmer document verification."
+      />
+
+      <div className="assistant-advanced-layout">
+        <section className="chat-panel">
+          <div className="chat-head">
+            <div className="flex items-center gap-3">
+              <span className="assistant-bot-avatar"><Bot size={20} /></span>
+              <div>
+                <b className="text-sm font-extrabold text-[#143d2c]">ProcureFlow Officer Copilot</b>
+                <small className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                  <i className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                  Official Mandi Operations · Powered by Google Gemini AI
+                </small>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <LanguagePicker language={language} setLanguage={changeLanguage} />
+              <button
+                type="button"
+                onClick={clearOfficerChat}
+                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-slate-200"
+                title="Clear Copilot Conversation"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Operational Prompts */}
+          <div className="suggested-prompts">
+            <span className="font-bold text-xs text-[#164330] block mb-1">
+              💡 Official Mandi Operations Guidance:
+            </span>
+            <div className="prompt-chips-grid">
+              {[
+                "What are the Fair Average Quality (FAQ) norms for paddy moisture & foreign matter?",
+                "What is the standard procedure for electronic weighbridge tare deduction?",
+                "How to resolve truck congestion & optimize turnaround time during peak arrivals?",
+                "What documents must be verified before issuing weighbridge token slip?",
+                "Dispute resolution protocol when paddy moisture marginally exceeds 17%?",
+              ].map(q => (
+                <button
+                  key={q}
+                  className="prompt-chip-btn"
+                  onClick={() => void officerAssistantReply(q)}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="chat-feed" ref={chatFeedRef}>
+            {officerChat.map((msg, idx) => (
+              <div className={`chat-bubble ${msg.role}`} key={`${msg.text}-${idx}`}>
+                {msg.role === "assistant" ? (
+                  <>
+                    <div className="assistant-head-info">
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                        <Bot size={14} className="text-emerald-700" /> ProcureFlow Copilot
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`ai-source-badge ${msg.source === "fallback" ? "fallback" : "gemini"}`}>
+                          {msg.source === "fallback" ? "🌾 Offline Advisory" : "✨ Powered by Gemini"}
+                        </span>
+                        <button
+                          onClick={() => speak(msg.text)}
+                          className={`assistant-audio-btn ${speakingText === msg.text ? "text-emerald-600 animate-pulse" : ""}`}
+                          title="Read aloud"
+                        >
+                          <Volume2 size={14} /> Listen
+                        </button>
+                      </div>
+                    </div>
+                    {msg.warning && (
+                      <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 mb-1">
+                        ⚠️ {msg.warning}
+                      </p>
+                    )}
+                    <p>{msg.text}</p>
+                  </>
+                ) : (
+                  <>
+                    <span className="user-label-pill">Officer ({officerProfile?.name || "Officer"})</span>
+                    <p>{msg.text}</p>
+                  </>
+                )}
+              </div>
+            ))}
+
+            {officerChatLoading && (
+              <div className="chat-bubble assistant">
+                <div className="ai-typing-indicator">
+                  <Bot size={14} className="animate-pulse" />
+                  <span>ProcureFlow Copilot is analyzing operational SOPs...</span>
+                  <div className="flex items-center gap-1 ml-1">
+                    <span className="ai-typing-dot" />
+                    <span className="ai-typing-dot" />
+                    <span className="ai-typing-dot" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Chat input box */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (officerChatInput.trim() && !officerChatLoading) {
+                void officerAssistantReply(officerChatInput);
+              }
+            }}
+            className="chat-compose"
+          >
+            <button
+              type="button"
+              onClick={listen}
+              className={`p-2 rounded-lg ${isListening ? "bg-red-500 text-white animate-pulse" : "bg-emerald-100 text-emerald-800"}`}
+              title="Voice Input"
+            >
+              <Mic size={18} />
+            </button>
+            <input
+              type="text"
+              value={officerChatInput}
+              onChange={(e) => setOfficerChatInput(e.target.value)}
+              placeholder="Ask officer copilot about FAQ norms, weighbridges, queues, verification..."
+              disabled={officerChatLoading}
+            />
+            <button
+              type="submit"
+              disabled={officerChatLoading || !officerChatInput.trim()}
+              className="p-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+            >
+              <Send size={18} />
+            </button>
+          </form>
+        </section>
+
+        {/* Side Panel with Mandi SOP & Reference Standards */}
+        <aside className="assistant-side">
+          <span className="status-pill verified">OFFICIAL SOP MANUAL</span>
+          <h3>Mandi Standard Norms (AP)</h3>
+          <p>
+            Reference guidelines for Moisture Testing, Digital Weighment, and Fair Average Quality (FAQ) standards.
+          </p>
+          <div className="mt-4 space-y-2 text-xs text-slate-700">
+            <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
+              <b className="text-emerald-900 block">Paddy Moisture Limit</b>
+              <span>Strictly maximum 17.0% as per AP Civil Supplies norms.</span>
+            </div>
+            <div className="p-2.5 bg-blue-50 rounded-lg border border-blue-200">
+              <b className="text-blue-900 block">Foreign Matter Allowance</b>
+              <span>Maximum 1.0% inorganic, 1.0% organic impurities.</span>
+            </div>
+            <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200">
+              <b className="text-amber-900 block">Dispute Protocol</b>
+              <span>Draw three random composite samples in farmer presence before issuing inspection slip.</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </>
+  );
+
   const renderCurrentScreen = () => {
     switch (screen) {
       case "registration": return registration;
@@ -9210,6 +9531,7 @@ export default function Home() {
       case "bookings": return bookings;
       case "quality": return qualityControlScreen;
       case "officerLogistics": return officerLogisticsScreen;
+      case "officerAiCopilot": return officerAiCopilotScreen;
       default: return landing;
     }
   };
@@ -9283,6 +9605,16 @@ export default function Home() {
                     title={isMuted ? "Unmute voice response" : "Mute voice response"}
                   >
                     {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                  </button>
+
+                  {/* Clear Chat Button */}
+                  <button
+                    type="button"
+                    onClick={clearChat}
+                    className="w-7 h-7 rounded-md bg-emerald-800/90 hover:bg-emerald-700/90 text-emerald-100 flex items-center justify-center border border-emerald-600/30"
+                    title="Clear Conversation"
+                  >
+                    <Trash2 size={14} />
                   </button>
 
                   {/* Close Button */}
@@ -9385,7 +9717,12 @@ export default function Home() {
                     >
                       {msg.role === "assistant" && (
                         <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-100">
-                          <span className="font-extrabold text-[11px] text-emerald-800">ProcureFlow AI</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-[11px] text-emerald-800">ProcureFlow AI</span>
+                            <span className={`ai-source-badge ${msg.source === "fallback" ? "fallback" : "gemini"}`}>
+                              {msg.source === "fallback" ? "Offline" : "✨ Gemini"}
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() => speak(msg.text)}
@@ -9397,6 +9734,11 @@ export default function Home() {
                           </button>
                         </div>
                       )}
+                      {msg.warning && (
+                        <p className="text-[10px] text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-200 mb-1">
+                          ⚠️ {msg.warning}
+                        </p>
+                      )}
                       <p className="m-0 whitespace-pre-wrap">{msg.text}</p>
                     </div>
                     {msg.role === "user" && (
@@ -9406,6 +9748,22 @@ export default function Home() {
                     )}
                   </div>
                 ))}
+
+                {chatLoading && (
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                      <Bot size={15} className="animate-pulse" />
+                    </div>
+                    <div className="ai-typing-indicator">
+                      <span>ProcureFlow Krishi AI is thinking...</span>
+                      <div className="flex items-center gap-1 ml-1">
+                        <span className="ai-typing-dot" />
+                        <span className="ai-typing-dot" />
+                        <span className="ai-typing-dot" />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Listening Banner with Animated Waveform */}

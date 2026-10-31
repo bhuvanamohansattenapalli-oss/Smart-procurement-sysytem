@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lte, ne, or, sql } from "drizzle-orm";
 import { Router, type ErrorRequestHandler, type NextFunction, type Response } from "express";
 import { z } from "zod";
 import {
@@ -16,6 +16,7 @@ import {
   transportBookings,
   staffAuditLogs,
   staffNotifications,
+  chatMessages,
 } from "../../drizzle/schema";
 import { getDb, normalizePhone } from "../db";
 import { requireApiAuth, requireRole } from "../middleware/apiAuth";
@@ -25,6 +26,13 @@ import { issueAccessToken, verifyAccessToken } from "../services/tokenService";
 import { paymentGateway, type PaymentOutcome } from "../services/paymentGatewayService";
 import { createRazorpayOrder, getRazorpayPublicConfig, isRazorpayConfigured, verifyRazorpaySignature } from "../services/razorpayService";
 import { createMockAssistantReply } from "../services/mockAiService";
+import {
+  generateFarmerAssistantReply,
+  generateOfficerAssistantReply,
+  isGeminiConfigured,
+  getGeminiModel,
+  checkAiRateLimit,
+} from "../services/geminiService";
 import type { AuthenticatedRequest, BookingContext, StaffRole } from "../types/api";
 
 const phoneSchema = z.string().trim().transform(normalizePhone).pipe(
@@ -81,7 +89,17 @@ const transportBookingSchema = z.object({
 const paymentSchema = z.object({ bookingId: idSchema, method: z.enum(["UPI", "CARD", "NET_BANKING"]) });
 const paymentOutcomeSchema = z.object({ outcome: z.enum(["SUCCESS", "FAILED"]), failureReason: z.string().trim().max(240).optional() });
 const statusSchema = z.object({ status: z.enum(["BOOKED", "ARRIVED", "DOCUMENT_VERIFICATION", "WEIGHING", "QUALITY_CHECK", "PROCESSING", "COMPLETED"]), weighedQuantityQuintals: z.coerce.number().positive().optional(), qualityGrade: z.string().trim().max(32).optional() });
-const questionSchema = z.object({ question: z.string().trim().min(2).max(600), bookingId: idSchema.optional(), language: z.enum(["EN", "HI", "TE"]).default("EN") });
+const questionSchema = z.object({
+  question: z.string().trim().min(1, "Question must not be empty.").max(1200, "Question too long (max 1200 characters)."),
+  bookingId: idSchema.optional(),
+  language: z.enum(["EN", "HI", "TE", "AUTO"]).default("AUTO"),
+  role: z.enum(["farmer", "officer"]).default("farmer"),
+  sessionId: z.string().max(64).optional(),
+  history: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().max(1200),
+  })).max(10).optional(),
+});
 
 const VEHICLE_CATALOG = {
   TRACTOR_TROLLEY: {
@@ -1911,11 +1929,49 @@ export function createProcurementApi() {
     return res.json({ message: "Notification marked as read.", notificationId: notification.id });
   });
 
+  // ==========================================
+  // GOOGLE GEMINI AI ASSISTANT ENDPOINTS
+  // ==========================================
+  api.get("/ai/status", async (_req, res) => {
+    const configured = isGeminiConfigured();
+    const model = getGeminiModel();
+    return res.json({
+      status: "operational",
+      configured,
+      model,
+      provider: "Google Gemini AI (@google/genai)",
+      fallbackAvailable: true,
+      supportedLanguages: ["EN", "TE", "HI", "AUTO"],
+    });
+  });
+
   api.post("/ai/chat", async (req, res) => {
     const input = respondValidation(res, questionSchema, req.body);
     if (!input) return;
+
+    // Rate Limiting Protection (sliding window per IP/User)
+    const clientKey = (req.ip || req.headers["x-forwarded-for"] || "anonymous") as string;
+    const rateCheck = checkAiRateLimit(clientKey, 30, 60_000);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: `Too many AI requests. Please wait ${rateCheck.retryAfterSeconds || 15}s before querying again.`,
+        retryAfterSeconds: rateCheck.retryAfterSeconds || 15,
+      });
+    }
+
     const db = await getDb();
-    
+    const sessionId = input.sessionId || `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    let principal: any = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        principal = await verifyAccessToken(authHeader.replace("Bearer ", "").trim());
+      } catch {}
+    }
+
+    let result: { text: string; source: "gemini" | "fallback"; model: string; languageDetected?: string; warning?: string };
     let assistantContext: Partial<BookingContext> = {
       farmerName: "Ramesh Kumar",
       bookingCode: "BK-2026-7294",
@@ -1929,17 +1985,37 @@ export function createProcurementApi() {
       procurementStatus: "BOOKED",
     };
 
-    if (db) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.replace("Bearer ", "").trim();
+    if (input.role === "officer" && principal && principal.role === "farmer") {
+      return res.status(403).json({
+        error: "FORBIDDEN",
+        message: "Officer AI Copilot is restricted to authenticated procurement officers.",
+      });
+    }
+
+    const isOfficerQuery = input.role === "officer" || (principal && principal.role !== "farmer");
+
+    if (isOfficerQuery) {
+      // Officer Copilot Execution
+      const officerRole = principal?.staffRole || principal?.role || "OFFICER";
+      const officerName = principal?.name || "Procurement Officer";
+      const centreName = principal?.centreName || "Guntur Agricultural Market Yard";
+
+      result = await generateOfficerAssistantReply({
+        question: input.question,
+        history: input.history,
+        officerRole,
+        officerName,
+        centreName,
+        language: input.language,
+      });
+    } else {
+      // Farmer Krishi Mitra Execution
+      if (db && principal && principal.role === "farmer") {
         try {
-          const principal = await verifyAccessToken(token);
-          if (principal && principal.role === "farmer") {
-            const booking = input.bookingId
-              ? (await db.select().from(bookings).where(eq(bookings.id, input.bookingId)).limit(1))[0]
-              : (await db.select().from(bookings).where(and(eq(bookings.farmerId, principal.id), eq(bookings.status, "ACTIVE"))).orderBy(desc(bookings.createdAt)).limit(1))[0];
-          
+          const booking = input.bookingId
+            ? (await db.select().from(bookings).where(eq(bookings.id, input.bookingId)).limit(1))[0]
+            : (await db.select().from(bookings).where(and(eq(bookings.farmerId, principal.id), eq(bookings.status, "ACTIVE"))).orderBy(desc(bookings.createdAt)).limit(1))[0];
+
           if (booking && booking.farmerId === principal.id) {
             const context = await getBookingContext(booking.id);
             if (context) {
@@ -1957,19 +2033,102 @@ export function createProcurementApi() {
               };
             }
           }
-        }
-      } catch {}
+        } catch {}
+      }
+
+      result = await generateFarmerAssistantReply({
+        question: input.question,
+        history: input.history,
+        context: assistantContext,
+        language: input.language,
+      });
     }
-  }
+
+    // Persist conversation to database if available
+    if (db) {
+      try {
+        await db.insert(chatMessages).values([
+          {
+            sessionId,
+            userRole: isOfficerQuery ? "officer" : "farmer",
+            userId: principal?.id ?? null,
+            sender: "user",
+            message: input.question,
+            language: input.language,
+            source: "user",
+          },
+          {
+            sessionId,
+            userRole: isOfficerQuery ? "officer" : "farmer",
+            userId: principal?.id ?? null,
+            sender: "assistant",
+            message: result.text,
+            language: result.languageDetected || input.language,
+            source: result.source,
+          },
+        ]);
+      } catch (dbErr) {
+        // Non-blocking persistence warning
+      }
+    }
 
     return res.json({
-      mode: "mock",
-      response: createMockAssistantReply(input.question, assistantContext, input.language),
+      success: true,
+      mode: result.source,
+      source: result.source,
+      model: result.model,
+      response: result.text,
+      language: result.languageDetected || input.language,
+      sessionId,
+      warning: result.warning || null,
       context: {
         tokenNumber: assistantContext.tokenNumber,
         centreName: assistantContext.centreName,
       },
     });
+  });
+
+  api.post("/ai/chat/clear", async (req, res) => {
+    const sessionId = (req.body?.sessionId as string)?.trim();
+    if (!sessionId) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "sessionId is required." });
+    }
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.delete(chatMessages).where(eq(chatMessages.sessionId, sessionId));
+      } catch {}
+    }
+    return res.json({ success: true, message: "Chat conversation history cleared.", sessionId });
+  });
+
+  api.get("/ai/chat/history", async (req, res) => {
+    const sessionId = (req.query?.sessionId as string)?.trim();
+    if (!sessionId) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "sessionId is required." });
+    }
+    const db = await getDb();
+    if (!db) return res.json({ sessionId, messages: [] });
+    try {
+      const messages = await db
+        .select()
+        .from(chatMessages)
+        .where(eq(chatMessages.sessionId, sessionId))
+        .orderBy(asc(chatMessages.createdAt))
+        .limit(40);
+      return res.json({
+        sessionId,
+        messages: messages.map(m => ({
+          role: m.sender,
+          text: m.message,
+          source: m.source,
+          language: m.language,
+          createdAt: m.createdAt,
+        })),
+      });
+    } catch {
+      return res.json({ sessionId, messages: [] });
+    }
   });
 
   // ==========================================

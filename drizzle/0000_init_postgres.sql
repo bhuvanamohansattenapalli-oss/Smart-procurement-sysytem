@@ -214,7 +214,20 @@ CREATE TABLE IF NOT EXISTS "transportBookings" (
   "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS "chatMessages" (
+  "id" SERIAL PRIMARY KEY,
+  "sessionId" VARCHAR(64) NOT NULL,
+  "userRole" VARCHAR(32) NOT NULL DEFAULT 'farmer',
+  "userId" INTEGER,
+  "sender" VARCHAR(16) NOT NULL,
+  "message" TEXT NOT NULL,
+  "language" VARCHAR(8) NOT NULL DEFAULT 'EN',
+  "source" VARCHAR(32) NOT NULL DEFAULT 'gemini',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Indices for rapid query lookup
+CREATE INDEX IF NOT EXISTS "idx_chat_session" ON "chatMessages" ("sessionId");
 CREATE INDEX IF NOT EXISTS "idx_farmers_phone" ON "farmers" ("phone");
 CREATE INDEX IF NOT EXISTS "idx_farmers_code" ON "farmers" ("farmerCode");
 CREATE INDEX IF NOT EXISTS "idx_bookings_code" ON "bookings" ("bookingCode");

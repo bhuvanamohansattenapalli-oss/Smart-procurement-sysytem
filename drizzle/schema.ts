@@ -279,3 +279,19 @@ export type CropPrice = typeof cropPrices.$inferSelect;
 export type TransportBooking = typeof transportBookings.$inferSelect;
 export type StaffAuditLog = typeof staffAuditLogs.$inferSelect;
 export type StaffNotification = typeof staffNotifications.$inferSelect;
+
+export const chatMessages = pgTable("chatMessages", {
+  id: serial("id").primaryKey(),
+  sessionId: varchar("sessionId", { length: 64 }).notNull(),
+  userRole: varchar("userRole", { length: 32 }).$type<"farmer" | "officer" | "guest">().default("farmer").notNull(),
+  userId: integer("userId"),
+  sender: varchar("sender", { length: 16 }).$type<"user" | "assistant">().notNull(),
+  message: text("message").notNull(),
+  language: varchar("language", { length: 8 }).default("EN").notNull(),
+  source: varchar("source", { length: 32 }).default("gemini").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;
+

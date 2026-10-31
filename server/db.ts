@@ -19,6 +19,7 @@ import {
   transportBookings,
   staffAuditLogs,
   staffNotifications,
+  chatMessages,
   type InsertUser,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -180,6 +181,7 @@ export class LocalDatabaseStore {
       "transportBookings",
       "staffAuditLogs",
       "staffNotifications",
+      "chatMessages",
     ];
     for (const name of tableList) {
       if (!this.tables.has(name)) {
