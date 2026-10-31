@@ -31700,7 +31700,7 @@ var init_pg_core = __esm({
 });
 
 // drizzle/schema.ts
-var users, farmers, registrations, otpChallenges, officers, staffAuditLogs, staffNotifications, procurementCentres, slots, bookings, queueEntries, procurements, payments, notifications, cropPrices, transportBookings;
+var users, farmers, registrations, officers, staffAuditLogs, staffNotifications, procurementCentres, slots, bookings, queueEntries, procurements, payments, notifications, cropPrices, transportBookings;
 var init_schema2 = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -31739,28 +31739,6 @@ var init_schema2 = __esm({
       reviewedByOfficerId: integer("reviewedByOfficerId"),
       submittedAt: timestamp("submittedAt").defaultNow().notNull(),
       reviewedAt: timestamp("reviewedAt")
-    });
-    otpChallenges = pgTable("otpChallenges", {
-      id: serial("id").primaryKey(),
-      phone: varchar("phone", { length: 20 }).notNull(),
-      activePhone: varchar("activePhone", { length: 20 }),
-      purpose: varchar("purpose", { length: 32 }).$type().default("REGISTRATION").notNull(),
-      name: varchar("name", { length: 160 }),
-      passwordHash: varchar("passwordHash", { length: 255 }),
-      village: varchar("village", { length: 160 }),
-      district: varchar("district", { length: 160 }),
-      primaryCrop: varchar("primaryCrop", { length: 80 }),
-      aadhaarMasked: varchar("aadhaarMasked", { length: 32 }),
-      declarationAccepted: integer("declarationAccepted").default(1),
-      otpHash: varchar("otpHash", { length: 255 }).notNull(),
-      status: varchar("status", { length: 32 }).$type().default("PENDING").notNull(),
-      expiresAt: timestamp("expiresAt").notNull(),
-      resendAvailableAt: timestamp("resendAvailableAt").notNull(),
-      requestCount: integer("requestCount").notNull().default(1),
-      attemptCount: integer("attemptCount").notNull().default(0),
-      verifiedAt: timestamp("verifiedAt"),
-      createdAt: timestamp("createdAt").defaultNow().notNull(),
-      updatedAt: timestamp("updatedAt").defaultNow().notNull()
     });
     officers = pgTable("officers", {
       id: serial("id").primaryKey(),
@@ -37601,25 +37579,6 @@ async function ensurePostgresSchema(pool) {
     15e3,
     "PostgreSQL schema initialization timed out after 15000ms"
   );
-  try {
-    await pool.query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'otpChallenges' AND column_name = 'purpose') THEN
-          ALTER TABLE "otpChallenges" ADD COLUMN "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION';
-        END IF;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "name" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "passwordHash" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "village" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "district" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "primaryCrop" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "aadhaarMasked" DROP NOT NULL;
-      EXCEPTION
-        WHEN others THEN NULL;
-      END $$;
-    `);
-  } catch {
-  }
   console.log("[Database Migration] PostgreSQL schema initialized successfully.");
 }
 async function verifyTablesExist(pool) {
@@ -37675,7 +37634,6 @@ var init_migratePostgres = __esm({
       "users",
       "farmers",
       "registrations",
-      "otpChallenges",
       "officers",
       "staffAuditLogs",
       "staffNotifications",
@@ -37726,29 +37684,6 @@ CREATE TABLE IF NOT EXISTS "registrations" (
   "reviewedByOfficerId" INTEGER,
   "submittedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
   "reviewedAt" TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS "otpChallenges" (
-  "id" SERIAL PRIMARY KEY,
-  "phone" VARCHAR(20) NOT NULL,
-  "activePhone" VARCHAR(20) UNIQUE,
-  "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION',
-  "name" VARCHAR(160),
-  "passwordHash" VARCHAR(255),
-  "village" VARCHAR(160),
-  "district" VARCHAR(160),
-  "primaryCrop" VARCHAR(80),
-  "aadhaarMasked" VARCHAR(32),
-  "declarationAccepted" INTEGER NOT NULL DEFAULT 1,
-  "otpHash" VARCHAR(255) NOT NULL,
-  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-  "expiresAt" TIMESTAMP NOT NULL,
-  "resendAvailableAt" TIMESTAMP NOT NULL,
-  "requestCount" INTEGER NOT NULL DEFAULT 1,
-  "attemptCount" INTEGER NOT NULL DEFAULT 0,
-  "verifiedAt" TIMESTAMP,
-  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS "officers" (
@@ -38162,7 +38097,6 @@ var init_db2 = __esm({
           "users",
           "farmers",
           "registrations",
-          "otpChallenges",
           "officers",
           "procurementCentres",
           "slots",
@@ -38230,7 +38164,14 @@ var init_db2 = __esm({
             autoIncrements: Object.fromEntries(this.autoIncrements.entries()),
             lastSaved: (/* @__PURE__ */ new Date()).toISOString()
           };
-          fs2.writeFileSync(targetPath, JSON.stringify(data, null, 2), "utf-8");
+          const tempPath = `${targetPath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+          fs2.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
+          try {
+            fs2.renameSync(tempPath, targetPath);
+          } catch {
+            fs2.copyFileSync(tempPath, targetPath);
+            fs2.unlinkSync(tempPath);
+          }
         } catch (err) {
           console.warn("[Database] Failed to persist local store to disk:", err);
         }
@@ -53877,25 +53818,6 @@ async function verifyAccessToken(token) {
     district: payload.district ? String(payload.district) : void 0
   };
 }
-async function issueOtpVerificationToken(challengeId, phone, purpose) {
-  return new SignJWT({
-    challengeId,
-    phone,
-    purpose,
-    type: "OTP_VERIFIED"
-  }).setProtectedHeader({ alg: "HS256" }).setSubject(phone).setIssuedAt().setExpirationTime("15m").sign(signingKey());
-}
-async function verifyOtpVerificationToken(token) {
-  const { payload } = await jwtVerify(token, signingKey());
-  if (payload.type !== "OTP_VERIFIED" || !payload.challengeId || !payload.phone || !payload.purpose) {
-    throw new Error("Invalid or expired OTP verification token.");
-  }
-  return {
-    challengeId: Number(payload.challengeId),
-    phone: String(payload.phone),
-    purpose: payload.purpose
-  };
-}
 
 // server/middleware/apiAuth.ts
 async function requireApiAuth(req, res, next) {
@@ -53969,273 +53891,6 @@ function verifyPassword(password, hash2) {
   } catch {
     return false;
   }
-}
-
-// server/services/otpService.ts
-import { randomInt } from "node:crypto";
-
-// server/services/sms8Service.ts
-init_db2();
-var SMS8_SEND_URL = "https://app.sms8.io/services/send.php";
-var SMS8_DEFAULT_TIMEOUT_MS = 1e4;
-function maskPhone(raw) {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length <= 4) return "****";
-  return digits.slice(0, 2) + "******" + digits.slice(-2);
-}
-function formatE164Phone(rawPhone) {
-  const cleaned = normalizePhone(rawPhone);
-  if (!cleaned) return "";
-  const rawDigits = rawPhone.replace(/\D/g, "");
-  if (rawPhone.trim().startsWith("+") && rawDigits.length > 10 && !rawDigits.startsWith("91")) {
-    return `+${rawDigits}`;
-  }
-  return `+91${cleaned}`;
-}
-function formatSms8OtpMessage(code) {
-  return `Your ProcureFlow OTP is ${code}. Do not share it with anyone.`;
-}
-var SmsDeliveryError = class extends Error {
-  code;
-  statusCode;
-  constructor(message2, code = "SMS_DELIVERY_FAILED", statusCode = 502) {
-    super(message2);
-    this.name = "SmsDeliveryError";
-    this.code = code;
-    this.statusCode = statusCode;
-  }
-};
-async function deliverSms8Otp(phone, code) {
-  const apiKey = process.env.SMS8_API_KEY?.trim();
-  const deviceId = process.env.SMS8_DEVICE_ID?.trim();
-  const maskedNumber = maskPhone(phone);
-  if (!apiKey) {
-    console.error("[SMS8 Delivery Error] Production SMS failure: SMS8_API_KEY is not configured in environment variables.");
-    throw new SmsDeliveryError(
-      "SMS8 delivery service is not configured. Please set SMS8_API_KEY in environment variables.",
-      "SMS8_NOT_CONFIGURED",
-      500
-    );
-  }
-  const e164Number = formatE164Phone(phone);
-  if (!e164Number || e164Number.length < 12) {
-    console.error(`[SMS8 Delivery Error] Malformed phone number provided for delivery: ${maskedNumber}`);
-    throw new SmsDeliveryError("Invalid mobile phone number for SMS delivery.", "MALFORMED_PHONE", 400);
-  }
-  const otpMessage = formatSms8OtpMessage(code);
-  const params = new URLSearchParams();
-  params.set("key", apiKey);
-  params.set("number", e164Number);
-  params.set("message", otpMessage);
-  params.set("prioritize", "1");
-  if (deviceId) {
-    params.set("devices", deviceId);
-  }
-  const timeoutMs = Number(process.env.SMS8_TIMEOUT_MS) || SMS8_DEFAULT_TIMEOUT_MS;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let response;
-  try {
-    response = await fetch(SMS8_SEND_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: params.toString(),
-      signal: controller.signal
-    });
-  } catch (netErr) {
-    clearTimeout(timer);
-    const isTimeout = netErr?.name === "AbortError" || netErr?.name === "TimeoutError";
-    if (isTimeout) {
-      console.error(`[SMS8 Gateway Timeout] Request timed out after ${timeoutMs}ms for ${maskedNumber}`);
-      throw new SmsDeliveryError("SMS delivery timed out. Please try again later.", "SMS_GATEWAY_TIMEOUT", 504);
-    }
-    console.error(`[SMS8 Network Error] Failed to reach SMS8 service for ${maskedNumber}: ${netErr?.message || netErr}`);
-    throw new SmsDeliveryError("Unable to send OTP right now. Please try again later.", "SMS_NETWORK_ERROR", 502);
-  } finally {
-    clearTimeout(timer);
-  }
-  let body = null;
-  const rawText = await response.text();
-  try {
-    body = JSON.parse(rawText);
-  } catch {
-    console.error(`[SMS8 Response Error] Non-JSON payload received from SMS8 (HTTP ${response.status}) for ${maskedNumber}`);
-    throw new SmsDeliveryError("Unable to send OTP right now. Please try again later.", "SMS_UNEXPECTED_RESPONSE", 502);
-  }
-  const errCode = body?.error?.code ?? response.status;
-  const rawErrorMessage = body?.error?.message ?? (typeof body?.error === "string" ? body.error : "");
-  if (response.status === 401 || errCode === 401 || /invalid (api )?key|unauthorized/i.test(rawErrorMessage)) {
-    console.error(`[SMS8 Auth Error] SMS8 rejected API key (HTTP 401) for recipient ${maskedNumber}`);
-    throw new SmsDeliveryError("Unable to send OTP right now. Please try again later.", "SMS_AUTH_FAILED", 401);
-  }
-  if (response.status === 402 || errCode === 402 || /credit|balance|insufficient/i.test(rawErrorMessage)) {
-    console.error(`[SMS8 Balance Error] Insufficient SMS credits (HTTP 402) for recipient ${maskedNumber}`);
-    throw new SmsDeliveryError("Unable to send OTP right now. Please try again later.", "SMS_OUT_OF_CREDITS", 402);
-  }
-  if (response.status === 429 || errCode === 429 || /rate limit|too many/i.test(rawErrorMessage)) {
-    console.error(`[SMS8 Rate Limit] Rate limit exceeded (HTTP 429) for recipient ${maskedNumber}`);
-    throw new SmsDeliveryError("Too many SMS requests sent. Please try again later.", "SMS_RATE_LIMITED", 429);
-  }
-  if (response.status === 400 || errCode === 400 || /malformed|invalid number/i.test(rawErrorMessage)) {
-    console.error(`[SMS8 Request Error] Malformed request (HTTP 400) for recipient ${maskedNumber}`);
-    throw new SmsDeliveryError("Unable to send OTP right now. Please verify your mobile number or try again.", "SMS_BAD_REQUEST", 400);
-  }
-  if (response.status >= 500 || typeof errCode === "number" && errCode >= 500) {
-    console.error(`[SMS8 Server Error] Gateway returned server error (HTTP ${response.status}) for recipient ${maskedNumber}`);
-    throw new SmsDeliveryError("SMS gateway temporarily unavailable. Please try again later.", "SMS_SERVER_ERROR", 502);
-  }
-  if (body.success !== true) {
-    console.error(`[SMS8 Rejection Error] SMS8 returned failure for recipient ${maskedNumber}: ${rawErrorMessage || "unknown"}`);
-    throw new SmsDeliveryError("Unable to send OTP right now. Please try again later.", "SMS_DELIVERY_FAILED", 502);
-  }
-  const firstMsg = Array.isArray(body?.data?.messages) ? body.data.messages[0] : null;
-  const messageId = firstMsg?.id ? String(firstMsg.id) : void 0;
-  console.info(`[SMS8 Delivery Success] OTP dispatched successfully via SMS8 to ${maskedNumber}.${deviceId ? ` Routed via device ${deviceId}.` : ""}`);
-  return {
-    channel: "sms",
-    provider: "SMS8",
-    messageId
-  };
-}
-
-// server/services/otpService.ts
-var OTP_LENGTH = 6;
-var OTP_TTL_MS = 5 * 60 * 1e3;
-var OTP_RESEND_COOLDOWN_MS = 30 * 1e3;
-var OTP_MAX_ATTEMPTS = 5;
-var OTP_MAX_REQUESTS = 3;
-function createOtpCode() {
-  return randomInt(0, 1e6).toString().padStart(OTP_LENGTH, "0");
-}
-function hashOtp(code) {
-  return hashPassword(code);
-}
-function verifyOtp(code, otpHash) {
-  return verifyPassword(code, otpHash);
-}
-function isOtpDemoMode() {
-  const provider = process.env.SMS_PROVIDER?.trim().toLowerCase();
-  if (provider === "demo") {
-    return true;
-  }
-  const demoFlag = process.env.OTP_DEMO_MODE?.trim().toLowerCase();
-  if (demoFlag === "true" || demoFlag === "1" || demoFlag === "yes") {
-    return true;
-  }
-  const modeFlag = process.env.OTP_MODE?.trim().toUpperCase();
-  if (modeFlag === "DEVELOPMENT") {
-    return true;
-  }
-  return false;
-}
-function resolveSmsProvider() {
-  const raw = process.env.SMS_PROVIDER?.trim() || "";
-  const lower = raw.toLowerCase();
-  if (isOtpDemoMode() || lower === "demo") {
-    return { name: "demo", raw: raw || "demo" };
-  }
-  if (lower === "sms8") {
-    return { name: "sms8", raw };
-  }
-  if (lower === "msg91") {
-    return { name: "msg91", raw };
-  }
-  if (raw && lower !== "development") {
-    return { name: "custom", raw };
-  }
-  return { name: "msg91", raw };
-}
-function getSmsProviderHealth() {
-  const isDemo = isOtpDemoMode();
-  const resolved = resolveSmsProvider();
-  const sms8Key = Boolean(process.env.SMS8_API_KEY?.trim());
-  const msg91Key = Boolean(process.env.MSG91_AUTH_KEY?.trim() || process.env.SMS_API_KEY?.trim());
-  const hasDeviceId = Boolean(process.env.SMS8_DEVICE_ID?.trim());
-  let isConfigured = false;
-  if (isDemo) {
-    isConfigured = true;
-  } else if (resolved.name === "sms8") {
-    isConfigured = sms8Key;
-  } else if (resolved.name === "msg91") {
-    isConfigured = msg91Key;
-  }
-  return {
-    provider: isDemo ? "DEMO" : resolved.name.toUpperCase(),
-    configured: isConfigured,
-    demoMode: isDemo,
-    sms8Configured: sms8Key,
-    msg91Configured: msg91Key,
-    ...hasDeviceId ? { deviceIdConfigured: true } : {}
-  };
-}
-async function deliverMsg91Otp(phone, code) {
-  const authKey = process.env.MSG91_AUTH_KEY?.trim() || process.env.SMS_API_KEY?.trim();
-  const templateId = process.env.MSG91_TEMPLATE_ID?.trim();
-  const senderId = process.env.MSG91_SENDER_ID?.trim() || process.env.SMS_SENDER_ID?.trim();
-  const isDevOrTest = process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
-  if (!isDevOrTest) {
-    if (!authKey) {
-      console.error("[OTP Delivery Error] Production SMS failure: MSG91_AUTH_KEY is not configured in environment variables.");
-      throw new Error("SMS delivery service is not configured. Please add MSG91_AUTH_KEY to Render environment variables, or enable OTP_DEMO_MODE=true for testing while DLT registration is pending.");
-    }
-  } else {
-    if (!authKey) {
-      console.info(`[OTP Development Mode] MSG91 is not configured in ${process.env.NODE_ENV}. Using development OTP fallback for ${maskPhone(phone)}.`);
-      return { channel: "development", provider: "DEVELOPMENT", developmentOtp: code };
-    }
-  }
-  const digits = phone.replace(/\D/g, "");
-  const formattedMobile = digits.length === 10 ? `91${digits}` : digits;
-  try {
-    const url2 = new URL("https://control.msg91.com/api/v5/otp");
-    url2.searchParams.set("mobile", formattedMobile);
-    url2.searchParams.set("otp", code);
-    if (templateId) url2.searchParams.set("template_id", templateId);
-    if (senderId) url2.searchParams.set("sender", senderId);
-    const res = await fetch(url2.toString(), {
-      method: "POST",
-      headers: {
-        "authkey": authKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        mobile: formattedMobile,
-        otp: code,
-        template_id: templateId || void 0
-      })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data && data.type === "error") {
-      const errMsg = data?.message || `MSG91 HTTP ${res.status}: ${res.statusText}`;
-      console.error(`[MSG91 SMS Error] Failed to send SMS to ${maskPhone(phone)}: ${errMsg}`);
-      throw new Error(`SMS delivery failed: ${errMsg}`);
-    }
-    console.info(`[MSG91 SMS] OTP delivered successfully via SMS to ${maskPhone(phone)}.`);
-    return { channel: "sms", provider: "MSG91" };
-  } catch (err) {
-    if (err.message && err.message.startsWith("SMS delivery failed:")) {
-      throw err;
-    }
-    console.error(`[MSG91 SMS Network Error] ${err?.message || err}`);
-    throw new Error(`SMS delivery gateway error: ${err?.message || "Failed to contact SMS gateway."}`);
-  }
-}
-async function deliverOtp(phone, code) {
-  const isDemo = isOtpDemoMode();
-  if (isDemo) {
-    console.info(`[OTP Demo Mode] Demo OTP generated for ${maskPhone(phone)} (SMS delivery paused pending DLT/gateway configuration).`);
-    return { channel: "development", provider: "DEMO_MODE", developmentOtp: code };
-  }
-  const resolved = resolveSmsProvider();
-  if (resolved.name === "custom") {
-    throw new Error(`SMS provider '${resolved.raw}' credentials are present, but no server-side adapter has been installed.`);
-  }
-  if (resolved.name === "sms8") {
-    return deliverSms8Otp(phone, code);
-  }
-  return deliverMsg91Otp(phone, code);
 }
 
 // server/services/seedService.ts
@@ -54836,27 +54491,17 @@ var phoneSchema = external_exports.string().trim().transform(normalizePhone).pip
 var passwordSchema = external_exports.string().min(8, "Password must contain at least 8 characters.");
 var idSchema = external_exports.coerce.number().int().positive();
 var registrationSchema = external_exports.object({
-  name: external_exports.string().trim().min(2).max(160),
+  name: external_exports.string().trim().min(2, "Name must be at least 2 characters.").max(160),
   phone: phoneSchema,
   password: passwordSchema,
-  village: external_exports.string().trim().min(2).max(160),
-  district: external_exports.string().trim().min(2).max(160),
-  primaryCrop: external_exports.string().trim().min(2).max(80),
+  village: external_exports.string().trim().min(2, "Village must be at least 2 characters.").max(160),
+  district: external_exports.string().trim().min(2, "District must be at least 2 characters.").max(160),
+  primaryCrop: external_exports.string().trim().min(2, "Primary crop must be specified.").max(80),
   aadhaarMasked: external_exports.string().trim().regex(/^X{4}\sX{4}\s\d{4}$|^\d{4}\s\d{4}\s\d{4}$/, "Provide masked Aadhaar as XXXX XXXX 1234."),
-  declarationAccepted: external_exports.literal(true),
-  verificationToken: external_exports.string().trim().optional()
+  declarationAccepted: external_exports.literal(true)
 });
-var otpSendSchema = external_exports.object({
-  phone: phoneSchema,
-  purpose: external_exports.enum(["REGISTRATION", "PASSWORD_RESET"]).default("REGISTRATION")
-});
-var otpChallengeSchema = external_exports.object({
-  challengeId: idSchema,
-  otp: external_exports.string().trim().regex(/^\d{6}$/, "Enter the 6-digit OTP.")
-});
-var otpResendSchema = external_exports.object({ challengeId: idSchema });
 var forgotPasswordSchema = external_exports.object({
-  verificationToken: external_exports.string().trim().min(10, "Valid verification token required."),
+  phone: phoneSchema,
   newPassword: passwordSchema
 });
 var loginSchema = external_exports.object({ phone: phoneSchema, password: passwordSchema });
@@ -55340,35 +54985,10 @@ function createProcurementApi() {
     try {
       const { runDatabaseHealthCheck: runDatabaseHealthCheck2 } = await Promise.resolve().then(() => (init_dbHealthService(), dbHealthService_exports));
       const health = await runDatabaseHealthCheck2();
-      const smsHealth = getSmsProviderHealth();
-      res.status(health.status === "unhealthy" ? 503 : 200).json({
-        ...health,
-        smsProvider: smsHealth.provider,
-        smsConfigured: smsHealth.configured,
-        sms: {
-          provider: smsHealth.provider,
-          configured: smsHealth.configured,
-          demoMode: smsHealth.demoMode,
-          sms8Configured: smsHealth.sms8Configured,
-          msg91Configured: smsHealth.msg91Configured,
-          ...smsHealth.deviceIdConfigured ? { deviceIdConfigured: true } : {}
-        }
-      });
+      res.status(health.status === "unhealthy" ? 503 : 200).json(health);
     } catch (err) {
       res.status(503).json({ status: "unhealthy", error: err?.message || err });
     }
-  });
-  api.get("/health/sms", (_req, res) => {
-    const smsHealth = getSmsProviderHealth();
-    res.json({
-      status: "ok",
-      smsProvider: smsHealth.provider,
-      configured: smsHealth.configured,
-      demoMode: smsHealth.demoMode,
-      sms8Configured: smsHealth.sms8Configured,
-      msg91Configured: smsHealth.msg91Configured,
-      ...smsHealth.deviceIdConfigured ? { deviceIdConfigured: true } : {}
-    });
   });
   api.use(async (_req, res, next) => {
     try {
@@ -55379,239 +54999,17 @@ function createProcurementApi() {
       next();
     }
   });
-  api.post("/auth/otp/send", async (req, res) => {
-    const input = respondValidation(res, otpSendSchema, req.body);
-    if (!input) return;
-    const db = await getDb();
-    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const cleanPhone = normalizePhone(input.phone);
-    const existingFarmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
-    if (input.purpose === "REGISTRATION" && existingFarmer) {
-      return res.status(409).json({
-        error: "PHONE_ALREADY_EXISTS",
-        message: "A farmer account is already registered with this mobile number. Please login or use Forgot Password."
-      });
-    }
-    if (input.purpose === "PASSWORD_RESET" && !existingFarmer) {
-      return res.status(404).json({
-        error: "FARMER_NOT_FOUND",
-        message: "No registered farmer found with this mobile number. Please verify your mobile number or register first."
-      });
-    }
-    const existingChallenge = (await db.select().from(otpChallenges).where(and(eq(otpChallenges.phone, cleanPhone), eq(otpChallenges.purpose, input.purpose))).orderBy(desc(otpChallenges.createdAt)).limit(1))[0];
-    const now = Date.now();
-    if (existingChallenge && existingChallenge.status === "PENDING") {
-      const resendAt = new Date(existingChallenge.resendAvailableAt).getTime();
-      if (now < resendAt) {
-        const remainingSeconds = Math.ceil((resendAt - now) / 1e3);
-        return res.status(429).json({
-          error: "RESEND_COOLDOWN",
-          message: `Please wait ${remainingSeconds} seconds before requesting another OTP.`,
-          resendAvailableInSeconds: remainingSeconds
-        });
-      }
-      if (existingChallenge.requestCount >= OTP_MAX_REQUESTS && now < new Date(existingChallenge.expiresAt).getTime()) {
-        return res.status(429).json({
-          error: "MAX_REQUESTS_EXCEEDED",
-          message: "Maximum OTP request limit reached. Please try again after 15 minutes."
-        });
-      }
-    }
-    const code = createOtpCode();
-    const otpHash = hashOtp(code);
-    let delivery;
-    try {
-      delivery = await deliverOtp(cleanPhone, code);
-    } catch (deliveryError) {
-      console.error(`[OTP Send Error] Failed to deliver OTP to ${cleanPhone}:`, deliveryError?.message || deliveryError);
-      return res.status(502).json({
-        error: "SMS_DELIVERY_FAILED",
-        message: deliveryError?.message || "Failed to deliver SMS OTP. Please verify your mobile number or try again."
-      });
-    }
-    const expiresAt = new Date(now + OTP_TTL_MS);
-    const resendAvailableAt = new Date(now + OTP_RESEND_COOLDOWN_MS);
-    const newRequestCount = existingChallenge ? existingChallenge.requestCount + 1 : 1;
-    const inserted = await db.insert(otpChallenges).values({
-      phone: cleanPhone,
-      purpose: input.purpose,
-      otpHash,
-      status: "PENDING",
-      expiresAt,
-      resendAvailableAt,
-      requestCount: newRequestCount,
-      attemptCount: 0
-    }).returning();
-    const challengeId = inserted[0]?.id || 1;
-    const isDemo = isOtpDemoMode();
-    const shouldReturnDemoOtp = isDemo || (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") && delivery.channel === "development";
-    return res.json({
-      message: isDemo ? "Demo OTP generated. SMS delivery is disabled in demo mode." : "OTP sent successfully via SMS.",
-      challengeId,
-      resendAvailableInSeconds: Math.ceil(OTP_RESEND_COOLDOWN_MS / 1e3),
-      expiresInSeconds: Math.ceil(OTP_TTL_MS / 1e3),
-      isDemoMode: isDemo,
-      ...shouldReturnDemoOtp && delivery.developmentOtp ? { demoOtp: delivery.developmentOtp, developmentOtp: delivery.developmentOtp } : {}
-    });
-  });
-  api.post("/auth/otp/verify", async (req, res) => {
-    const input = respondValidation(res, otpChallengeSchema, req.body);
-    if (!input) return;
-    const db = await getDb();
-    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const challenge = (await db.select().from(otpChallenges).where(eq(otpChallenges.id, input.challengeId)).limit(1))[0];
-    if (!challenge) {
-      return res.status(404).json({
-        error: "CHALLENGE_NOT_FOUND",
-        message: "OTP challenge not found. Please request a new OTP."
-      });
-    }
-    if (challenge.status === "LOCKED") {
-      return res.status(403).json({
-        error: "OTP_LOCKED",
-        message: "This OTP has been locked due to too many incorrect attempts. Please request a new OTP."
-      });
-    }
-    if (challenge.status === "VERIFIED") {
-      const token = await issueOtpVerificationToken(challenge.id, challenge.phone, challenge.purpose);
-      return res.json({
-        message: "OTP already verified.",
-        verificationToken: token,
-        phone: challenge.phone,
-        purpose: challenge.purpose
-      });
-    }
-    const now = Date.now();
-    if (now > new Date(challenge.expiresAt).getTime() || challenge.status === "EXPIRED") {
-      await db.update(otpChallenges).set({ status: "EXPIRED", updatedAt: /* @__PURE__ */ new Date() }).where(eq(otpChallenges.id, challenge.id));
-      return res.status(410).json({
-        error: "OTP_EXPIRED",
-        message: "OTP has expired. Please request a new OTP."
-      });
-    }
-    const currentAttempts = (challenge.attemptCount || 0) + 1;
-    if (currentAttempts > OTP_MAX_ATTEMPTS) {
-      await db.update(otpChallenges).set({ status: "LOCKED", attemptCount: currentAttempts, updatedAt: /* @__PURE__ */ new Date() }).where(eq(otpChallenges.id, challenge.id));
-      return res.status(403).json({
-        error: "OTP_LOCKED",
-        message: "Maximum incorrect OTP attempts reached. This challenge is locked. Please request a new OTP."
-      });
-    }
-    const isValid = verifyOtp(input.otp, challenge.otpHash);
-    if (!isValid) {
-      const remaining = Math.max(0, OTP_MAX_ATTEMPTS - currentAttempts);
-      await db.update(otpChallenges).set({
-        attemptCount: currentAttempts,
-        status: remaining === 0 ? "LOCKED" : "PENDING",
-        updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq(otpChallenges.id, challenge.id));
-      return res.status(400).json({
-        error: "INVALID_OTP",
-        message: remaining === 0 ? "Incorrect OTP. Maximum attempts reached. Please request a new OTP." : `Incorrect OTP. You have ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
-        attemptsRemaining: remaining
-      });
-    }
-    await db.update(otpChallenges).set({
-      status: "VERIFIED",
-      verifiedAt: /* @__PURE__ */ new Date(),
-      attemptCount: currentAttempts,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where(eq(otpChallenges.id, challenge.id));
-    const verificationToken = await issueOtpVerificationToken(challenge.id, challenge.phone, challenge.purpose);
-    return res.json({
-      message: "OTP verified successfully.",
-      verificationToken,
-      phone: challenge.phone,
-      purpose: challenge.purpose
-    });
-  });
-  api.post("/auth/otp/resend", async (req, res) => {
-    const input = respondValidation(res, otpResendSchema, req.body);
-    if (!input) return;
-    const db = await getDb();
-    if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const challenge = (await db.select().from(otpChallenges).where(eq(otpChallenges.id, input.challengeId)).limit(1))[0];
-    if (!challenge) {
-      return res.status(404).json({
-        error: "CHALLENGE_NOT_FOUND",
-        message: "OTP challenge not found. Please initiate a new request."
-      });
-    }
-    const now = Date.now();
-    const resendAt = new Date(challenge.resendAvailableAt).getTime();
-    if (now < resendAt) {
-      const remaining = Math.ceil((resendAt - now) / 1e3);
-      return res.status(429).json({
-        error: "RESEND_COOLDOWN",
-        message: `Please wait ${remaining} seconds before requesting another OTP.`,
-        resendAvailableInSeconds: remaining
-      });
-    }
-    if (challenge.requestCount >= OTP_MAX_REQUESTS) {
-      return res.status(429).json({
-        error: "MAX_REQUESTS_EXCEEDED",
-        message: "Maximum OTP request limit reached. Please wait before requesting another OTP."
-      });
-    }
-    const code = createOtpCode();
-    const otpHash = hashOtp(code);
-    let delivery;
-    try {
-      delivery = await deliverOtp(challenge.phone, code);
-    } catch (deliveryError) {
-      console.error(`[OTP Resend Error] Failed to deliver OTP to ${challenge.phone}:`, deliveryError?.message || deliveryError);
-      return res.status(502).json({
-        error: "SMS_DELIVERY_FAILED",
-        message: deliveryError?.message || "Failed to deliver SMS OTP. Please try again."
-      });
-    }
-    const expiresAt = new Date(now + OTP_TTL_MS);
-    const resendAvailableAt = new Date(now + OTP_RESEND_COOLDOWN_MS);
-    await db.update(otpChallenges).set({
-      otpHash,
-      status: "PENDING",
-      expiresAt,
-      resendAvailableAt,
-      requestCount: challenge.requestCount + 1,
-      attemptCount: 0,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where(eq(otpChallenges.id, challenge.id));
-    const isDemo = isOtpDemoMode();
-    const shouldReturnDemoOtp = isDemo || (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") && delivery.channel === "development";
-    return res.json({
-      message: isDemo ? "Demo OTP regenerated. SMS delivery is disabled in demo mode." : "OTP resent successfully via SMS.",
-      challengeId: challenge.id,
-      resendAvailableInSeconds: Math.ceil(OTP_RESEND_COOLDOWN_MS / 1e3),
-      expiresInSeconds: Math.ceil(OTP_TTL_MS / 1e3),
-      isDemoMode: isDemo,
-      ...shouldReturnDemoOtp && delivery.developmentOtp ? { demoOtp: delivery.developmentOtp, developmentOtp: delivery.developmentOtp } : {}
-    });
-  });
   api.post("/auth/forgot-password", async (req, res) => {
     const input = respondValidation(res, forgotPasswordSchema, req.body);
     if (!input) return;
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
-    const payload = await verifyOtpVerificationToken(input.verificationToken).catch(() => null);
-    if (!payload || payload.purpose !== "PASSWORD_RESET") {
-      return res.status(401).json({
-        error: "INVALID_VERIFICATION_TOKEN",
-        message: "Invalid or expired OTP verification. Please verify your mobile number again."
-      });
-    }
-    const challenge = (await db.select().from(otpChallenges).where(and(eq(otpChallenges.id, payload.challengeId), eq(otpChallenges.status, "VERIFIED"))).limit(1))[0];
-    if (!challenge) {
-      return res.status(401).json({
-        error: "CHALLENGE_EXPIRED",
-        message: "OTP verification is no longer active. Please request a new OTP."
-      });
-    }
-    const cleanPhone = normalizePhone(payload.phone);
+    const cleanPhone = normalizePhone(input.phone);
     const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
     if (!farmer) {
       return res.status(404).json({
         error: "FARMER_NOT_FOUND",
-        message: "No registered farmer found with this mobile number."
+        message: "No registered farmer found with this mobile number. Please check the number or register first."
       });
     }
     const newHash = hashPassword(input.newPassword);
@@ -55619,10 +55017,6 @@ function createProcurementApi() {
       passwordHash: newHash,
       updatedAt: /* @__PURE__ */ new Date()
     }).where(eq(farmers.id, farmer.id));
-    await db.update(otpChallenges).set({
-      status: "EXPIRED",
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where(eq(otpChallenges.id, challenge.id));
     console.info(`[Auth Audit] Farmer password reset successfully: id=${farmer.id} phone=${cleanPhone}`);
     return res.json({
       message: "Password reset successfully. You can now login with your new password.",
@@ -55635,32 +55029,8 @@ function createProcurementApi() {
     const db = await getDb();
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const cleanPhone = normalizePhone(input.phone);
-    const isTestBypass = process.env.NODE_ENV === "test" && !input.verificationToken && process.env.ENFORCE_OTP_VERIFICATION !== "true";
-    if (!isTestBypass) {
-      if (!input.verificationToken) {
-        return res.status(403).json({
-          error: "OTP_VERIFICATION_REQUIRED",
-          message: "Mobile number must be verified via SMS OTP before registration can be submitted."
-        });
-      }
-      const payload = await verifyOtpVerificationToken(input.verificationToken).catch(() => null);
-      if (!payload || payload.purpose !== "REGISTRATION" || normalizePhone(payload.phone) !== cleanPhone) {
-        return res.status(403).json({
-          error: "INVALID_VERIFICATION_TOKEN",
-          message: "Invalid or expired OTP verification token for this mobile number. Please verify your mobile number again."
-        });
-      }
-      const challenge = (await db.select().from(otpChallenges).where(and(eq(otpChallenges.id, payload.challengeId), eq(otpChallenges.status, "VERIFIED"))).limit(1))[0];
-      if (!challenge) {
-        return res.status(403).json({
-          error: "CHALLENGE_NOT_VERIFIED",
-          message: "OTP challenge is not verified or has already been used. Please verify OTP again."
-        });
-      }
-      await db.update(otpChallenges).set({ status: "EXPIRED", updatedAt: /* @__PURE__ */ new Date() }).where(eq(otpChallenges.id, challenge.id));
-    }
     if ((await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0]) {
-      return res.status(409).json({ error: "PHONE_EXISTS", message: "A farmer is already registered with this mobile number." });
+      return res.status(409).json({ error: "PHONE_EXISTS", message: "A farmer is already registered with this mobile number. Please sign in or reset your password." });
     }
     const farmerCode = `FMR-${(/* @__PURE__ */ new Date()).getUTCFullYear()}-${String(Date.now()).slice(-6)}`;
     await db.insert(farmers).values({
@@ -55674,7 +55044,7 @@ function createProcurementApi() {
       status: "PENDING"
     });
     const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
-    if (!farmer) return res.status(500).json({ error: "REGISTRATION_FAILED" });
+    if (!farmer) return res.status(500).json({ error: "REGISTRATION_FAILED", message: "Failed to create farmer record." });
     await db.insert(registrations).values({
       farmerId: farmer.id,
       aadhaarMasked: input.aadhaarMasked,

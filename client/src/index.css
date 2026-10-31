@@ -1286,30 +1286,6 @@
 .auth-step-separator.completed {
   background: #7ccca3;
 }
-.otp-display-banner {
-  padding: 14px 16px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  border-radius: 12px;
-  margin-bottom: 18px;
-  font-size: 12px;
-  color: #065f46;
-}
-.otp-input-control {
-  text-align: center;
-  font-size: 24px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.35em;
-  padding: 10px 14px !important;
-  height: 52px !important;
-  background: #fdfefe !important;
-  border: 2px solid #b7dfc8 !important;
-  border-radius: 12px !important;
-}
-.otp-input-control:focus {
-  border-color: #186b49 !important;
-  box-shadow: 0 0 0 3px rgba(24, 107, 73, 0.15) !important;
-}
 .auth-error-banner {
   padding: 10px 14px;
   background: #fef2f2;
@@ -1332,59 +1308,6 @@
   color: #854d0e;
   font-size: 11px;
   font-weight: 700;
-}
-
-.demo-otp-card {
-  padding: 14px 16px;
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
-  border: 2px dashed #059669;
-  border-radius: 12px;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);
-  margin-bottom: 16px;
-}
-
-.demo-otp-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.demo-otp-badge {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  background: #d1fae5;
-  color: #065f46;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  border: 1px solid #a7f3d0;
-}
-
-.demo-otp-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #047857;
-}
-
-.demo-otp-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: 6px;
-  color: #064e3b;
-  margin: 6px 0;
-  user-select: all;
-}
-
-.demo-otp-note {
-  font-size: 11px;
-  line-height: 1.4;
-  color: #065f46;
-  margin: 0;
-  font-weight: 500;
 }
 
 

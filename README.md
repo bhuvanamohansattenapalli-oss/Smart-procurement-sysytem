@@ -14,12 +14,6 @@ The project uses React and Vite on the client and Node.js, Express, Drizzle ORM,
 | `JWT_SECRET` | Signs server-issued farmer and officer bearer tokens | Yes |
 | `CORS_ORIGIN` | Comma-separated allowed origins for a separately hosted frontend | No |
 | `VITE_API_BASE_URL` | Client-side API base; defaults to `/api` | No |
-| `SMS_PROVIDER` | Active SMS provider: `demo` (display OTP on-screen), `msg91` (MSG91 gateway), or `sms8` (SMS8 gateway) | No |
-| `MSG91_AUTH_KEY` | Server-only credential for MSG91 SMS gateway | Yes if MSG91 |
-| `SMS8_API_KEY` | Server-only API key for SMS8 gateway (`https://app.sms8.io/services/send.php`) | Yes if SMS8 |
-| `SMS8_DEVICE_ID` | Optional SMS8 Android device/SIM identifier to route SMS delivery | No |
-| `OTP_DEMO_MODE` | Set to `true` to enable demo OTP display regardless of provider | No |
-| `OTP_MODE` | Set to `DEVELOPMENT` for local test OTP fallback | No |
 | `RAZORPAY_KEY_ID` | Server-only Razorpay test/live key ID used to create hosted checkout orders; its public key is returned only from the config endpoint | No |
 | `RAZORPAY_KEY_SECRET` | Server-only Razorpay secret used to create orders and verify checkout signatures | No |
 | `RAZORPAY_MODE` | Razorpay mode label exposed as non-secret metadata, normally `test` or `live` | No |
@@ -33,12 +27,6 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/
 JWT_SECRET=replace-with-a-long-random-secret
 CORS_ORIGIN=http://localhost:3000
 VITE_API_BASE_URL=/api
-
-# SMS Delivery Provider: demo | msg91 | sms8
-SMS_PROVIDER=demo
-# MSG91_AUTH_KEY=your_msg91_auth_key
-# SMS8_API_KEY=your_sms8_api_key
-# SMS8_DEVICE_ID=optional_device_id_for_sim_routing
 
 RAZORPAY_MODE=test
 ```
@@ -76,12 +64,11 @@ All protected routes expect `Authorization: Bearer <accessToken>`. Login respons
 
 | Area | Endpoint | Access | Purpose |
 |---|---|---|---|
-| OTP registration | `POST /api/registration/otp/send` | Public | Validate registration details and send a 6-digit OTP without creating a farmer account |
-| OTP registration | `POST /api/registration/otp/resend` | Public | Send a new OTP after the cooldown for the active registration challenge |
-| OTP registration | `POST /api/registration/otp/verify` | Public | Verify an OTP and create the farmer and `PENDING` registration record |
-| Auth | `POST /api/farmers/register` | Public | Retired direct-registration route; responds with OTP-verification-required guidance |
-| Auth | `POST /api/farmers/login` | Public | Authenticate an approved farmer |
-| Auth | `POST /api/officers/login` | Public | Authenticate a prototype officer |
+| Registration | `POST /api/registration` | Public | Direct farmer registration with profile and secure password hashing; creates `PENDING` registration record |
+| Auth | `POST /api/farmers/register` | Public | Direct farmer registration alias |
+| Auth | `POST /api/farmers/login` | Public | Authenticate an approved farmer with Mobile Number + Password |
+| Auth | `POST /api/auth/forgot-password` | Public | Direct password recovery by registered phone and new password |
+| Auth | `POST /api/officers/login` | Public | Authenticate a staff/officer with Officer Code / Employee ID + Password |
 | Registration | `GET /api/officers/registrations/pending` | Officer | List pending farmer applications |
 | Registration | `GET /api/officers/registrations/:id` | Officer | Inspect one application |
 | Registration | `PUT /api/officers/registrations/:id/approve` | Officer | Approve an application and notify the farmer |
@@ -126,26 +113,17 @@ For a separate API host, set `VITE_API_BASE_URL=https://your-api.example/api` at
 
 ## Farmer Authentication Flow
 
-Farmer registration first submits the existing form to `POST /api/registration/otp/send`. The server stores the registration payload as a temporary OTP challenge, with only a salted hash of the six-digit OTP. No farmer account is created at this point. The challenge expires after five minutes, limits resend requests, enforces a resend cooldown, and locks after five incorrect verification attempts. `POST /api/registration/otp/verify` is the only registration route that creates the farmer and the officer-reviewable `PENDING` record. A farmer login attempted before officer approval returns `REGISTRATION_NOT_APPROVED`; an incorrect phone number or password returns `INVALID_CREDENTIALS`. Neither path creates a browser farmer session.
+Farmer registration submits the registration form directly to `POST /api/registration` (or `/api/farmers/register`) with full profile details and password. Passwords are securely hashed with scrypt and salt before storage. The farmer account and a linked `PENDING` registration record are created directly without any SMS OTP dependency. A farmer login attempted before officer approval returns `REGISTRATION_NOT_APPROVED`; an incorrect phone number or password returns `INVALID_CREDENTIALS`. Neither path creates a browser farmer session.
 
-After an authenticated officer approves the registration through `PUT /api/officers/registrations/:id/approve`, the farmer can login through `POST /api/farmers/login`. The frontend stores only the returned farmer bearer token and farmer profile in `sessionStorage` under `procureflow.farmer.session`, then loads that farmer’s records and redirects to the dashboard. Farmer-only screens redirect unauthenticated visitors to the login page. Logout removes the farmer session and returns the user to the public landing page.
+After an authenticated officer approves the registration through `PUT /api/officers/registrations/:id/approve`, the farmer can login through `POST /api/farmers/login` with their mobile number and password. The frontend stores only the returned farmer bearer token and farmer profile in `sessionStorage` under `procureflow.farmer.session`, then loads that farmer’s records and redirects to the dashboard. Farmer-only screens redirect unauthenticated visitors to the login page. Logout removes the farmer session and returns the user to the public landing page.
 
 Officer and farmer credentials use distinct backend endpoints and session-storage keys. An officer login does not create a farmer session, and the officer approval screen only uses records returned by the officer-protected pending-registration API.
-
-## SMS Provider Boundary and Delivery
-
-`server/services/otpService.ts` and `server/services/sms8Service.ts` provide server-side OTP dispatching across three providers:
-- **`demo` (`SMS_PROVIDER=demo` or `OTP_DEMO_MODE=true`):** Generates and displays demo OTPs on screen without making gateway requests.
-- **`msg91` (`SMS_PROVIDER=msg91`):** Sends OTPs using the official MSG91 SMS gateway.
-- **`sms8` (`SMS_PROVIDER=sms8`):** Dispatches OTPs via connected Android SIM/phone using the SMS8 gateway (`https://app.sms8.io/services/send.php`). Configure `SMS8_API_KEY` (required) and optional `SMS8_DEVICE_ID` for SIM/device routing.
-
-Credentials must only reside in server-side environment variables and are never exposed to the frontend, client bundles, or API responses. Safe provider health can be verified via `GET /api/health` and `GET /api/health/sms`.
 
 ## Code Structure
 
 | Path | Responsibility |
 |---|---|
-| `drizzle/schema.ts` | Farmers, OTP challenges, registrations, officers, centres, slots, bookings, queue, procurement, payments, and notifications tables |
+| `drizzle/schema.ts` | Farmers, registrations, officers, centres, slots, bookings, queue, procurement, payments, and notifications tables |
 | `server/routes/procurementApi.ts` | Express route contract, controller-style request handling, validation, access checks, and orchestration |
 | `server/services/` | Password hashing, OTP generation/delivery boundary, bearer tokens, payment gateway boundary, idempotent seed data, and mock assistant logic |
 | `server/middleware/apiAuth.ts` | Bearer-token validation and farmer/officer guards |

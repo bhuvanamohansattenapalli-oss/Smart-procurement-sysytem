@@ -39,28 +39,6 @@ CREATE TABLE IF NOT EXISTS "registrations" (
   "reviewedAt" TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS "otpChallenges" (
-  "id" SERIAL PRIMARY KEY,
-  "phone" VARCHAR(20) NOT NULL,
-  "activePhone" VARCHAR(20) UNIQUE,
-  "name" VARCHAR(160) NOT NULL,
-  "passwordHash" VARCHAR(255) NOT NULL,
-  "village" VARCHAR(160) NOT NULL,
-  "district" VARCHAR(160) NOT NULL,
-  "primaryCrop" VARCHAR(80) NOT NULL,
-  "aadhaarMasked" VARCHAR(32) NOT NULL,
-  "declarationAccepted" INTEGER NOT NULL DEFAULT 1,
-  "otpHash" VARCHAR(255) NOT NULL,
-  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-  "expiresAt" TIMESTAMP NOT NULL,
-  "resendAvailableAt" TIMESTAMP NOT NULL,
-  "requestCount" INTEGER NOT NULL DEFAULT 1,
-  "attemptCount" INTEGER NOT NULL DEFAULT 0,
-  "verifiedAt" TIMESTAMP,
-  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS "officers" (
   "id" SERIAL PRIMARY KEY,
   "officerCode" VARCHAR(40) NOT NULL UNIQUE,

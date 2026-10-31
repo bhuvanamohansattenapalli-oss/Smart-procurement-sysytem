@@ -3,7 +3,6 @@ import express from "express";
 import { createProcurementApi } from "./routes/procurementApi";
 import { ensurePrototypeSeed } from "./services/seedService";
 import { getDb } from "./db";
-import { otpChallenges } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 describe("Smart Procurement End-to-End Core Workflow", () => {

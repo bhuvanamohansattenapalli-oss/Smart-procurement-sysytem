@@ -1040,47 +1040,21 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Registration OTP workflow states
-  const [regStep, setRegStep] = useState<"PHONE" | "OTP" | "DETAILS">("PHONE");
-  const [regOtp, setRegOtp] = useState("");
+  // Registration form password and visibility states
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
-  const [regChallengeId, setRegChallengeId] = useState<number | null>(null);
-  const [regVerificationToken, setRegVerificationToken] = useState<string | null>(null);
-  const [regCooldownSeconds, setRegCooldownSeconds] = useState(0);
-  const [regOtpSending, setRegOtpSending] = useState(false);
-  const [regOtpVerifying, setRegOtpVerifying] = useState(false);
-  const [regAttemptsRemaining, setRegAttemptsRemaining] = useState<number>(5);
-  const [regDevOtp, setRegDevOtp] = useState<string | null>(null);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Forgot Password workflow states
-  const [forgotStep, setForgotStep] = useState<"INACTIVE" | "PHONE" | "OTP" | "PASSWORD" | "SUCCESS">("INACTIVE");
+  // Forgot Password workflow states (Direct - No OTP)
+  const [forgotStep, setForgotStep] = useState<"INACTIVE" | "RESET" | "SUCCESS">("INACTIVE");
   const [forgotPhone, setForgotPhone] = useState("");
-  const [forgotOtp, setForgotOtp] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
-  const [forgotChallengeId, setForgotChallengeId] = useState<number | null>(null);
-  const [forgotVerificationToken, setForgotVerificationToken] = useState<string | null>(null);
-  const [forgotCooldownSeconds, setForgotCooldownSeconds] = useState(0);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
-  const [forgotAttemptsRemaining, setForgotAttemptsRemaining] = useState<number>(5);
-  const [forgotDevOtp, setForgotDevOtp] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (regCooldownSeconds <= 0) return;
-    const timer = setInterval(() => {
-      setRegCooldownSeconds(prev => (prev > 1 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [regCooldownSeconds]);
-
-  useEffect(() => {
-    if (forgotCooldownSeconds <= 0) return;
-    const timer = setInterval(() => {
-      setForgotCooldownSeconds(prev => (prev > 1 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [forgotCooldownSeconds]);
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
   const [bookingRecord, setBookingRecord] = useState<ApiBooking | null>(null);
   const [profileRecord, setProfileRecord] = useState<ApiBooking["farmer"] | null>(null);
   const [apiNotifications, setApiNotifications] = useState<Array<{ id: number; title: string; message: string; category: string; isRead: number; createdAt: string }>>([]);
@@ -2359,129 +2333,19 @@ export default function Home() {
     }
   };
 
-  const handleSendRegistrationOtp = async () => {
-    setAuthError(null);
-    setRegDevOtp(null);
-    const cleanPhone = registrationForm.phone.replace(/\D/g, "");
-    if (cleanPhone.length !== 10) {
-      const msg = "Please enter a valid 10-digit mobile number.";
-      setAuthError(msg);
-      toast.error(msg);
-      return;
-    }
-    setRegOtpSending(true);
-    try {
-      const response = await fetch(apiUrl("/auth/otp/send"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone, purpose: "REGISTRATION" }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || data.error || "Failed to send OTP.");
-      }
-      setRegChallengeId(data.challengeId);
-      setRegCooldownSeconds(data.resendAvailableInSeconds || 30);
-      setRegAttemptsRemaining(5);
-      const otpCode = data.demoOtp || data.developmentOtp;
-      if (otpCode) {
-        setRegDevOtp(otpCode);
-        if (data.isDemoMode) {
-          toast.info(`Demo OTP: ${otpCode}`);
-        } else {
-          toast.info(`Development Test OTP: ${otpCode}`);
-        }
-      }
-      setRegStep("OTP");
-      toast.success(data.message || (data.isDemoMode ? "Demo OTP generated!" : "SMS OTP sent successfully!"));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Failed to send SMS OTP.";
-      setAuthError(msg);
-      toast.error(msg);
-    } finally {
-      setRegOtpSending(false);
-    }
-  };
-
-  const handleResendRegistrationOtp = async () => {
-    if (!regChallengeId || regCooldownSeconds > 0) return;
-    setRegOtpSending(true);
-    setAuthError(null);
-    setRegDevOtp(null);
-    try {
-      const response = await fetch(apiUrl("/auth/otp/resend"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challengeId: regChallengeId }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || data.error || "Failed to resend OTP.");
-      }
-      setRegCooldownSeconds(data.resendAvailableInSeconds || 30);
-      const otpCode = data.demoOtp || data.developmentOtp;
-      if (otpCode) {
-        setRegDevOtp(otpCode);
-        if (data.isDemoMode) {
-          toast.info(`Demo OTP: ${otpCode}`);
-        } else {
-          toast.info(`Development Test OTP: ${otpCode}`);
-        }
-      }
-      toast.success(data.message || (data.isDemoMode ? "New Demo OTP generated!" : "New OTP sent via SMS."));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Failed to resend OTP.";
-      setAuthError(msg);
-      toast.error(msg);
-    } finally {
-      setRegOtpSending(false);
-    }
-  };
-
-  const handleVerifyRegistrationOtp = async () => {
-    if (!regChallengeId) return;
-    const cleanOtp = regOtp.trim();
-    if (cleanOtp.length !== 6) {
-      const msg = "Please enter the complete 6-digit OTP.";
-      setAuthError(msg);
-      toast.error(msg);
-      return;
-    }
-    setRegOtpVerifying(true);
-    setAuthError(null);
-    try {
-      const response = await fetch(apiUrl("/auth/otp/verify"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challengeId: regChallengeId, otp: cleanOtp }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        if (typeof data.attemptsRemaining === "number") {
-          setRegAttemptsRemaining(data.attemptsRemaining);
-        }
-        throw new Error(data.message || data.error || "Incorrect OTP.");
-      }
-      setRegVerificationToken(data.verificationToken);
-      setRegStep("DETAILS");
-      toast.success("Mobile number verified successfully! Please complete your registration details.");
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Verification failed.";
-      setAuthError(msg);
-      toast.error(msg);
-    } finally {
-      setRegOtpVerifying(false);
-    }
-  };
-
   const submitRegistration = async () => {
     setAuthError(null);
     const cleanPhone = registrationForm.phone.replace(/\D/g, "");
-    if (!regVerificationToken) {
-      const msg = "Mobile number must be verified via OTP first.";
+    if (cleanPhone.length !== 10) {
+      const msg = "Please enter a valid 10-digit Indian mobile number.";
       setAuthError(msg);
       toast.error(msg);
-      setRegStep("PHONE");
+      return;
+    }
+    if (!registrationForm.name || registrationForm.name.trim().length < 2) {
+      const msg = "Please enter your full name (at least 2 characters).";
+      setAuthError(msg);
+      toast.error(msg);
       return;
     }
     if (!registrationForm.password || registrationForm.password.length < 8) {
@@ -2496,6 +2360,12 @@ export default function Home() {
       toast.error(msg);
       return;
     }
+    if (!registrationForm.village || !registrationForm.district) {
+      const msg = "Please enter your village and district.";
+      setAuthError(msg);
+      toast.error(msg);
+      return;
+    }
     setAuthLoading(true);
     try {
       const response = await fetch(apiUrl("/registration"), {
@@ -2504,7 +2374,6 @@ export default function Home() {
         body: JSON.stringify({
           ...registrationForm,
           phone: cleanPhone,
-          verificationToken: regVerificationToken,
           declarationAccepted: true,
         }),
       });
@@ -2561,124 +2430,13 @@ export default function Home() {
     }
   };
 
-  const handleSendForgotOtp = async () => {
+  const handleResetForgotPassword = async () => {
     setForgotError(null);
-    setForgotDevOtp(null);
     const cleanPhone = forgotPhone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
       const msg = "Please enter your registered 10-digit mobile number.";
       setForgotError(msg);
       toast.error(msg);
-      return;
-    }
-    setForgotLoading(true);
-    try {
-      const response = await fetch(apiUrl("/auth/otp/send"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone, purpose: "PASSWORD_RESET" }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || data.error || "Failed to send reset OTP.");
-      }
-      setForgotChallengeId(data.challengeId);
-      setForgotCooldownSeconds(data.resendAvailableInSeconds || 30);
-      setForgotAttemptsRemaining(5);
-      const otpCode = data.demoOtp || data.developmentOtp;
-      if (otpCode) {
-        setForgotDevOtp(otpCode);
-        if (data.isDemoMode) {
-          toast.info(`Demo OTP: ${otpCode}`);
-        } else {
-          toast.info(`Development Test OTP: ${otpCode}`);
-        }
-      }
-      setForgotStep("OTP");
-      toast.success(data.message || (data.isDemoMode ? "Demo OTP generated for password reset." : "SMS OTP sent for password reset."));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Failed to send OTP.";
-      setForgotError(msg);
-      toast.error(msg);
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
-  const handleResendForgotOtp = async () => {
-    if (!forgotChallengeId || forgotCooldownSeconds > 0) return;
-    setForgotLoading(true);
-    setForgotError(null);
-    setForgotDevOtp(null);
-    try {
-      const response = await fetch(apiUrl("/auth/otp/resend"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challengeId: forgotChallengeId }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || data.error || "Failed to resend OTP.");
-      }
-      setForgotCooldownSeconds(data.resendAvailableInSeconds || 30);
-      const otpCode = data.demoOtp || data.developmentOtp;
-      if (otpCode) {
-        setForgotDevOtp(otpCode);
-        if (data.isDemoMode) {
-          toast.info(`Demo OTP: ${otpCode}`);
-        } else {
-          toast.info(`Development Test OTP: ${otpCode}`);
-        }
-      }
-      toast.success(data.message || (data.isDemoMode ? "New Demo OTP generated!" : "New OTP resent via SMS."));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Failed to resend OTP.";
-      setForgotError(msg);
-      toast.error(msg);
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
-  const handleVerifyForgotOtp = async () => {
-    if (!forgotChallengeId) return;
-    const cleanOtp = forgotOtp.trim();
-    if (cleanOtp.length !== 6) {
-      const msg = "Please enter the 6-digit OTP received via SMS.";
-      setForgotError(msg);
-      toast.error(msg);
-      return;
-    }
-    setForgotLoading(true);
-    setForgotError(null);
-    try {
-      const response = await fetch(apiUrl("/auth/otp/verify"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challengeId: forgotChallengeId, otp: cleanOtp }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        if (typeof data.attemptsRemaining === "number") {
-          setForgotAttemptsRemaining(data.attemptsRemaining);
-        }
-        throw new Error(data.message || data.error || "Incorrect OTP.");
-      }
-      setForgotVerificationToken(data.verificationToken);
-      setForgotStep("PASSWORD");
-      toast.success("Mobile verified successfully. Please enter your new password.");
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Verification failed.";
-      setForgotError(msg);
-      toast.error(msg);
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
-  const handleResetForgotPassword = async () => {
-    if (!forgotVerificationToken) {
-      setForgotStep("PHONE");
       return;
     }
     if (!forgotNewPassword || forgotNewPassword.length < 8) {
@@ -2694,13 +2452,12 @@ export default function Home() {
       return;
     }
     setForgotLoading(true);
-    setForgotError(null);
     try {
       const response = await fetch(apiUrl("/auth/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          verificationToken: forgotVerificationToken,
+          phone: cleanPhone,
           newPassword: forgotNewPassword,
         }),
       });
@@ -2709,7 +2466,7 @@ export default function Home() {
         throw new Error(data.message || data.error || "Password reset failed.");
       }
       setForgotStep("SUCCESS");
-      setFarmerCredentials(prev => ({ ...prev, phone: forgotPhone, password: "" }));
+      setFarmerCredentials(prev => ({ ...prev, phone: cleanPhone, password: "" }));
       toast.success("Password reset successfully! You can now log in.");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to reset password.";
@@ -3312,13 +3069,13 @@ export default function Home() {
             has a home.
           </h1>
           <p>
-            Secure OTP-verified registration. After submission, an officer will review and approve your details.
+            Direct farmer registration. After submission, an officer will review and approve your details.
           </p>
         </div>
         <div className="side-steps">
-          <span><b style={{ background: regStep === "PHONE" ? "#107e4a" : undefined }}>1</b> Mobile Verification via SMS OTP</span>
-          <span><b style={{ background: regStep === "OTP" ? "#107e4a" : undefined }}>2</b> Enter & Verify 6-Digit OTP</span>
-          <span><b style={{ background: regStep === "DETAILS" ? "#107e4a" : undefined }}>3</b> Set Password & Farmer Profile</span>
+          <span><b style={{ background: "#107e4a" }}>1</b> Farmer Details & Credentials</span>
+          <span><b>2</b> Officer Review & Approval</span>
+          <span><b>3</b> Direct Portal Access</span>
         </div>
       </div>
       <main className="auth-panel">
@@ -3332,21 +3089,16 @@ export default function Home() {
             {t.registrationIntro} Your account remains <b>{tUi("pending", language)}</b> until officer approval.
           </p>
 
-          {/* 3-Step Tracker */}
+          {/* Workflow Steps Tracker */}
           <div className="auth-step-tracker">
-            <div className={cn("auth-step-item", regStep === "PHONE" && "active", (regStep === "OTP" || regStep === "DETAILS") && "completed")}>
-              <span className="auth-step-num">{(regStep === "OTP" || regStep === "DETAILS") ? <Check size={12} /> : "1"}</span>
-              <span>Mobile</span>
+            <div className="auth-step-item active">
+              <span className="auth-step-num">1</span>
+              <span>Registration Form</span>
             </div>
-            <div className={cn("auth-step-separator", (regStep === "OTP" || regStep === "DETAILS") && "completed")} />
-            <div className={cn("auth-step-item", regStep === "OTP" && "active", regStep === "DETAILS" && "completed")}>
-              <span className="auth-step-num">{regStep === "DETAILS" ? <Check size={12} /> : "2"}</span>
-              <span>SMS OTP</span>
-            </div>
-            <div className={cn("auth-step-separator", regStep === "DETAILS" && "completed")} />
-            <div className={cn("auth-step-item", regStep === "DETAILS" && "active")}>
-              <span className="auth-step-num">3</span>
-              <span>Profile & Password</span>
+            <div className="auth-step-separator" />
+            <div className="auth-step-item">
+              <span className="auth-step-num">2</span>
+              <span>Officer Verification</span>
             </div>
           </div>
 
@@ -3357,231 +3109,146 @@ export default function Home() {
             </div>
           )}
 
-          {/* STEP 1: MOBILE ENTRY & SEND OTP */}
-          {regStep === "PHONE" && (
-            <form onSubmit={e => { e.preventDefault(); void handleSendRegistrationOtp(); }}>
+          {/* DIRECT REGISTRATION FORM */}
+          <form onSubmit={e => { e.preventDefault(); void submitRegistration(); }}>
+            <label>
+              Farmer full name
+              <Input
+                value={registrationForm.name}
+                onChange={e => setRegistrationForm(form => ({ ...form, name: e.target.value }))}
+                placeholder="e.g. Ramesh Kumar"
+                required
+              />
+            </label>
+
+            <label>
+              Mobile number (10-digit)
+              <Input
+                inputMode="numeric"
+                placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
+                value={registrationForm.phone}
+                maxLength={10}
+                onChange={e => setRegistrationForm(form => ({ ...form, phone: e.target.value.replace(/\D/g, "") }))}
+                required
+              />
+            </label>
+
+            <div className="field-row">
               <label>
-                Mobile number (10-digit)
-                <Input
-                  inputMode="numeric"
-                  placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
-                  value={registrationForm.phone}
-                  maxLength={10}
-                  onChange={e => setRegistrationForm(form => ({ ...form, phone: e.target.value.replace(/\D/g, "") }))}
-                  required
-                />
-              </label>
-              <p className="text-xs text-muted-foreground mt-1 mb-2">
-                A 6-digit OTP will be sent to this mobile number via MSG91 SMS gateway.
-              </p>
-              <Button disabled={regOtpSending} type="submit" className="action-button w-full">
-                {regOtpSending ? (
-                  <>
-                    <LoaderCircle size={17} className="animate-spin mr-2" /> Sending OTP via SMS…
-                  </>
-                ) : (
-                  <>
-                    Send SMS OTP <ArrowRight size={17} />
-                  </>
-                )}
-              </Button>
-              <div className="login-divider mt-4"><span>or</span></div>
-              <button type="button" className="inline-action w-full justify-center" onClick={() => navigate("farmerLogin")}>
-                Already registered? Sign in <ArrowRight size={14} />
-              </button>
-            </form>
-          )}
-
-          {/* STEP 2: ENTER OTP & VERIFY */}
-          {regStep === "OTP" && (
-            <form onSubmit={e => { e.preventDefault(); void handleVerifyRegistrationOtp(); }}>
-              <div className="otp-display-banner">
-                <div className="font-bold flex items-center justify-between">
-                  <span>SMS OTP Sent</span>
-                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">Valid 5 mins</span>
-                </div>
-                <p className="text-xs text-emerald-900 mt-1 mb-0">
-                  Enter the 6-digit code delivered to <b>+91 {registrationForm.phone.replace(/\D/g, "").slice(0, 2)}******{registrationForm.phone.replace(/\D/g, "").slice(-2)}</b>.
-                </p>
-              </div>
-
-              {regDevOtp && (
-                <div className="demo-otp-card" role="status" aria-live="polite">
-                  <div className="demo-otp-header">
-                    <span className="demo-otp-badge">Demo Mode Active</span>
-                    <span className="demo-otp-label">Demo OTP: <b>{regDevOtp}</b></span>
-                  </div>
-                  <div className="demo-otp-code">{regDevOtp}</div>
-                  <p className="demo-otp-note">
-                    For testing only — SMS delivery is disabled in demo mode.<br />
-                    SMS delivery will be enabled after DLT approval.
-                  </p>
-                </div>
-              )}
-
-              <label className="text-center">
-                Enter 6-digit OTP
-                <Input
-                  className="otp-input-control"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="------"
-                  value={regOtp}
-                  onChange={e => setRegOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  autoFocus
-                  required
-                />
-              </label>
-
-              <div className="flex items-center justify-between text-xs text-muted-foreground mt-1 mb-3">
-                <span>Attempts remaining: <b className={regAttemptsRemaining <= 2 ? "text-red-600" : "text-emerald-800"}>{regAttemptsRemaining} / 5</b></span>
-                {regCooldownSeconds > 0 ? (
-                  <span className="text-muted-foreground font-semibold">Resend in {regCooldownSeconds}s</span>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={regOtpSending}
-                    onClick={() => void handleResendRegistrationOtp()}
-                    className="text-emerald-700 font-bold hover:underline"
-                  >
-                    Resend OTP
-                  </button>
-                )}
-              </div>
-
-              <Button disabled={regOtpVerifying || regOtp.length !== 6} type="submit" className="action-button w-full mb-3">
-                {regOtpVerifying ? (
-                  <>
-                    <LoaderCircle size={17} className="animate-spin mr-2" /> Verifying OTP…
-                  </>
-                ) : (
-                  <>
-                    Verify OTP <Check size={17} />
-                  </>
-                )}
-              </Button>
-
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground text-center w-full mt-2 block"
-                onClick={() => { setRegStep("PHONE"); setRegOtp(""); setAuthError(null); }}
-              >
-                ← Change mobile number
-              </button>
-            </form>
-          )}
-
-          {/* STEP 3: CREATE PASSWORD & COMPLETE FARMER DETAILS */}
-          {regStep === "DETAILS" && (
-            <form onSubmit={e => { e.preventDefault(); void submitRegistration(); }}>
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl mb-4 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 text-emerald-900 font-bold">
-                  <CheckCircle2 size={16} className="text-emerald-600" />
-                  <span>Mobile Verified: +91 {registrationForm.phone}</span>
-                </div>
-                <span className="text-[10px] bg-emerald-200 text-emerald-950 font-extrabold px-2 py-0.5 rounded-full uppercase">Verified</span>
-              </div>
-
-              <label>
-                Farmer full name
-                <Input
-                  value={registrationForm.name}
-                  onChange={e => setRegistrationForm(form => ({ ...form, name: e.target.value }))}
-                  placeholder="e.g. Ramesh Kumar"
-                  required
-                />
-              </label>
-
-              <div className="field-row">
-                <label>
-                  Create password (min 8 chars)
+                Create password (min 8 chars)
+                <div className="relative">
                   <Input
-                    type="password"
+                    type={showRegPassword ? "text" : "password"}
                     placeholder="At least 8 characters"
                     value={registrationForm.password}
                     onChange={e => setRegistrationForm(form => ({ ...form, password: e.target.value }))}
                     minLength={8}
                     required
                   />
-                </label>
-                <label>
-                  Confirm password
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-0 p-0 cursor-pointer"
+                    onClick={() => setShowRegPassword(prev => !prev)}
+                    title={showRegPassword ? "Hide password" : "Show password"}
+                  >
+                    {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </label>
+              <label>
+                Confirm password
+                <div className="relative">
                   <Input
-                    type="password"
+                    type={showRegConfirmPassword ? "text" : "password"}
                     placeholder="Re-enter password"
                     value={regConfirmPassword}
                     onChange={e => setRegConfirmPassword(e.target.value)}
                     minLength={8}
                     required
                   />
-                </label>
-              </div>
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-0 p-0 cursor-pointer"
+                    onClick={() => setShowRegConfirmPassword(prev => !prev)}
+                    title={showRegConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showRegConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </label>
+            </div>
 
-              {registrationForm.password && regConfirmPassword && registrationForm.password !== regConfirmPassword && (
-                <p className="text-xs text-red-600 font-semibold -mt-2 mb-1">
-                  ⚠️ Passwords do not match.
-                </p>
-              )}
+            {registrationForm.password && regConfirmPassword && registrationForm.password !== regConfirmPassword && (
+              <p className="text-xs text-red-600 font-semibold -mt-2 mb-1">
+                ⚠️ Passwords do not match.
+              </p>
+            )}
 
+            <label>
+              Farmer ID / Aadhaar
+              <Input
+                value={registrationForm.aadhaarMasked}
+                onChange={e => setRegistrationForm(form => ({ ...form, aadhaarMasked: e.target.value }))}
+                placeholder="XXXX XXXX 1234"
+                required
+              />
+            </label>
+
+            <div className="field-row">
               <label>
-                Farmer ID / Aadhaar
+                Village
                 <Input
-                  value={registrationForm.aadhaarMasked}
-                  onChange={e => setRegistrationForm(form => ({ ...form, aadhaarMasked: e.target.value }))}
-                  placeholder="XXXX XXXX 1234"
+                  value={registrationForm.village}
+                  onChange={e => setRegistrationForm(form => ({ ...form, village: e.target.value }))}
+                  placeholder="e.g. Rampur"
                   required
                 />
               </label>
-
-              <div className="field-row">
-                <label>
-                  Village
-                  <Input
-                    value={registrationForm.village}
-                    onChange={e => setRegistrationForm(form => ({ ...form, village: e.target.value }))}
-                    required
-                  />
-                </label>
-                <label>
-                  District
-                  <Input
-                    value={registrationForm.district}
-                    onChange={e => setRegistrationForm(form => ({ ...form, district: e.target.value }))}
-                    required
-                  />
-                </label>
-              </div>
-
               <label>
-                Primary crop
-                <select
-                  value={registrationForm.primaryCrop}
-                  onChange={e => setRegistrationForm(form => ({ ...form, primaryCrop: e.target.value }))}
-                >
-                  <option>Paddy</option>
-                  <option>Maize</option>
-                  <option>Cotton</option>
-                </select>
+                District
+                <Input
+                  value={registrationForm.district}
+                  onChange={e => setRegistrationForm(form => ({ ...form, district: e.target.value }))}
+                  placeholder="e.g. Nizamabad"
+                  required
+                />
               </label>
+            </div>
 
-              <label className="check-line">
-                <input type="checkbox" required defaultChecked />
-                <span>I confirm these details are correct for this procurement request.</span>
-              </label>
+            <label>
+              Primary crop
+              <select
+                value={registrationForm.primaryCrop}
+                onChange={e => setRegistrationForm(form => ({ ...form, primaryCrop: e.target.value }))}
+              >
+                <option>Paddy</option>
+                <option>Maize</option>
+                <option>Cotton</option>
+              </select>
+            </label>
 
-              <Button disabled={authLoading || registrationForm.password.length < 8 || registrationForm.password !== regConfirmPassword} type="submit" className="action-button">
-                {authLoading ? (
-                  <>
-                    <LoaderCircle size={17} className="animate-spin mr-2" /> Submitting registration…
-                  </>
-                ) : (
-                  <>
-                    {tUi("Submit registration", language)} <ArrowRight size={17} />
-                  </>
-                )}
-              </Button>
-            </form>
-          )}
+            <label className="check-line">
+              <input type="checkbox" required defaultChecked />
+              <span>I confirm these details are correct for this procurement request.</span>
+            </label>
+
+            <Button disabled={authLoading || registrationForm.password.length < 8 || registrationForm.password !== regConfirmPassword} type="submit" className="action-button">
+              {authLoading ? (
+                <>
+                  <LoaderCircle size={17} className="animate-spin mr-2" /> Submitting registration…
+                </>
+              ) : (
+                <>
+                  {tUi("Submit registration", language)} <ArrowRight size={17} />
+                </>
+              )}
+            </Button>
+
+            <div className="login-divider mt-4"><span>or</span></div>
+            <button type="button" className="inline-action w-full justify-center" onClick={() => navigate("farmerLogin")}>
+              Already registered? Sign in <ArrowRight size={14} />
+            </button>
+          </form>
 
           <p className="form-note mt-4">
             <ShieldCheck size={16} /> Application is submitted directly to the procurement officer for verification.
@@ -3672,12 +3339,12 @@ export default function Home() {
           </div>
         </section>
 
-        {/* FORGOT PASSWORD WORKFLOW */}
+        {/* FORGOT PASSWORD WORKFLOW (DIRECT - NO OTP) */}
         {forgotStep !== "INACTIVE" ? (
           <section className="login-card">
             <p className="eyebrow">PASSWORD RECOVERY</p>
             <h1>Reset Password</h1>
-            <p>Verify your registered mobile number with an SMS OTP to create a new password.</p>
+            <p>Enter your registered mobile number and set your new password directly.</p>
 
             {forgotError && (
               <div className="auth-error-banner">
@@ -3686,9 +3353,9 @@ export default function Home() {
               </div>
             )}
 
-            {/* Step 1: Mobile entry for forgot password */}
-            {forgotStep === "PHONE" && (
-              <form onSubmit={e => { e.preventDefault(); void handleSendForgotOtp(); }}>
+            {/* Direct Password Reset Form */}
+            {forgotStep === "RESET" && (
+              <form onSubmit={e => { e.preventDefault(); void handleResetForgotPassword(); }}>
                 <label>
                   Registered mobile number
                   <Input
@@ -3700,140 +3367,51 @@ export default function Home() {
                     required
                   />
                 </label>
-                <p className="text-xs text-muted-foreground mt-1 mb-3">
-                  We will verify this number and send a password reset OTP via SMS.
-                </p>
-                <Button disabled={forgotLoading} type="submit" className="action-button w-full mb-3">
-                  {forgotLoading ? (
-                    <>
-                      <LoaderCircle size={17} className="animate-spin mr-2" /> Sending OTP…
-                    </>
-                  ) : (
-                    <>
-                      Send Reset OTP <ArrowRight size={17} />
-                    </>
-                  )}
-                </Button>
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground text-center w-full block mt-2"
-                  onClick={() => { setForgotStep("INACTIVE"); setForgotError(null); }}
-                >
-                  ← Back to login
-                </button>
-              </form>
-            )}
 
-            {/* Step 2: Enter OTP for forgot password */}
-            {forgotStep === "OTP" && (
-              <form onSubmit={e => { e.preventDefault(); void handleVerifyForgotOtp(); }}>
-                <div className="otp-display-banner">
-                  <div className="font-bold flex items-center justify-between">
-                    <span>SMS OTP Sent</span>
-                    <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">Valid 5 mins</span>
-                  </div>
-                  <p className="text-xs text-emerald-900 mt-1 mb-0">
-                    Enter the 6-digit code delivered to <b>+91 {forgotPhone.slice(0, 2)}******{forgotPhone.slice(-2)}</b>.
-                  </p>
-                </div>
-
-                {forgotDevOtp && (
-                  <div className="demo-otp-card" role="status" aria-live="polite">
-                    <div className="demo-otp-header">
-                      <span className="demo-otp-badge">Demo Mode Active</span>
-                      <span className="demo-otp-label">Demo OTP: <b>{forgotDevOtp}</b></span>
+                <div className="field-row">
+                  <label>
+                    New password (min 8 chars)
+                    <div className="relative">
+                      <Input
+                        type={showForgotNewPassword ? "text" : "password"}
+                        placeholder="Enter at least 8 characters"
+                        value={forgotNewPassword}
+                        onChange={e => setForgotNewPassword(e.target.value)}
+                        minLength={8}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-0 p-0 cursor-pointer"
+                        onClick={() => setShowForgotNewPassword(prev => !prev)}
+                        title={showForgotNewPassword ? "Hide password" : "Show password"}
+                      >
+                        {showForgotNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
                     </div>
-                    <div className="demo-otp-code">{forgotDevOtp}</div>
-                    <p className="demo-otp-note">
-                      For testing only — SMS delivery is disabled in demo mode.<br />
-                      SMS delivery will be enabled after DLT approval.
-                    </p>
-                  </div>
-                )}
-
-                <label className="text-center">
-                  Enter 6-digit OTP
-                  <Input
-                    className="otp-input-control"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="------"
-                    value={forgotOtp}
-                    onChange={e => setForgotOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    autoFocus
-                    required
-                  />
-                </label>
-
-                <div className="flex items-center justify-between text-xs text-muted-foreground mt-1 mb-3">
-                  <span>Attempts remaining: <b className={forgotAttemptsRemaining <= 2 ? "text-red-600" : "text-emerald-800"}>{forgotAttemptsRemaining} / 5</b></span>
-                  {forgotCooldownSeconds > 0 ? (
-                    <span className="text-muted-foreground font-semibold">Resend in {forgotCooldownSeconds}s</span>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={forgotLoading}
-                      onClick={() => void handleResendForgotOtp()}
-                      className="text-emerald-700 font-bold hover:underline"
-                    >
-                      Resend OTP
-                    </button>
-                  )}
+                  </label>
+                  <label>
+                    Confirm new password
+                    <div className="relative">
+                      <Input
+                        type={showForgotConfirmPassword ? "text" : "password"}
+                        placeholder="Re-enter new password"
+                        value={forgotConfirmPassword}
+                        onChange={e => setForgotConfirmPassword(e.target.value)}
+                        minLength={8}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-0 p-0 cursor-pointer"
+                        onClick={() => setShowForgotConfirmPassword(prev => !prev)}
+                        title={showForgotConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showForgotConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </label>
                 </div>
-
-                <Button disabled={forgotLoading || forgotOtp.length !== 6} type="submit" className="action-button w-full mb-3">
-                  {forgotLoading ? (
-                    <>
-                      <LoaderCircle size={17} className="animate-spin mr-2" /> Verifying…
-                    </>
-                  ) : (
-                    <>
-                      Verify OTP <Check size={17} />
-                    </>
-                  )}
-                </Button>
-
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground text-center w-full block mt-2"
-                  onClick={() => { setForgotStep("PHONE"); setForgotOtp(""); setForgotError(null); }}
-                >
-                  ← Change mobile number
-                </button>
-              </form>
-            )}
-
-            {/* Step 3: Create & Confirm New Password */}
-            {forgotStep === "PASSWORD" && (
-              <form onSubmit={e => { e.preventDefault(); void handleResetForgotPassword(); }}>
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl mb-4 text-xs font-bold text-emerald-900 flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                  <span>Mobile Verified: +91 {forgotPhone}</span>
-                </div>
-
-                <label>
-                  Create new password (min 8 chars)
-                  <Input
-                    type="password"
-                    placeholder="Enter at least 8 characters"
-                    value={forgotNewPassword}
-                    onChange={e => setForgotNewPassword(e.target.value)}
-                    minLength={8}
-                    required
-                  />
-                </label>
-
-                <label>
-                  Confirm new password
-                  <Input
-                    type="password"
-                    placeholder="Re-enter new password"
-                    value={forgotConfirmPassword}
-                    onChange={e => setForgotConfirmPassword(e.target.value)}
-                    minLength={8}
-                    required
-                  />
-                </label>
 
                 {forgotNewPassword && forgotConfirmPassword && forgotNewPassword !== forgotConfirmPassword && (
                   <p className="text-xs text-red-600 font-semibold -mt-2 mb-1">
@@ -3867,7 +3445,7 @@ export default function Home() {
               </form>
             )}
 
-            {/* Step 4: Success confirmation */}
+            {/* Success confirmation */}
             {forgotStep === "SUCCESS" && (
               <div className="text-center py-4">
                 <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -3883,7 +3461,6 @@ export default function Home() {
                   onClick={() => {
                     setForgotStep("INACTIVE");
                     setForgotPhone("");
-                    setForgotOtp("");
                     setForgotNewPassword("");
                     setForgotConfirmPassword("");
                   }}
@@ -3905,6 +3482,8 @@ export default function Home() {
                 Mobile number
                 <Input
                   inputMode="numeric"
+                  placeholder="Enter 10-digit mobile number"
+                  maxLength={10}
                   value={farmerCredentials.phone}
                   onChange={event => setFarmerCredentials(credentials => ({ ...credentials, phone: event.target.value.replace(/\s/g, "") }))}
                   required
@@ -3913,12 +3492,23 @@ export default function Home() {
 
               <label>
                 Password
-                <Input
-                  type="password"
-                  value={farmerCredentials.password}
-                  onChange={event => setFarmerCredentials(credentials => ({ ...credentials, password: event.target.value }))}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    type={showLoginPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={farmerCredentials.password}
+                    onChange={event => setFarmerCredentials(credentials => ({ ...credentials, password: event.target.value }))}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-0 p-0 cursor-pointer"
+                    onClick={() => setShowLoginPassword(prev => !prev)}
+                    title={showLoginPassword ? "Hide password" : "Show password"}
+                  >
+                    {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </label>
 
               <div className="flex justify-end -mt-2 mb-2">
@@ -3926,7 +3516,7 @@ export default function Home() {
                   type="button"
                   className="text-xs text-emerald-800 font-bold hover:underline cursor-pointer bg-transparent border-0 p-0"
                   onClick={() => {
-                    setForgotStep("PHONE");
+                    setForgotStep("RESET");
                     setForgotPhone(farmerCredentials.phone);
                     setForgotError(null);
                   }}

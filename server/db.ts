@@ -7,7 +7,6 @@ import {
   users,
   farmers,
   registrations,
-  otpChallenges,
   officers,
   procurementCentres,
   slots,
@@ -169,7 +168,6 @@ export class LocalDatabaseStore {
       "users",
       "farmers",
       "registrations",
-      "otpChallenges",
       "officers",
       "procurementCentres",
       "slots",
@@ -239,7 +237,14 @@ export class LocalDatabaseStore {
         autoIncrements: Object.fromEntries(this.autoIncrements.entries()),
         lastSaved: new Date().toISOString(),
       };
-      fs.writeFileSync(targetPath, JSON.stringify(data, null, 2), "utf-8");
+      const tempPath = `${targetPath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
+      try {
+        fs.renameSync(tempPath, targetPath);
+      } catch {
+        fs.copyFileSync(tempPath, targetPath);
+        fs.unlinkSync(tempPath);
+      }
     } catch (err) {
       console.warn("[Database] Failed to persist local store to disk:", err);
     }

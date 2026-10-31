@@ -123,6 +123,6 @@ describe("Database Resilience & Error Response Guarantees", () => {
     const data = await res.json();
     expect(data.status).toBeDefined();
     expect(["healthy", "degraded", "unhealthy"]).toContain(data.status);
-    expect(data.tablesTotal).toBe(16);
+    expect(data.tablesTotal).toBe(15);
   });
 });

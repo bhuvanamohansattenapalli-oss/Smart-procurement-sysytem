@@ -9,7 +9,6 @@ export const REQUIRED_TABLES = [
   "users",
   "farmers",
   "registrations",
-  "otpChallenges",
   "officers",
   "staffAuditLogs",
   "staffNotifications",
@@ -69,29 +68,6 @@ CREATE TABLE IF NOT EXISTS "registrations" (
   "reviewedByOfficerId" INTEGER,
   "submittedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
   "reviewedAt" TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS "otpChallenges" (
-  "id" SERIAL PRIMARY KEY,
-  "phone" VARCHAR(20) NOT NULL,
-  "activePhone" VARCHAR(20) UNIQUE,
-  "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION',
-  "name" VARCHAR(160),
-  "passwordHash" VARCHAR(255),
-  "village" VARCHAR(160),
-  "district" VARCHAR(160),
-  "primaryCrop" VARCHAR(80),
-  "aadhaarMasked" VARCHAR(32),
-  "declarationAccepted" INTEGER NOT NULL DEFAULT 1,
-  "otpHash" VARCHAR(255) NOT NULL,
-  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-  "expiresAt" TIMESTAMP NOT NULL,
-  "resendAvailableAt" TIMESTAMP NOT NULL,
-  "requestCount" INTEGER NOT NULL DEFAULT 1,
-  "attemptCount" INTEGER NOT NULL DEFAULT 0,
-  "verifiedAt" TIMESTAMP,
-  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS "officers" (
@@ -297,28 +273,6 @@ export async function ensurePostgresSchema(pool: pg.Pool): Promise<void> {
     15000,
     "PostgreSQL schema initialization timed out after 15000ms"
   );
-
-  // Upgrade otpChallenges table if needed
-  try {
-    await pool.query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'otpChallenges' AND column_name = 'purpose') THEN
-          ALTER TABLE "otpChallenges" ADD COLUMN "purpose" VARCHAR(32) NOT NULL DEFAULT 'REGISTRATION';
-        END IF;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "name" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "passwordHash" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "village" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "district" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "primaryCrop" DROP NOT NULL;
-        ALTER TABLE "otpChallenges" ALTER COLUMN "aadhaarMasked" DROP NOT NULL;
-      EXCEPTION
-        WHEN others THEN NULL;
-      END $$;
-    `);
-  } catch {
-    // Ignore if table schema is already updated
-  }
 
   console.log("[Database Migration] PostgreSQL schema initialized successfully.");
 }
