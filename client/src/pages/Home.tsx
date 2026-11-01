@@ -415,10 +415,9 @@ function AppLogo({ inverse = false, className = "" }: { inverse?: boolean; class
   return (
     <div className={`app-logo ${inverse ? "inverse" : ""} ${className} flex items-center`}>
       <img
-        src="/procureflow-logo.jpeg"
-        alt="ProcureFlow - Smart Procurement Management System"
-        className="brand-logo-img h-9 sm:h-10 md:h-11 w-auto object-contain rounded transition-transform hover:scale-[1.02]"
-        style={{ maxHeight: "44px", width: "auto" }}
+        src="/procureflow-logo.png"
+        alt="ProcureFlow – From Farm to Procurement"
+        className="brand-logo-img object-contain transition-transform hover:scale-[1.02]"
       />
     </div>
   );
