@@ -81,10 +81,8 @@ export function getGeminiModel(): string {
     if (normalized.includes("3.5-flash-lite") || normalized.includes("3.5-lite")) return "gemini-3.5-flash-lite";
     if (normalized.includes("flash-lite-latest") || normalized.includes("flash-lite")) return "gemini-flash-lite-latest";
     if (normalized.includes("3.5-flash")) return "gemini-3.5-flash-lite";
-    if (normalized.includes("3.8")) return "gemini-3.8-flash";
-    if (normalized.includes("argon") || normalized.includes("gemini-4")) return "gemini-4-argon";
-    // Deprecated legacy models automatically map to current 3.5 flash-lite
-    if (normalized.includes("2.5") || normalized.includes("2.0") || normalized.includes("1.5")) {
+    // Models with heavy reasoning or deprecated versions map to the low-latency conversational model
+    if (normalized.includes("3.8") || normalized.includes("argon") || normalized.includes("2.5") || normalized.includes("2.0") || normalized.includes("1.5")) {
       return "gemini-3.5-flash-lite";
     }
     return normalized;
