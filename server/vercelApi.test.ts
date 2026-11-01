@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import app from "../api/index";
-
-describe("Vercel Serverless Function API Entry Point (api/index.ts)", () => {
+import app from "./apiEntry";
+describe("Vercel Serverless Function API Entry Point (server/apiEntry.ts)", () => {
   let server: any;
   let baseUrl: string;
 

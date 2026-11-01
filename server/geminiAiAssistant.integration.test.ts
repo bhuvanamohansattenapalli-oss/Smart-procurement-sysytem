@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import express from "express";
 import { createProcurementApi } from "./routes/procurementApi";
-import vercelApp from "../api/index";
+import vercelApp from "./apiEntry";
 import { isGeminiConfigured, getGeminiModel, generateFarmerAssistantReply } from "./services/geminiService";
 
 describe("Google Gemini AI Integration & Assistants Suite", () => {

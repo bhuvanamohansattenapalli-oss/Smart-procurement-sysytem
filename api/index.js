@@ -1384,7 +1384,7 @@ var init_dbHealthService = __esm({
   }
 });
 
-// api/index.ts
+// server/apiEntry.ts
 import "dotenv/config";
 import express from "express";
 
@@ -5034,7 +5034,7 @@ Stack: ${err?.stack}`);
   return api;
 }
 
-// api/index.ts
+// server/apiEntry.ts
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 
 // shared/const.ts
@@ -5094,7 +5094,7 @@ async function createContext(opts) {
   };
 }
 
-// api/index.ts
+// server/apiEntry.ts
 console.info(
   `[Vercel Serverless Init] Node=${process.version} Platform=${process.platform} Env=${process.env.NODE_ENV || "production"} hasDB=${Boolean(
     process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0
@@ -5220,9 +5220,9 @@ var handler = (req, res) => {
   return app(req, res);
 };
 Object.assign(handler, app);
-var index_default = handler;
+var apiEntry_default = handler;
 export {
   app,
-  index_default as default,
+  apiEntry_default as default,
   handler
 };

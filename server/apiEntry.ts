@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express, { type Request, type Response, type NextFunction } from "express";
-import { createProcurementApi } from "../server/routes/procurementApi";
+import { createProcurementApi } from "./routes/procurementApi";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { appRouter } from "../server/routers";
-import { createContext } from "../server/_core/context";
+import { appRouter } from "./routers";
+import { createContext } from "./_core/context";
 
 // Safe diagnostic logging for serverless initialization (booleans only - NEVER expose secrets)
 console.info(
@@ -84,7 +84,7 @@ app.get(["/api/status/db", "/status/db"], async (_req: Request, res: Response) =
   }
 
   try {
-    const { getDb, isPostgresActive, getPgPool } = await import("../server/db");
+    const { getDb, isPostgresActive, getPgPool } = await import("./db");
     const db = await getDb();
     const pool = getPgPool();
     if (!db || !pool) {
