@@ -569,20 +569,20 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
       const pool = new Pool({
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
-        connectionTimeoutMillis: 3500,
+        connectionTimeoutMillis: 10000,
         idleTimeoutMillis: 30000,
         max: 10,
-        statement_timeout: 8000,
-        query_timeout: 8000,
+        statement_timeout: 25000,
+        query_timeout: 25000,
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000,
       });
 
-      // Fail-Fast: Test connection probe with a 3500ms timeout
+      // Fail-Fast: Test connection probe with a 5000ms timeout
       const testRes = await withTimeout(
         pool.query("SELECT 1 AS connected"),
-        3500,
-        `PostgreSQL connection probe to ${masked} timed out after 3500ms.`
+        5000,
+        `PostgreSQL connection probe to ${masked} timed out after 5000ms.`
       );
       if (!testRes || !testRes.rows || testRes.rows.length === 0) {
         throw new Error("PostgreSQL handshake returned empty response.");

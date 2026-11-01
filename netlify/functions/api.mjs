@@ -38027,18 +38027,18 @@ async function initDbInternal() {
       const pool = new Pool4({
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
-        connectionTimeoutMillis: 3500,
+        connectionTimeoutMillis: 1e4,
         idleTimeoutMillis: 3e4,
         max: 10,
-        statement_timeout: 8e3,
-        query_timeout: 8e3,
+        statement_timeout: 25e3,
+        query_timeout: 25e3,
         keepAlive: true,
         keepAliveInitialDelayMillis: 1e4
       });
       const testRes = await withTimeout2(
         pool.query("SELECT 1 AS connected"),
-        3500,
-        `PostgreSQL connection probe to ${masked} timed out after 3500ms.`
+        5e3,
+        `PostgreSQL connection probe to ${masked} timed out after 5000ms.`
       );
       if (!testRes || !testRes.rows || testRes.rows.length === 0) {
         throw new Error("PostgreSQL handshake returned empty response.");
@@ -76367,6 +76367,7 @@ async function seedDatabase() {
     }
   }
   const currentCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres);
+  const existingCentresWithSlots = new Set((await db.select({ centreId: slots.centreId }).from(slots)).map((s2) => s2.centreId));
   const now = /* @__PURE__ */ new Date();
   const dynamicDates = [];
   for (let i2 = 0; i2 <= 7; i2++) {
@@ -76374,12 +76375,12 @@ async function seedDatabase() {
     dynamicDates.push(d.toISOString().split("T")[0]);
   }
   const datesToSeed = Array.from(/* @__PURE__ */ new Set(["2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", ...dynamicDates]));
+  const newSlotsToInsert = [];
   for (const centre of currentCentres) {
-    const existingCentreSlots = await db.select({ id: slots.id }).from(slots).where(eq(slots.centreId, centre.id)).limit(1);
-    if (!existingCentreSlots[0]) {
+    if (!existingCentresWithSlots.has(centre.id)) {
       for (const d of datesToSeed) {
-        await db.insert(slots).values(
-          prototypeSlots.map(([startTime, endTime, capacity, bookedCount]) => ({
+        for (const [startTime, endTime, capacity, bookedCount] of prototypeSlots) {
+          newSlotsToInsert.push({
             centreId: centre.id,
             slotDate: d,
             startTime,
@@ -76387,9 +76388,16 @@ async function seedDatabase() {
             capacity,
             bookedCount,
             isActive: 1
-          }))
-        );
+          });
+        }
       }
+    }
+  }
+  if (newSlotsToInsert.length > 0) {
+    const BATCH_SIZE = 150;
+    for (let i2 = 0; i2 < newSlotsToInsert.length; i2 += BATCH_SIZE) {
+      const batch = newSlotsToInsert.slice(i2, i2 + BATCH_SIZE);
+      await db.insert(slots).values(batch);
     }
   }
   const allSlots = await db.select().from(slots);
@@ -101668,7 +101676,7 @@ function getGeminiModel() {
       return normalized;
     }
   }
-  return "gemini-3.5-flash-lite";
+  return "gemini-3.8-flash";
 }
 function getGeminiClient() {
   const key = getGeminiApiKey();
@@ -101807,7 +101815,7 @@ async function generateFarmerAssistantReply(options) {
       }
     });
     const timeoutPromise = new Promise(
-      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out (15s limit reached).")), 15e3)
+      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out (25s limit reached).")), 25e3)
     );
     const result = await Promise.race([callPromise, timeoutPromise]);
     const responseText = result.text?.trim();
@@ -101871,7 +101879,7 @@ async function generateOfficerAssistantReply(options) {
       }
     });
     const timeoutPromise = new Promise(
-      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out (15s limit reached).")), 15e3)
+      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out (25s limit reached).")), 25e3)
     );
     const result = await Promise.race([callPromise, timeoutPromise]);
     const responseText = result.text?.trim();

@@ -259,6 +259,7 @@ async function seedDatabase(): Promise<void> {
     }
   }
   const currentCentres = await db.select({ id: procurementCentres.id }).from(procurementCentres);
+  const existingCentresWithSlots = new Set((await db.select({ centreId: slots.centreId }).from(slots)).map(s => s.centreId));
   const now = new Date();
   const dynamicDates: string[] = [];
   for (let i = 0; i <= 7; i++) {
@@ -266,12 +267,13 @@ async function seedDatabase(): Promise<void> {
     dynamicDates.push(d.toISOString().split("T")[0]);
   }
   const datesToSeed = Array.from(new Set(["2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", ...dynamicDates]));
+
+  const newSlotsToInsert: any[] = [];
   for (const centre of currentCentres) {
-    const existingCentreSlots = await db.select({ id: slots.id }).from(slots).where(eq(slots.centreId, centre.id)).limit(1);
-    if (!existingCentreSlots[0]) {
+    if (!existingCentresWithSlots.has(centre.id)) {
       for (const d of datesToSeed) {
-        await db.insert(slots).values(
-          prototypeSlots.map(([startTime, endTime, capacity, bookedCount]) => ({
+        for (const [startTime, endTime, capacity, bookedCount] of prototypeSlots) {
+          newSlotsToInsert.push({
             centreId: centre.id,
             slotDate: d,
             startTime,
@@ -279,9 +281,18 @@ async function seedDatabase(): Promise<void> {
             capacity,
             bookedCount,
             isActive: 1,
-          }))
-        );
+          });
+        }
       }
+    }
+  }
+
+  // Insert in batches of 150 for fast network performance
+  if (newSlotsToInsert.length > 0) {
+    const BATCH_SIZE = 150;
+    for (let i = 0; i < newSlotsToInsert.length; i += BATCH_SIZE) {
+      const batch = newSlotsToInsert.slice(i, i + BATCH_SIZE);
+      await db.insert(slots).values(batch);
     }
   }
 

@@ -76,7 +76,7 @@ export function getGeminiModel(): string {
       return normalized;
     }
   }
-  return "gemini-3.5-flash-lite";
+  return "gemini-3.8-flash";
 }
 
 export function getGeminiClient(): GoogleGenAI | null {
@@ -269,7 +269,7 @@ export async function generateFarmerAssistantReply(options: FarmerChatOptions): 
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Gemini API request timed out (15s limit reached).")), 15000)
+      setTimeout(() => reject(new Error("Gemini API request timed out (25s limit reached).")), 25000)
     );
 
     const result = await Promise.race([callPromise, timeoutPromise]);
@@ -342,7 +342,7 @@ export async function generateOfficerAssistantReply(options: OfficerChatOptions)
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Gemini API request timed out (15s limit reached).")), 15000)
+      setTimeout(() => reject(new Error("Gemini API request timed out (25s limit reached).")), 25000)
     );
 
     const result = await Promise.race([callPromise, timeoutPromise]);
