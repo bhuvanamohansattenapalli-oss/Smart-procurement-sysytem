@@ -191,6 +191,7 @@ describe("Production Upgrades & Requirement Verification Tests", () => {
       paddyVariety: "Wheat (Gehun)",
       paddyGrade: "Grade A",
       expectedQuantityQuintals: "25.00",
+      tokenNumber: "TKN-PAST-01",
       status: "ACTIVE",
       createdAt: new Date(Date.now() - 40 * 60 * 1000),
     });

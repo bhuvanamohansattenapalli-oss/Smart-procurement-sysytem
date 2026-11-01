@@ -30,7 +30,12 @@ export type ApiPrincipal = {
   district?: string;
 };
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<
+  P = Record<string, string>,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = Record<string, any>
+> extends Request<P, ResBody, ReqBody, ReqQuery> {
   principal?: ApiPrincipal;
 }
 

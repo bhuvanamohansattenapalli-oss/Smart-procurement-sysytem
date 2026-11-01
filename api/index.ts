@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import { createProcurementApi } from "../server/routes/procurementApi";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../server/routers";
@@ -14,6 +14,16 @@ process.on("unhandledRejection", (reason) => {
 const app = express();
 
 // Middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -37,7 +47,7 @@ app.use(
   })
 );
 
-app.use("*", (req, res) => {
+app.use("*", (req: Request, res: Response) => {
   res.status(404).json({
     error: "NOT_FOUND",
     message: `API endpoint ${req.method} ${req.originalUrl || req.url} not found on Vercel serverless function.`,
@@ -45,12 +55,13 @@ app.use("*", (req, res) => {
 });
 
 // Global Express error handler for serverless function errors
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("[Vercel API Unhandled Error]", err);
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("[Vercel API Unhandled Error]", err instanceof Error ? (err.stack || err.message) : err);
   if (!res.headersSent) {
+    const message = err instanceof Error ? err.message : "An unexpected error occurred while executing the serverless function.";
     res.status(500).json({
       error: "SERVER_ERROR",
-      message: err?.message || "An unexpected error occurred while executing the serverless function.",
+      message,
     });
   }
 });

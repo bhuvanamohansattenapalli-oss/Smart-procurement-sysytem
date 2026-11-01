@@ -7,7 +7,7 @@ function signingKey() {
 }
 
 export async function issueAccessToken(principal: ApiPrincipal): Promise<string> {
-  return new SignJWT({
+  const token = await new SignJWT({
     role: principal.role,
     staffRole: principal.staffRole,
     department: principal.department,
@@ -24,24 +24,32 @@ export async function issueAccessToken(principal: ApiPrincipal): Promise<string>
     .setIssuedAt()
     .setExpirationTime("8h")
     .sign(signingKey());
+
+  console.log(`[Auth Audit] Issued JWT for principalId=${principal.id} role=${principal.role} code=${principal.code}`);
+  return token;
 }
 
 export async function verifyAccessToken(token: string): Promise<ApiPrincipal> {
-  const { payload } = await jwtVerify(token, signingKey());
-  const role = payload.role;
-  const id = Number(payload.sub);
-  if ((role !== "farmer" && role !== "officer") || !Number.isInteger(id)) {
-    throw new Error("Invalid API session.");
+  try {
+    const { payload } = await jwtVerify(token, signingKey());
+    const role = payload.role;
+    const id = Number(payload.sub);
+    if ((role !== "farmer" && role !== "officer") || !Number.isInteger(id)) {
+      throw new Error("Invalid API session claims.");
+    }
+    return {
+      id,
+      role,
+      staffRole: payload.staffRole as any,
+      department: payload.department ? String(payload.department) : undefined,
+      designation: payload.designation ? String(payload.designation) : undefined,
+      branch: payload.branch ? String(payload.branch) : undefined,
+      code: String(payload.code ?? ""),
+      name: String(payload.name ?? ""),
+      district: payload.district ? String(payload.district) : undefined,
+    };
+  } catch (err: any) {
+    console.warn(`[Auth Audit] JWT verification failed: ${err?.message || err}`);
+    throw err;
   }
-  return {
-    id,
-    role,
-    staffRole: payload.staffRole as any,
-    department: payload.department ? String(payload.department) : undefined,
-    designation: payload.designation ? String(payload.designation) : undefined,
-    branch: payload.branch ? String(payload.branch) : undefined,
-    code: String(payload.code ?? ""),
-    name: String(payload.name ?? ""),
-    district: payload.district ? String(payload.district) : undefined,
-  };
 }

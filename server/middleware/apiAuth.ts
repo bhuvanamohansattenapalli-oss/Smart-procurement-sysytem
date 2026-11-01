@@ -1,4 +1,4 @@
-import type { NextFunction, Response } from "express";
+import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { verifyAccessToken } from "../services/tokenService";
 import type { ApiRole, StaffRole, AuthenticatedRequest } from "../types/api";
 

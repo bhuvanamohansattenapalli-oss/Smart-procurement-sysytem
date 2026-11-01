@@ -76034,7 +76034,7 @@ function signingKey() {
   return new TextEncoder().encode(secret);
 }
 async function issueAccessToken(principal) {
-  return new SignJWT({
+  const token = await new SignJWT({
     role: principal.role,
     staffRole: principal.staffRole,
     department: principal.department,
@@ -76046,25 +76046,32 @@ async function issueAccessToken(principal) {
     name: principal.name,
     district: principal.district
   }).setProtectedHeader({ alg: "HS256" }).setSubject(String(principal.id)).setIssuedAt().setExpirationTime("8h").sign(signingKey());
+  console.log(`[Auth Audit] Issued JWT for principalId=${principal.id} role=${principal.role} code=${principal.code}`);
+  return token;
 }
 async function verifyAccessToken(token) {
-  const { payload } = await jwtVerify(token, signingKey());
-  const role = payload.role;
-  const id = Number(payload.sub);
-  if (role !== "farmer" && role !== "officer" || !Number.isInteger(id)) {
-    throw new Error("Invalid API session.");
+  try {
+    const { payload } = await jwtVerify(token, signingKey());
+    const role = payload.role;
+    const id = Number(payload.sub);
+    if (role !== "farmer" && role !== "officer" || !Number.isInteger(id)) {
+      throw new Error("Invalid API session claims.");
+    }
+    return {
+      id,
+      role,
+      staffRole: payload.staffRole,
+      department: payload.department ? String(payload.department) : void 0,
+      designation: payload.designation ? String(payload.designation) : void 0,
+      branch: payload.branch ? String(payload.branch) : void 0,
+      code: String(payload.code ?? ""),
+      name: String(payload.name ?? ""),
+      district: payload.district ? String(payload.district) : void 0
+    };
+  } catch (err) {
+    console.warn(`[Auth Audit] JWT verification failed: ${err?.message || err}`);
+    throw err;
   }
-  return {
-    id,
-    role,
-    staffRole: payload.staffRole,
-    department: payload.department ? String(payload.department) : void 0,
-    designation: payload.designation ? String(payload.designation) : void 0,
-    branch: payload.branch ? String(payload.branch) : void 0,
-    code: String(payload.code ?? ""),
-    name: String(payload.name ?? ""),
-    district: payload.district ? String(payload.district) : void 0
-  };
 }
 
 // server/middleware/apiAuth.ts
@@ -104823,7 +104830,7 @@ function createProcurementApi() {
     });
   });
   const apiErrorHandler = (error46, _req, res, _next) => {
-    console.error("[ProcureFlow API Error]", error46?.message || error46);
+    console.error("[ProcureFlow API Error]", error46 instanceof Error ? error46.stack || error46.message : error46?.message || error46);
     if (!res.headersSent) {
       const errStr = (error46?.message || String(error46)).toLowerCase();
       const isDbError = errStr.includes("database") || errStr.includes("relation") || errStr.includes("connection") || errStr.includes("pool") || error46?.code === "ECONNREFUSED" || error46?.code === "ETIMEDOUT";

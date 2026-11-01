@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, lte, ne, or, sql } from "drizzle-orm";
-import { Router, type ErrorRequestHandler, type NextFunction, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction, type ErrorRequestHandler, type RequestHandler } from "express";
 import { z } from "zod";
 import {
   bookings,
@@ -3360,7 +3360,7 @@ export function createProcurementApi() {
   });
 
   const apiErrorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
-    console.error("[ProcureFlow API Error]", error?.message || error);
+    console.error("[ProcureFlow API Error]", error instanceof Error ? (error.stack || error.message) : (error?.message || error));
     if (!res.headersSent) {
       const errStr = (error?.message || String(error)).toLowerCase();
       const isDbError =
