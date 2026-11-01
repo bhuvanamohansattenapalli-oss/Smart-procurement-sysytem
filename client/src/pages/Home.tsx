@@ -6357,292 +6357,465 @@ export default function Home() {
   const assistant = farmerShell(
     <>
       <SectionTitle
-        eyebrow="AI FARMER ASSISTANT · DIGITAL KRISHI HELP CENTRE"
-        title={t.assistantTitle}
-        body={tUi("Ask any question regarding your live booking token, queue position, AP weather harvesting advisory, crop MSP rates, or subsidized transport.", language)}
+        eyebrow="DIGITAL KRISHI HELP CENTRE · 24x7 AGRI ADVISORY"
+        title="ProcureFlow Agricultural Help Centre"
+        body={tUi("Instant operational answers for token queue, fair MSP prices, weather harvest advisories, subsidized transport, and farmer DBT settlements.", language)}
       />
-      <div className="assistant-advanced-layout">
-        <section className="chat-panel">
-          <div className="chat-head">
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
+        {/* LEFT COLUMN: AI CHAT (lg:col-span-8 - ~67%) */}
+        <section className="lg:col-span-8 flex flex-col bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden min-h-[580px] h-[720px] max-h-[85vh]">
+          {/* Header */}
+          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-white shrink-0">
             <div className="flex items-center gap-3">
-              <span className="assistant-bot-avatar"><Bot size={20} /></span>
+              <div className="w-10 h-10 rounded-xl bg-[#144730] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Bot size={22} />
+              </div>
               <div>
-                <b className="text-sm font-extrabold text-[#143d2c]">ProcureFlow AI Assistant</b>
-                <small className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                  <i className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                  {tUi("Digital Krishi Help Centre", language)} · 24x7 Government Agri-Support
-                </small>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm sm:text-base font-extrabold text-slate-900 m-0">
+                    ProcureFlow Agricultural Assistant
+                  </h2>
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <i className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Online
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 m-0 mt-0.5">
+                  Your intelligent farming and procurement companion
+                </p>
               </div>
             </div>
+
             <div className="flex items-center gap-2">
               <LanguagePicker language={language} setLanguage={changeLanguage} />
               <button
                 type="button"
                 onClick={clearChat}
-                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-slate-200"
-                title="Clear Chat Conversation"
+                className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-slate-200 cursor-pointer"
+                title="Clear conversation"
+                aria-label="Clear conversation"
               >
                 <Trash2 size={16} />
               </button>
             </div>
           </div>
 
-          <div className="assistant-category-chips">
-            {[
-              { id: "ALL", label: "🌟 " + tUi("All Topics", language) },
-              { id: "TOKEN", label: "🎫 " + tUi("Token & Queue", language) },
-              { id: "WEATHER", label: "🌧️ " + tUi("Weather & Advisory", language) },
-              { id: "MSP", label: "🌾 " + tUi("Crop MSP Rates", language) },
-              { id: "TRANSPORT", label: "🚚 " + tUi("Subsidized Transport", language) },
-              { id: "PROCUREMENT", label: "⚖️ " + tUi("Procurement Help", language) },
-              { id: "HELPLINE", label: "📞 " + tUi("Helplines & Docs", language) },
-            ].map(cat => (
-              <button
-                key={cat.id}
-                className={`category-chip-btn ${assistantCategory === cat.id ? "active" : ""}`}
-                onClick={() => setAssistantCategory(cat.id)}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="chat-feed" ref={chatFeedRef}>
+          {/* Conversation Area */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#fbfdfc]" ref={chatFeedRef}>
             {chat.length === 0 ? (
-              <div className="chat-empty-state">
-                <span className="chat-empty-badge">
-                  🌾 {tUi("Digital Krishi Help Centre", language)}
-                </span>
-                <h3 className="chat-empty-title">
-                  {tUi("How can I help you today?", language)}
+              <div className="h-full flex flex-col items-center justify-center text-center p-4 sm:p-6 my-auto">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center justify-center mb-3 shadow-2xs">
+                  <Bot size={28} />
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 mb-1.5">
+                  {language === "TE"
+                    ? "నమస్తే! ప్రొక్యూర్‌ఫ్లోకు స్వాగతం."
+                    : language === "HI"
+                    ? "नमस्ते! प्रोक्योरफ्लो में आपका स्वागत है।"
+                    : "Namaste! Welcome to ProcureFlow."}
                 </h3>
-                <p className="chat-empty-desc">
-                  {tUi("Ask any question regarding your live booking token, queue position, AP weather harvesting advisory, crop MSP rates, or subsidized transport.", language)}
+                <p className="text-xs sm:text-sm text-slate-600 max-w-md leading-relaxed mb-6">
+                  {language === "TE"
+                    ? "నేను పంట ధరలు, MSP రేట్లు, వాతావరణ సలహాలు, కొనుగోలు బుకింగ్‌లు, రవాణా మరియు వ్యవసాయ ప్రశ్నలతో మీకు సహాయం చేయగలను."
+                    : language === "HI"
+                    ? "मैं फसल की कीमतों, एमएसपी दरों, मौसम सलाह, खरीद बुकिंग, परिवहन और खेती से जुड़े सवालों में आपकी मदद कर सकता हूँ।"
+                    : "I can help you with crop prices, MSP rates, weather advisories, procurement bookings, transportation and farming-related questions."}
                 </p>
-                <div className="prompt-chips-grid max-w-xl">
-                  {(promptCategories[assistantCategory] ?? promptCategories.ALL).slice(0, 4).map(question => (
-                    <button
-                      className="prompt-chip-btn"
-                      onClick={() => void assistantReply(question)}
-                      key={question}
-                    >
-                      💡 {question}
-                    </button>
-                  ))}
+
+                <div className="w-full max-w-md">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2.5">
+                    💡 Suggested Inquiries
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                    {[
+                      { label: "What is my token and estimated wait time?", icon: Ticket },
+                      { label: "What is the 2025-26 MSP rate for Grade A Paddy?", icon: Coins },
+                      { label: "Is today's weather safe for paddy harvest in Guntur?", icon: CloudSun },
+                      { label: "How do I book a 30% subsidized tractor trolley?", icon: Truck },
+                    ].map((item, idx) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => void assistantReply(item.label)}
+                          className="p-3 bg-white hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-emerald-900 transition-all flex items-center gap-2.5 shadow-2xs group cursor-pointer"
+                        >
+                          <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Icon size={14} />
+                          </span>
+                          <span className="line-clamp-2 leading-snug">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ) : (
               chat.map((message, index) => (
-                <div className={`chat-bubble ${message.role}`} key={`${message.text}-${index}`}>
-                  {message.role === "assistant" ? (
-                    <>
-                      <div className="assistant-head-info">
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                          <Bot size={14} className="text-emerald-700" /> ProcureFlow Krishi AI
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className={`ai-source-badge ${message.source === "fallback" ? "fallback" : "gemini"}`}>
-                            {message.source === "fallback" ? "🌾 Offline Advisory" : "✨ ProcureFlow Krishi AI"}
-                          </span>
-                          <button
-                            onClick={() => speak(message.text)}
-                            aria-label="Listen to response"
-                            className={`assistant-audio-btn ${speakingText === message.text ? "text-emerald-600 animate-pulse" : ""}`}
-                            title="Read answer aloud"
-                          >
-                            <Volume2 size={14} /> Listen
-                          </button>
-                        </div>
-                      </div>
-                      {message.warning && (
-                        <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 mb-1">
-                          ⚠️ {message.warning}
+                <div
+                  key={`${message.text}-${index}`}
+                  className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"} w-full`}
+                >
+                  {message.role === "user" ? (
+                    <div className="flex flex-col items-end max-w-[85%] sm:max-w-[78%]">
+                      <span className="text-[10px] font-bold text-emerald-800 mb-1 px-1">
+                        You (Farmer)
+                      </span>
+                      <div className="bg-[#ecf7f0] border border-[#d0e9d6] text-[#133e29] rounded-2xl rounded-tr-xs px-4 py-2.5 shadow-2xs">
+                        <p className="text-xs sm:text-sm font-medium leading-relaxed whitespace-pre-wrap break-words m-0">
+                          {message.text}
                         </p>
-                      )}
-                      <p>{message.text}</p>
-                    </>
+                      </div>
+                    </div>
                   ) : (
-                    <>
-                      <span className="user-label-pill">You (Farmer)</span>
-                      <p>{message.text}</p>
-                    </>
+                    <div className="bg-white border border-slate-200/90 text-slate-800 rounded-2xl rounded-tl-xs px-4 py-3.5 max-w-[92%] sm:max-w-[85%] shadow-xs">
+                      {/* Message Header */}
+                      <div className="flex items-center justify-between w-full mb-2 pb-1.5 border-b border-slate-100 gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                            <Bot size={13} />
+                          </div>
+                          <span className="text-xs font-bold text-emerald-950">
+                            ProcureFlow Krishi Assistant
+                          </span>
+                          <span className="hidden xs:inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {message.source === "fallback" ? "🌾 Advisory" : "✨ Krishi AI"}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => speak(message.text)}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer border shrink-0 ${
+                            speakingText === message.text
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse"
+                              : "text-slate-500 hover:text-emerald-800 hover:bg-slate-50 border-slate-200"
+                          }`}
+                          title={speakingText === message.text ? "Reading aloud..." : "Read answer aloud"}
+                          aria-label="Read answer aloud"
+                        >
+                          <Volume2 size={13} />
+                          <span className="hidden sm:inline">{speakingText === message.text ? "Playing..." : "Listen"}</span>
+                        </button>
+                      </div>
+
+                      {message.warning && (
+                        <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs mb-2 flex items-center gap-1.5">
+                          <span>⚠️ {message.warning}</span>
+                        </div>
+                      )}
+
+                      <div className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words text-slate-800 font-normal">
+                        {message.text}
+                      </div>
+                    </div>
                   )}
                 </div>
               ))
             )}
 
             {chatLoading && (
-              <div className="chat-bubble assistant">
-                <div className="ai-typing-indicator">
-                  <Bot size={14} className="animate-pulse" />
-                  <span>{tUi("ProcureFlow Krishi AI is thinking...", language)}</span>
+              <div className="flex flex-col items-start w-full">
+                <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-xs px-4 py-3 shadow-xs flex items-center gap-2 text-xs text-slate-600">
+                  <Bot size={15} className="text-emerald-700 animate-pulse" />
+                  <span className="font-semibold">{tUi("ProcureFlow Krishi Assistant is thinking...", language)}</span>
                   <div className="flex items-center gap-1 ml-1">
-                    <span className="ai-typing-dot" />
-                    <span className="ai-typing-dot" />
-                    <span className="ai-typing-dot" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-bounce" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-bounce [animation-delay:0.4s]" />
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="suggested-prompts">
-            <span className="font-bold text-xs text-[#164330] block mb-1">
-              💡 {tUi("Select a quick question:", language)}
+          {/* Quick Questions Grid */}
+          <div className="px-4 sm:px-5 py-3 border-t border-slate-100 bg-white shrink-0">
+            <span className="text-xs font-bold text-slate-700 block mb-2">
+              💡 {tUi("Quick Questions:", language)}
             </span>
-            <div className="prompt-chips-grid">
-              {(promptCategories[assistantCategory] ?? promptCategories.ALL).map(question => (
-                <button
-                  className="prompt-chip-btn"
-                  onClick={() => void assistantReply(question)}
-                  key={question}
-                >
-                  {question}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                {
+                  id: "token",
+                  label: tUi("Check My Token", language),
+                  query: "What is my token and estimated wait time?",
+                  icon: Ticket,
+                },
+                {
+                  id: "msp",
+                  label: tUi("Current Paddy MSP", language),
+                  query: "What is the 2025-26 MSP rate for Grade A Paddy?",
+                  icon: Coins,
+                },
+                {
+                  id: "weather",
+                  label: tUi("Today's Weather", language),
+                  query: "Is today's weather safe for paddy harvest in Guntur?",
+                  icon: CloudSun,
+                },
+                {
+                  id: "mandi",
+                  label: tUi("Mandi Prices", language),
+                  query: "What are the latest modal mandi prices for paddy and cotton?",
+                  icon: BarChart3,
+                },
+                {
+                  id: "transport",
+                  label: tUi("Subsidized Transport", language),
+                  query: "How do I book a 30% subsidized tractor trolley?",
+                  icon: Truck,
+                },
+                {
+                  id: "documents",
+                  label: tUi("Procurement Documents", language),
+                  query: "What documents must I carry to the procurement mandi?",
+                  icon: ClipboardCheck,
+                },
+              ].map(q => {
+                const Icon = q.icon;
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => void assistantReply(q.query)}
+                    className="flex items-center gap-2 py-2 px-3 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-900 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all text-left shadow-2xs group cursor-pointer"
+                  >
+                    <span className="w-6 h-6 rounded-lg bg-white border border-slate-200 group-hover:border-emerald-300 text-emerald-700 flex items-center justify-center shrink-0">
+                      <Icon size={13} />
+                    </span>
+                    <span className="truncate">{q.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Live Voice Recording Status Banner */}
-          {isListening && (
-            <div className="chat-listening-banner">
-              <span className="recording-dot" />
-              <span>{tUi("Listening... Speak now", language)} · Words appear in the input as you speak</span>
-            </div>
-          )}
+          {/* Chat Input Area */}
+          <div className="p-4 sm:p-5 border-t border-slate-100 bg-white shrink-0">
+            {isListening && (
+              <div className="p-2.5 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs font-bold flex items-center gap-2 mb-2 animate-pulse">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+                <span>{tUi("Listening... Speak now", language)} · Words appear in the input as you speak</span>
+              </div>
+            )}
 
-          <form
-            className="chat-compose"
-            onSubmit={e => {
-              e.preventDefault();
-              void assistantReply(chatInput);
-            }}
-          >
-            <button
-              type="button"
-              onClick={listen}
-              title={isListening ? "Stop listening" : "Use voice input"}
-              className={isListening ? "bg-red-600 text-white animate-pulse ring-4 ring-red-200" : "hover:bg-emerald-100"}
-              aria-label="Toggle voice input"
+            <form
+              className="flex items-center gap-2"
+              onSubmit={e => {
+                e.preventDefault();
+                void assistantReply(chatInput);
+              }}
             >
-              <Mic size={18} />
-            </button>
-            <Input
-              value={chatInput}
-              onChange={event => setChatInput(event.target.value)}
-              placeholder={
-                isListening
-                  ? tUi("Listening... Speak now", language)
-                  : tUi("Type your question in English, Telugu, or Hindi…", language)
-              }
-            />
-            <button type="submit" title="Send question" className="bg-emerald-700 hover:bg-emerald-800 text-white">
-              <ArrowRight size={18} />
-            </button>
-          </form>
-          <p className="voice-note">
-            <Headphones size={15} /> Voice recognition & speech read-aloud enabled in English, Telugu and Hindi.
-          </p>
+              <button
+                type="button"
+                onClick={listen}
+                title={isListening ? "Stop listening" : "Use voice input"}
+                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors cursor-pointer border ${
+                  isListening
+                    ? "bg-red-600 text-white border-red-600 animate-pulse ring-4 ring-red-100"
+                    : "bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border-slate-200 hover:border-emerald-200"
+                }`}
+                aria-label="Toggle voice input"
+              >
+                <Mic size={18} />
+              </button>
+
+              <Input
+                value={chatInput}
+                onChange={event => setChatInput(event.target.value)}
+                placeholder={
+                  isListening
+                    ? tUi("Listening... Speak now", language)
+                    : tUi("Ask in English, Telugu, or Hindi (e.g. 'What is the paddy MSP today?')", language)
+                }
+                className="h-11 rounded-xl text-xs sm:text-sm border-slate-200 focus:border-emerald-600 focus:ring-emerald-200 flex-1"
+              />
+
+              <Button
+                type="submit"
+                disabled={chatLoading || !chatInput.trim()}
+                title="Send question"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white w-11 h-11 rounded-xl flex items-center justify-center shrink-0 p-0"
+              >
+                <ArrowRight size={18} />
+              </Button>
+            </form>
+
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-2 px-1">
+              <Headphones size={13} className="text-emerald-700 shrink-0" />
+              <span>Voice recognition & speech read-aloud enabled in English, Telugu and Hindi.</span>
+            </div>
+          </div>
         </section>
 
-        <aside className="helpline-side-card">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 grid place-items-center font-bold">
-              📞
+        {/* RIGHT COLUMN: GOVERNMENT AGRICULTURAL HELP (lg:col-span-4 - ~33%) */}
+        <aside className="lg:col-span-4 flex flex-col gap-5">
+          {/* Card 1: Official Rythu Helplines */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 grid place-items-center font-bold shrink-0">
+                <PhoneCall size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-[#153828] m-0">
+                  {tUi("Official Rythu Helplines", language)}
+                </h3>
+                <p className="text-[11px] text-muted-foreground m-0">
+                  {tUi("Direct Government Support Desks", language)}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-extrabold text-[#153828] m-0">{tUi("Official Rythu Helplines", language)}</h3>
-              <p className="text-[11px] text-muted-foreground m-0">{tUi("Direct Government Support Desks", language)}</p>
+
+            <div className="flex flex-col gap-3">
+              {/* 1. Rythu Bharosa Kendra Helpdesk */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 m-0">
+                      {tUi("Rythu Bharosa Kendra Helpdesk", language)}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                      Toll-free · Mon–Sat (8 AM – 7 PM)
+                    </p>
+                  </div>
+                  <span className="font-mono text-xs font-extrabold text-emerald-800 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
+                    1800-425-0002
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                  <a
+                    href="tel:18004250002"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors"
+                    title="Call Rythu Helpline"
+                  >
+                    <PhoneCall size={12} /> Call Helpline
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText("18004250002");
+                      toast.success("Helpline 1800-425-0002 copied.");
+                    }}
+                    className="p-1.5 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    title="Copy number"
+                  >
+                    <Copy size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. AP Civil Supplies & Mandi Grievance */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 m-0">
+                      {tUi("AP Civil Supplies & Mandi Grievance", language)}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                      24x7 Government Helpline
+                    </p>
+                  </div>
+                  <span className="font-mono text-xs font-extrabold text-emerald-800 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
+                    1902
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                  <a
+                    href="tel:1902"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors"
+                    title="Call 1902"
+                  >
+                    <PhoneCall size={12} /> Call Helpline
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText("1902");
+                      toast.success("Helpline 1902 copied.");
+                    }}
+                    className="p-1.5 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    title="Copy number"
+                  >
+                    <Copy size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Kisan Call Centre */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 m-0">
+                      {tUi("Kisan Call Centre", language)}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                      National Agri-Support · 22 Languages
+                    </p>
+                  </div>
+                  <span className="font-mono text-xs font-extrabold text-emerald-800 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
+                    1800-180-1551
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                  <a
+                    href="tel:18001801551"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors"
+                    title="Call Kisan Helpline"
+                  >
+                    <PhoneCall size={12} /> Call Helpline
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText("18001801551");
+                      toast.success("Helpline 1800-180-1551 copied.");
+                    }}
+                    className="p-1.5 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    title="Copy number"
+                  >
+                    <Copy size={13} />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="helpline-item-row">
-            <div className="helpline-info">
-              <h4>{tUi("Rythu Bharosa Kendra Helpdesk", language)}</h4>
-              <p>Toll-free · Mon–Sat (8 AM – 7 PM)</p>
-              <b>1800-425-0002</b>
+          {/* Card 2: Mandatory Mandi Checklist */}
+          <div className="bg-[#f7faf8] rounded-2xl border border-[#cfe3d5] p-5 shadow-sm flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={16} className="text-emerald-700 shrink-0" />
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#144730] m-0">
+                {tUi("Mandatory Mandi Checklist:", language)}
+              </h4>
             </div>
-            <div className="helpline-actions">
-              <a href="tel:18004250002" className="helpline-call-btn" title="Call Rythu Helpline">
-                <PhoneCall size={12} /> Call
-              </a>
-              <button
-                className="helpline-copy-btn"
-                onClick={() => {
-                  navigator.clipboard?.writeText("18004250002");
-                  toast.success("Helpline 1800-425-0002 copied.");
-                }}
-                title="Copy number"
-              >
-                <Copy size={13} />
-              </button>
-            </div>
-          </div>
 
-          <div className="helpline-item-row">
-            <div className="helpline-info">
-              <h4>{tUi("AP Civil Supplies & Mandi Grievance", language)}</h4>
-              <p>24x7 Government Helpline</p>
-              <b>1902</b>
-            </div>
-            <div className="helpline-actions">
-              <a href="tel:1902" className="helpline-call-btn" title="Call 1902">
-                <PhoneCall size={12} /> Call
-              </a>
-              <button
-                className="helpline-copy-btn"
-                onClick={() => {
-                  navigator.clipboard?.writeText("1902");
-                  toast.success("Helpline 1902 copied.");
-                }}
-                title="Copy number"
-              >
-                <Copy size={13} />
-              </button>
-            </div>
-          </div>
-
-          <div className="helpline-item-row">
-            <div className="helpline-info">
-              <h4>{tUi("Kisan Call Centre", language)}</h4>
-              <p>National Agri-Support · 22 Languages</p>
-              <b>1800-180-1551</b>
-            </div>
-            <div className="helpline-actions">
-              <a href="tel:18001801551" className="helpline-call-btn" title="Call Kisan Helpline">
-                <PhoneCall size={12} /> Call
-              </a>
-              <button
-                className="helpline-copy-btn"
-                onClick={() => {
-                  navigator.clipboard?.writeText("18001801551");
-                  toast.success("Helpline 1800-180-1551 copied.");
-                }}
-                title="Copy number"
-              >
-                <Copy size={13} />
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 p-4 bg-[#f4faf6] border border-[#c7e3d1] rounded-xl">
-            <h4 className="text-xs font-bold text-[#144730] mb-2 flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-emerald-700" /> {tUi("Mandatory Mandi Checklist:", language)}
-            </h4>
-            <ul className="text-[11px] text-[#244b38] space-y-1.5 pl-1 m-0 list-none">
-              <li className="flex items-center gap-1.5">
-                <Check size={12} className="text-emerald-600" /> 1. Farmer Registration ID / Aadhaar
+            <ul className="text-xs text-[#244b38] space-y-2 pl-0 m-0 list-none font-medium">
+              <li className="flex items-start gap-2">
+                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+                <span>1. Farmer Registration ID / Aadhaar Card</span>
               </li>
-              <li className="flex items-center gap-1.5">
-                <Check size={12} className="text-emerald-600" /> 2. Aadhaar-linked Bank Passbook (DBT)
+              <li className="flex items-start gap-2">
+                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+                <span>2. Aadhaar-linked Bank Passbook (DBT Account)</span>
               </li>
-              <li className="flex items-center gap-1.5">
-                <Check size={12} className="text-emerald-600" /> 3. e-Crop / Land Record (Pahani/1B)
+              <li className="flex items-start gap-2">
+                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+                <span>3. e-Crop / Land Record (Pahani / 1B Receipt)</span>
               </li>
-              <li className="flex items-center gap-1.5">
-                <Check size={12} className="text-emerald-600" /> 4. Digital Token Pass (<b>{bookingRecord?.tokenNumber ?? "Token 1"}</b>)
+              <li className="flex items-start gap-2">
+                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  4. Digital Token Pass (<b>{bookingRecord?.tokenNumber ?? "Token Active"}</b>)
+                </span>
               </li>
             </ul>
+
+            <div className="p-2.5 bg-white/80 rounded-xl border border-[#c2ded0] text-[11px] text-[#2d5641] leading-relaxed">
+              ℹ️ Moisture must be tested below <b>17%</b> for Fair Average Quality (FAQ) standards before weighbridge entry.
+            </div>
           </div>
         </aside>
       </div>
