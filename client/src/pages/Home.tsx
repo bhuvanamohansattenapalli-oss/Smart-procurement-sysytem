@@ -78,6 +78,7 @@ import {
   ShieldAlert,
   Send,
   Trash2,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1210,15 +1211,22 @@ export default function Home() {
   type WeatherData = {
     district: string;
     state: string;
+    locationName?: string;
+    locationSource?: "EXACT_COORDINATES" | "VILLAGE_CENTROID" | "DISTRICT_CENTROID";
     temperature: number;
     feelsLike: number;
+    apparentTemperature?: number;
     condition: string;
-    conditionCode: "SUNNY" | "PARTLY_CLOUDY" | "LIGHT_RAIN" | "CLEAR" | "HUMID";
+    conditionCode: "SUNNY" | "PARTLY_CLOUDY" | "LIGHT_RAIN" | "HEAVY_RAIN" | "CLEAR" | "HUMID";
     humidity: number;
+    relativeHumidity?: number;
     windSpeedKmH: number;
     precipitationChance: number;
+    hourlyPrecipitationProbability?: number;
+    rainfallMm?: number;
+    precipitationMm?: number;
     uvIndex: number;
-    safeHarvestingIndex: "OPTIMAL" | "FAVORABLE" | "CAUTION";
+    safeHarvestingIndex: "OPTIMAL" | "FAVORABLE" | "CAUTION" | "HIGH_RISK";
     advisoryEn: string;
     advisoryTe: string;
     advisoryHi: string;
@@ -1229,6 +1237,45 @@ export default function Home() {
       condition: string;
       rainChance: number;
     }>;
+    openMeteo?: any;
+    sellingAdvisory?: any;
+    hourlyForecast?: Array<{
+      time: string;
+      temperatureC: number;
+      humidityPercent: number;
+      precipitationProbability: number;
+      precipitationAmountMm: number;
+      rainfallMm: number;
+      windSpeedKmH: number;
+      weatherCondition: string;
+      weatherCode: number;
+    }>;
+    dailyForecast?: Array<{
+      date: string;
+      dayName: string;
+      tempHighC: number;
+      tempLowC: number;
+      maxPrecipitationProbability: number;
+      totalRainfallMm: number;
+      maxWindSpeedKmH: number;
+      weatherCondition: string;
+      weatherCode: number;
+      sunrise?: string;
+      sunset?: string;
+    }>;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+    metadata?: {
+      dataSource: string;
+      attribution: string;
+      apiRetrievalTime: string;
+      lastSynchronizedAt: string;
+      isStale: boolean;
+      cacheTtlSeconds: number;
+    };
+    attribution?: string;
   };
 
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
@@ -1433,18 +1480,68 @@ export default function Home() {
     });
   }, [language, screen]);
 
-  const loadWeather = async (district: string = "Guntur") => {
+  const loadWeather = async (
+    target?: string | { district?: string; village?: string; lat?: number; lon?: number }
+  ) => {
     setWeatherLoading(true);
     try {
-      const response = await fetch(apiUrl(`/weather?district=${encodeURIComponent(district)}`));
+      const params = new URLSearchParams();
+      if (typeof target === "string") {
+        params.set("district", target);
+      } else if (target && typeof target === "object") {
+        if (target.lat !== undefined && target.lon !== undefined) {
+          params.set("lat", target.lat.toString());
+          params.set("lon", target.lon.toString());
+        }
+        if (target.district) params.set("district", target.district);
+        if (target.village) params.set("village", target.village);
+      } else if (profileRecord?.village || profileRecord?.district) {
+        if (profileRecord.village) params.set("village", profileRecord.village);
+        if (profileRecord.district) params.set("district", profileRecord.district);
+      } else {
+        params.set("district", selectedWeatherDistrict);
+      }
+
+      if (profileRecord?.id) {
+        params.set("farmerId", profileRecord.id.toString());
+      }
+
+      const response = await fetch(apiUrl(`/weather?${params.toString()}`));
       if (response.ok) {
         const data = await response.json();
         setWeatherData(data.weather);
+        if (data.weather?.district) {
+          setSelectedWeatherDistrict(data.weather.district);
+        }
       }
-    } catch {}
-    finally {
+    } catch (err) {
+      console.warn("[Weather Load Error]", err);
+    } finally {
       setWeatherLoading(false);
     }
+  };
+
+  const requestGpsWeather = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setWeatherLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        void loadWeather({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        });
+        toast.success(`Weather synced with farm GPS (${pos.coords.latitude.toFixed(3)}°N, ${pos.coords.longitude.toFixed(3)}°E)`);
+      },
+      (err) => {
+        setWeatherLoading(false);
+        toast.error("Location permission denied or unavailable. Using registered farm district.");
+        void loadWeather({ district: selectedWeatherDistrict });
+      },
+      { timeout: 8000 }
+    );
   };
 
   const loadCropPrices = async () => {
@@ -5189,44 +5286,167 @@ export default function Home() {
   const weatherScreen = farmerShell(
     <>
       <SectionTitle
-        eyebrow="ANDHRA PRADESH AGRICULTURAL METEOROLOGY"
+        eyebrow="ANDHRA PRADESH & TELANGANA AGRICULTURAL METEOROLOGY"
         title={t.weatherTitle}
         body={t.weatherBody}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* GPS Location Button */}
+            <button
+              type="button"
+              onClick={requestGpsWeather}
+              disabled={weatherLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-bold hover:bg-emerald-100 transition shadow-xs"
+              title="Detect farm weather via GPS"
+            >
+              <LocateFixed size={14} className="text-emerald-700" />
+              <span>Use Farm GPS</span>
+            </button>
+
+            {/* Registered Farm Location Button if available */}
+            {profileRecord?.village && (
+              <button
+                type="button"
+                onClick={() =>
+                  void loadWeather({
+                    village: profileRecord.village,
+                    district: profileRecord.district,
+                  })
+                }
+                disabled={weatherLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 transition shadow-xs"
+                title={`Sync with registered village: ${profileRecord.village}`}
+              >
+                <MapPin size={13} className="text-emerald-700" />
+                <span>Farm: {profileRecord.village}</span>
+              </button>
+            )}
+
+            {/* Complete AP & TS District Dropdown */}
             <select
-              className="district-selector-dropdown"
+              className="district-selector-dropdown text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 text-foreground cursor-pointer"
               value={selectedWeatherDistrict}
               onChange={(e) => {
                 const d = e.target.value;
                 setSelectedWeatherDistrict(d);
                 void loadWeather(d);
               }}
+              aria-label="Select Agricultural District"
             >
-              {["Guntur", "Vijayawada", "Kurnool", "Rajahmundry", "Visakhapatnam", "Eluru", "Nellore", "Tirupati"].map(dist => (
-                <option key={dist} value={dist}>{dist} District</option>
-              ))}
+              <optgroup label="Andhra Pradesh Districts">
+                <option value="Guntur">Guntur District</option>
+                <option value="Tenali">Tenali (Guntur)</option>
+                <option value="Bapatla">Bapatla District</option>
+                <option value="Palnadu">Palnadu (Narasaraopet)</option>
+                <option value="Vijayawada">Vijayawada (NTR)</option>
+                <option value="Krishna">Krishna (Machilipatnam)</option>
+                <option value="Kurnool">Kurnool District</option>
+                <option value="Nandyal">Nandyal District</option>
+                <option value="Rajahmundry">Rajahmundry (East Godavari)</option>
+                <option value="Kakinada">Kakinada District</option>
+                <option value="Konaseema">Konaseema (Amalapuram)</option>
+                <option value="Eluru">Eluru District</option>
+                <option value="Bhimavaram">West Godavari (Bhimavaram)</option>
+                <option value="Nellore">Nellore (SPSR)</option>
+                <option value="Tirupati">Tirupati District</option>
+                <option value="Chittoor">Chittoor District</option>
+                <option value="Kadapa">YSR Kadapa District</option>
+                <option value="Anantapur">Anantapur District</option>
+                <option value="Sri Sathya Sai">Sri Sathya Sai (Puttaparthi)</option>
+                <option value="Visakhapatnam">Visakhapatnam</option>
+                <option value="Anakapalli">Anakapalli District</option>
+                <option value="Srikakulam">Srikakulam District</option>
+                <option value="Vizianagaram">Vizianagaram District</option>
+                <option value="Prakasam">Prakasam (Ongole)</option>
+              </optgroup>
+              <optgroup label="Telangana Districts">
+                <option value="Nizamabad">Nizamabad District</option>
+                <option value="Karimnagar">Karimnagar District</option>
+                <option value="Warangal">Warangal District</option>
+                <option value="Khammam">Khammam District</option>
+                <option value="Nalgonda">Nalgonda District</option>
+                <option value="Miryalaguda">Miryalaguda Mandi</option>
+                <option value="Suryapet">Suryapet District</option>
+                <option value="Mahabubnagar">Mahabubnagar District</option>
+                <option value="Hyderabad">Hyderabad</option>
+              </optgroup>
             </select>
-            <ActionButton onClick={() => void loadWeather(selectedWeatherDistrict)} icon={LocateFixed}>
-              Refresh
+
+            <ActionButton
+              onClick={() => void loadWeather(selectedWeatherDistrict)}
+              icon={RefreshCw}
+              disabled={weatherLoading}
+            >
+              <span className={weatherLoading ? "animate-spin inline-block" : ""}>Refresh</span>
             </ActionButton>
           </div>
         }
       />
 
+      {/* Location Breadcrumb & Coordinates Header */}
+      <div className="mb-4 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <MapPin size={15} className="text-emerald-700 dark:text-emerald-400 shrink-0" />
+          <span className="font-extrabold text-[#0a1f33] dark:text-slate-100">
+            {weatherData?.locationName || `${weatherData?.district ?? selectedWeatherDistrict}, Andhra Pradesh`}
+          </span>
+          {weatherData?.coordinates && (
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+              {weatherData.coordinates.latitude.toFixed(4)}°N, {weatherData.coordinates.longitude.toFixed(4)}°E
+            </span>
+          )}
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+            {weatherData?.locationSource === "EXACT_COORDINATES"
+              ? "GPS Coordinates"
+              : weatherData?.locationSource === "VILLAGE_CENTROID"
+              ? "Registered Farm Centroid"
+              : "District APMC Centroid"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 text-[11px] text-slate-500">
+          <span>
+            API Synchronized:{" "}
+            <b>
+              {weatherData?.metadata?.lastSynchronizedAt
+                ? new Date(weatherData.metadata.lastSynchronizedAt).toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  })
+                : "Live"}{" "}
+              IST
+            </b>
+          </span>
+        </div>
+      </div>
+
+      {/* Stale Warning Banner if Offline */}
+      {weatherData?.metadata?.isStale && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+          <AlertCircle size={16} className="shrink-0 text-amber-600" />
+          <span>
+            <b>Offline Meteorological Cache:</b> Live Open-Meteo server is temporarily unreachable. Displaying verified regional agricultural baseline. Values will automatically update once network connectivity is restored.
+          </span>
+        </div>
+      )}
+
+      {/* Main Weather Grid */}
       <div className="weather-layout">
         <div>
+          {/* Current Weather Card */}
           <div className="weather-hero-card">
             <div className="weather-hero-top">
               <div className="weather-location-title">
                 <span className="inline-flex items-center gap-1 text-xs font-bold bg-white/20 px-2.5 py-1 rounded-full text-emerald-100">
-                  <MapPin size={12} /> {weatherData?.district ?? selectedWeatherDistrict}, Andhra Pradesh
+                  <MapPin size={12} /> {weatherData?.locationName || `${weatherData?.district ?? selectedWeatherDistrict}, Andhra Pradesh`}
                 </span>
                 <h2>{weatherData?.condition ?? "Sunny & Clear"}</h2>
-                <p>Updated live from AP Agri-Meteorological Station</p>
+                <p>Real-time Open-Meteo Agricultural Forecast</p>
               </div>
               <span className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
-                {weatherData?.conditionCode === "LIGHT_RAIN" ? (
+                {weatherData?.conditionCode === "LIGHT_RAIN" || weatherData?.conditionCode === "HEAVY_RAIN" ? (
                   <CloudRain size={36} className="text-sky-300" />
                 ) : weatherData?.conditionCode === "PARTLY_CLOUDY" ? (
                   <CloudSun size={36} className="text-amber-200" />
@@ -5239,8 +5459,8 @@ export default function Home() {
             <div className="weather-temp-main">
               <div className="weather-temp-number">{weatherData?.temperature ?? 31}°C</div>
               <div className="weather-condition-badge">
-                <b>Feels like {weatherData?.feelsLike ?? 33}°C</b>
-                <span>Paddy moisture drying index: Optimal</span>
+                <b>Feels like {weatherData?.feelsLike ?? weatherData?.apparentTemperature ?? 33}°C</b>
+                <span>Paddy moisture drying index: {weatherData?.safeHarvestingIndex ?? "Optimal"}</span>
               </div>
             </div>
 
@@ -5257,8 +5477,8 @@ export default function Home() {
               </div>
               <div className="weather-metric-item">
                 <small>Precipitation</small>
-                <strong>{weatherData?.precipitationChance ?? 10}%</strong>
-                <span>Low rain risk</span>
+                <strong>{weatherData?.hourlyPrecipitationProbability ?? weatherData?.precipitationChance ?? 10}%</strong>
+                <span>{weatherData?.rainfallMm ? `${weatherData.rainfallMm} mm rain` : "Low rain risk"}</span>
               </div>
               <div className="weather-metric-item">
                 <small>Harvest Status</small>
@@ -5268,13 +5488,14 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Quick Action Advisory Card */}
           <div className={`weather-advisory-card ${(weatherData?.safeHarvestingIndex ?? "OPTIMAL").toLowerCase()}`}>
             <div className="advisory-badge-row">
               <span className={`advisory-badge ${(weatherData?.safeHarvestingIndex ?? "OPTIMAL").toLowerCase()}`}>
                 🌾 Safe Harvesting & Procurement Advisory
               </span>
               <span className="text-xs text-muted-foreground font-semibold">
-                District: {selectedWeatherDistrict}
+                District: {weatherData?.district ?? selectedWeatherDistrict}
               </span>
             </div>
             <p className="advisory-text">
@@ -5303,34 +5524,49 @@ export default function Home() {
         </div>
 
         <div>
+          {/* 7-Day Agriculture Forecast Panel */}
           <div className="forecast-panel">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-base font-bold text-[#143d2c]">3-Day Agriculture Forecast</h3>
+              <h3 className="text-base font-bold text-[#143d2c]">7-Day Agriculture Forecast</h3>
               <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200">
-                AP Agromet
+                Open-Meteo High-Res
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
-              Expected harvesting conditions for {selectedWeatherDistrict} district over the next 72 hours.
+              Expected harvesting conditions for {weatherData?.district ?? selectedWeatherDistrict} over the next 7 days.
             </p>
 
             <div className="forecast-cards-grid">
-              {(weatherData?.forecast ?? [
-                { day: "Tomorrow", tempHigh: 33, tempLow: 23, condition: "Sunny & Dry", rainChance: 5 },
-                { day: "Day After", tempHigh: 32, tempLow: 24, condition: "Partly Cloudy", rainChance: 15 },
-                { day: "In 3 Days", tempHigh: 34, tempLow: 25, condition: "Clear Sky", rainChance: 10 },
-              ]).map((fc, idx) => (
-                <div className="forecast-day-card" key={idx}>
-                  <div>
-                    <h4>{fc.day}</h4>
-                    <p>{fc.condition} · 🌧️ {fc.rainChance}% rain chance</p>
+              {(weatherData?.dailyForecast && weatherData.dailyForecast.length > 0
+                ? weatherData.dailyForecast
+                : (weatherData?.forecast ?? [
+                    { dayName: "Tomorrow", tempHighC: 33, tempLowC: 23, weatherCondition: "Sunny & Dry", maxPrecipitationProbability: 5, totalRainfallMm: 0 },
+                    { dayName: "Day After", tempHighC: 32, tempLowC: 24, weatherCondition: "Partly Cloudy", maxPrecipitationProbability: 15, totalRainfallMm: 0 },
+                    { dayName: "In 3 Days", tempHighC: 34, tempLowC: 25, weatherCondition: "Clear Sky", maxPrecipitationProbability: 10, totalRainfallMm: 0 },
+                  ])
+              ).map((fc: any, idx: number) => {
+                const dayLabel = fc.dayName || fc.day || `Day ${idx + 1}`;
+                const condition = fc.weatherCondition || fc.condition || "Partly Cloudy";
+                const high = fc.tempHighC ?? fc.tempHigh ?? 32;
+                const low = fc.tempLowC ?? fc.tempLow ?? 24;
+                const rainProb = fc.maxPrecipitationProbability ?? fc.rainChance ?? 10;
+                const rainMm = fc.totalRainfallMm ?? 0;
+
+                return (
+                  <div className="forecast-day-card" key={idx}>
+                    <div>
+                      <h4 className="font-extrabold">{dayLabel}</h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        {condition} · 🌧️ {rainProb}% rain {rainMm > 0 ? `(${rainMm}mm)` : ""}
+                      </p>
+                    </div>
+                    <div className="forecast-temp-range">
+                      <b>{high}°</b>
+                      <span>/ {low}°C</span>
+                    </div>
                   </div>
-                  <div className="forecast-temp-range">
-                    <b>{fc.tempHigh}°</b>
-                    <span>/ {fc.tempLow}°C</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="mt-5 p-4 bg-emerald-50/80 border border-emerald-200/60 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
@@ -5343,14 +5579,100 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Hourly 24-Hour Forecast Timeline */}
+      {weatherData?.hourlyForecast && weatherData.hourlyForecast.length > 0 && (
+        <div className="mt-6 p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <Clock3 size={16} className="text-emerald-700" />
+              <h4 className="text-sm font-extrabold text-[#0a1f33] dark:text-slate-100">
+                24-Hour Hourly Agricultural Forecast
+              </h4>
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              Hourly rain probability, temperature, and wind speed
+            </span>
+          </div>
+
+          <div className="overflow-x-auto pb-2">
+            <div className="flex gap-3 min-w-max">
+              {weatherData.hourlyForecast.slice(0, 24).map((hour, idx) => {
+                let hourTime = hour.time;
+                try {
+                  const d = new Date(hour.time);
+                  hourTime = d.toLocaleTimeString("en-IN", { hour: "numeric", hour12: true });
+                } catch {}
+
+                return (
+                  <div
+                    key={idx}
+                    className="flex flex-col items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 min-w-[95px] text-center"
+                  >
+                    <span className="text-[11px] font-bold text-slate-500 font-mono">
+                      {hourTime}
+                    </span>
+                    <div className="my-1.5">
+                      {hour.weatherCode >= 51 ? (
+                        <CloudRain size={20} className="text-sky-500 mx-auto" />
+                      ) : hour.weatherCode >= 2 ? (
+                        <CloudSun size={20} className="text-amber-500 mx-auto" />
+                      ) : (
+                        <Sun size={20} className="text-amber-500 mx-auto" />
+                      )}
+                    </div>
+                    <span className="text-sm font-black text-foreground">
+                      {hour.temperatureC}°C
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 ${
+                        hour.precipitationProbability >= 40
+                          ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                          : "bg-slate-200/70 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                      }`}
+                    >
+                      🌧️ {hour.precipitationProbability}%
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-1">
+                      {hour.windSpeedKmH} km/h
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Weather-Based Selling Advisory */}
       <div className="mt-6">
         <WeatherSellingAdvisory
           weatherData={weatherData}
-          district={selectedWeatherDistrict}
+          district={weatherData?.district ?? selectedWeatherDistrict}
           onNavigateToBooking={() => navigate("paddy")}
           onNavigateToTransport={() => navigate("transportation")}
         />
+      </div>
+
+      {/* Official Open-Meteo Attribution Banner */}
+      <div className="mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Globe size={14} className="text-emerald-700 shrink-0" />
+          <span>
+            <b>Attribution:</b> Weather data by{" "}
+            <a
+              href="https://open-meteo.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-emerald-800 dark:text-emerald-400 underline hover:text-emerald-900"
+            >
+              Open-Meteo.com
+            </a>
+            . Sourced from high-resolution global numerical meteorological prediction models.
+          </span>
+        </div>
+        <span className="text-[11px]">
+          Free Open Agricultural Meteorology · No API Key Required
+        </span>
       </div>
     </>
   );

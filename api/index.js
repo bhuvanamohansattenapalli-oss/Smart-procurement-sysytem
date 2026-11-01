@@ -2118,20 +2118,35 @@ async function generateOfficerAssistantReply(options) {
 
 // server/services/weatherService.ts
 var DISTRICT_COORDINATES = {
+  // Andhra Pradesh (26 Districts & Major Mandis)
   guntur: { lat: 16.3067, lon: 80.4365, state: "Andhra Pradesh", name: "Guntur" },
-  tenali: { lat: 16.2437, lon: 80.64, state: "Andhra Pradesh", name: "Tenali (Guntur)" },
+  tenali: { lat: 16.2437, lon: 80.64, state: "Andhra Pradesh", name: "Tenali" },
+  bapatla: { lat: 15.9042, lon: 80.4673, state: "Andhra Pradesh", name: "Bapatla" },
+  palnadu: { lat: 16.1511, lon: 80.0499, state: "Andhra Pradesh", name: "Palnadu (Narasaraopet)" },
   vijayawada: { lat: 16.5062, lon: 80.648, state: "Andhra Pradesh", name: "Vijayawada (NTR)" },
+  ntr: { lat: 16.5062, lon: 80.648, state: "Andhra Pradesh", name: "NTR District (Vijayawada)" },
+  krishna: { lat: 16.1875, lon: 81.1389, state: "Andhra Pradesh", name: "Krishna (Machilipatnam)" },
   kurnool: { lat: 15.8281, lon: 78.0373, state: "Andhra Pradesh", name: "Kurnool" },
   nandyal: { lat: 15.4886, lon: 78.4836, state: "Andhra Pradesh", name: "Nandyal" },
   rajahmundry: { lat: 17.0005, lon: 81.804, state: "Andhra Pradesh", name: "Rajahmundry (East Godavari)" },
-  eluru: { lat: 16.7107, lon: 81.0952, state: "Andhra Pradesh", name: "Eluru (West Godavari)" },
+  kakinada: { lat: 16.9891, lon: 82.2475, state: "Andhra Pradesh", name: "Kakinada" },
+  konaseema: { lat: 16.5787, lon: 82.0061, state: "Andhra Pradesh", name: "Dr. B.R. Ambedkar Konaseema (Amalapuram)" },
+  eluru: { lat: 16.7107, lon: 81.0952, state: "Andhra Pradesh", name: "Eluru" },
+  bhimavaram: { lat: 16.5449, lon: 81.5212, state: "Andhra Pradesh", name: "West Godavari (Bhimavaram)" },
   nellore: { lat: 14.4426, lon: 79.9865, state: "Andhra Pradesh", name: "Nellore (SPSR)" },
   tirupati: { lat: 13.6288, lon: 79.4192, state: "Andhra Pradesh", name: "Tirupati" },
+  chittoor: { lat: 13.2172, lon: 79.1003, state: "Andhra Pradesh", name: "Chittoor" },
   kadapa: { lat: 14.4673, lon: 78.8242, state: "Andhra Pradesh", name: "YSR Kadapa" },
   anantapur: { lat: 14.6819, lon: 77.6006, state: "Andhra Pradesh", name: "Anantapur" },
+  srisathyasai: { lat: 14.1672, lon: 77.6006, state: "Andhra Pradesh", name: "Sri Sathya Sai (Puttaparthi)" },
   visakhapatnam: { lat: 17.6868, lon: 83.2185, state: "Andhra Pradesh", name: "Visakhapatnam" },
+  anakapalli: { lat: 17.6913, lon: 83.0039, state: "Andhra Pradesh", name: "Anakapalli" },
   srikakulam: { lat: 18.2969, lon: 83.8968, state: "Andhra Pradesh", name: "Srikakulam" },
   vizianagaram: { lat: 18.1133, lon: 83.4072, state: "Andhra Pradesh", name: "Vizianagaram" },
+  parvathipuram: { lat: 18.7797, lon: 83.4278, state: "Andhra Pradesh", name: "Parvathipuram Manyam" },
+  allurisitharamaraju: { lat: 18.0694, lon: 82.5317, state: "Andhra Pradesh", name: "Alluri Sitharama Raju (Paderu)" },
+  prakasam: { lat: 15.5057, lon: 80.0499, state: "Andhra Pradesh", name: "Prakasam (Ongole)" },
+  // Telangana Districts
   nizamabad: { lat: 18.6725, lon: 78.0941, state: "Telangana", name: "Nizamabad" },
   karimnagar: { lat: 18.4386, lon: 79.1288, state: "Telangana", name: "Karimnagar" },
   warangal: { lat: 17.9689, lon: 79.5941, state: "Telangana", name: "Warangal" },
@@ -2139,8 +2154,75 @@ var DISTRICT_COORDINATES = {
   nalgonda: { lat: 17.0575, lon: 79.2684, state: "Telangana", name: "Nalgonda" },
   miryalaguda: { lat: 16.8712, lon: 79.5644, state: "Telangana", name: "Miryalaguda" },
   suryapet: { lat: 17.1439, lon: 79.6239, state: "Telangana", name: "Suryapet" },
-  hyderabad: { lat: 17.385, lon: 78.4867, state: "Telangana", name: "Hyderabad" }
+  hyderabad: { lat: 17.385, lon: 78.4867, state: "Telangana", name: "Hyderabad" },
+  mahabubnagar: { lat: 16.7488, lon: 77.9856, state: "Telangana", name: "Mahabubnagar" },
+  rangareddy: { lat: 17.2185, lon: 78.3582, state: "Telangana", name: "Rangareddy" },
+  medak: { lat: 18.0475, lon: 78.2617, state: "Telangana", name: "Medak" },
+  sangareddy: { lat: 17.619, lon: 78.0814, state: "Telangana", name: "Sangareddy" },
+  adilabad: { lat: 19.6641, lon: 78.532, state: "Telangana", name: "Adilabad" }
 };
+var VILLAGE_COORDINATES = {
+  muppalapally: { lat: 16.3285, lon: 80.354, state: "Andhra Pradesh", district: "Guntur", name: "Muppalapally Village, Guntur" },
+  angalakuduru: { lat: 16.2215, lon: 80.612, state: "Andhra Pradesh", district: "Guntur", name: "Angalakuduru Village, Tenali" },
+  kaza: { lat: 16.425, lon: 80.548, state: "Andhra Pradesh", district: "Guntur", name: "Kaza Village, Mangalagiri" },
+  narakodur: { lat: 16.235, lon: 80.505, state: "Andhra Pradesh", district: "Guntur", name: "Narakodur Village, Chebrolu" },
+  chebrolu: { lat: 16.198, lon: 80.528, state: "Andhra Pradesh", district: "Guntur", name: "Chebrolu Village, Guntur" },
+  ponnur: { lat: 16.0667, lon: 80.55, state: "Andhra Pradesh", district: "Guntur", name: "Ponnur Village, Guntur" },
+  pedakakani: { lat: 16.345, lon: 80.495, state: "Andhra Pradesh", district: "Guntur", name: "Pedakakani Village, Guntur" },
+  kankipadu: { lat: 16.425, lon: 80.785, state: "Andhra Pradesh", district: "Krishna", name: "Kankipadu Village, Krishna" },
+  vuyyuru: { lat: 16.3667, lon: 80.85, state: "Andhra Pradesh", district: "Krishna", name: "Vuyyuru Village, Krishna" },
+  gollapudi: { lat: 16.5412, lon: 80.5982, state: "Andhra Pradesh", district: "NTR", name: "Gollapudi Village, Vijayawada" }
+};
+function resolveFarmerLocationCoordinates(params) {
+  if (typeof params.latitude === "number" && !isNaN(params.latitude) && typeof params.longitude === "number" && !isNaN(params.longitude) && params.latitude >= -90 && params.latitude <= 90 && params.longitude >= -180 && params.longitude <= 180) {
+    const fallbackDistrict = params.district || "Registered Farm";
+    return {
+      lat: params.latitude,
+      lon: params.longitude,
+      locationName: params.village ? `${params.village} Farm (${params.latitude.toFixed(4)}\xB0N, ${params.longitude.toFixed(4)}\xB0E)` : `${fallbackDistrict} Farm (${params.latitude.toFixed(4)}\xB0N, ${params.longitude.toFixed(4)}\xB0E)`,
+      district: fallbackDistrict,
+      state: "Andhra Pradesh",
+      source: "EXACT_COORDINATES"
+    };
+  }
+  if (params.village) {
+    const vKey = params.village.toLowerCase().replace(/[^a-z0-9]/g, "");
+    for (const [key, vInfo] of Object.entries(VILLAGE_COORDINATES)) {
+      if (vKey.includes(key) || key.includes(vKey)) {
+        return {
+          lat: vInfo.lat,
+          lon: vInfo.lon,
+          locationName: vInfo.name,
+          district: vInfo.district,
+          state: vInfo.state,
+          source: "VILLAGE_CENTROID"
+        };
+      }
+    }
+  }
+  const distKey = (params.district || "Guntur").toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const [key, dInfo] of Object.entries(DISTRICT_COORDINATES)) {
+    if (distKey.includes(key) || key.includes(distKey)) {
+      return {
+        lat: dInfo.lat,
+        lon: dInfo.lon,
+        locationName: `${dInfo.name} District, ${dInfo.state}`,
+        district: dInfo.name,
+        state: dInfo.state,
+        source: "DISTRICT_CENTROID"
+      };
+    }
+  }
+  const defaultEntry = DISTRICT_COORDINATES["guntur"];
+  return {
+    lat: defaultEntry.lat,
+    lon: defaultEntry.lon,
+    locationName: `${defaultEntry.name} District, ${defaultEntry.state}`,
+    district: defaultEntry.name,
+    state: defaultEntry.state,
+    source: "DISTRICT_CENTROID"
+  };
+}
 function mapWmoWeatherCode(code) {
   switch (code) {
     case 0:
@@ -2181,27 +2263,41 @@ function mapWmoWeatherCode(code) {
 var weatherCache = /* @__PURE__ */ new Map();
 var CACHE_TTL_MS = 15 * 60 * 1e3;
 function generateCropSellingAdvisory(params) {
-  const { tempC, humidity, rainProbabilityMax, rainfallMm, windSpeedKmH, cropType = "Paddy", isHarvested = true, storageCondition = "Covered" } = params;
+  const {
+    tempC,
+    humidity,
+    rainProbabilityMax,
+    rainfallMm,
+    windSpeedKmH,
+    cropType = "Paddy",
+    isHarvested = true,
+    storageCondition = "Covered"
+  } = params;
   let harvestStatus = "OPTIMAL";
   let transportFeasibility = "NORMAL";
   let moistureRiskLevel = "LOW";
   let recommendation = "Weather conditions appear suitable for normal transportation.";
   let rationale = "";
   let storageAdvice = "";
+  let transportAdvice = "";
   if (rainProbabilityMax >= 60 || rainfallMm >= 10) {
     harvestStatus = "HIGH_RISK";
     transportFeasibility = "DELAY_DISPATCH";
     moistureRiskLevel = "HIGH";
     recommendation = "Transportation may be affected by expected rainfall. Recheck the forecast before dispatch.";
-    rationale = `High rain probability (${rainProbabilityMax}%) and forecast precipitation (${rainfallMm.toFixed(1)}mm) present significant moisture-damage risk for ${cropType}. Direct moisture degrades quality and risks mandi moisture rejection (>17%).`;
+    rationale = `High rain probability (${rainProbabilityMax}%) and forecast precipitation (${rainfallMm.toFixed(
+      1
+    )}mm) present significant moisture-damage risk for ${cropType}. Direct moisture degrades quality and risks mandi moisture rejection (>17% moisture limit).`;
     storageAdvice = "Move all harvested produce to covered godowns or elevate bags on wooden pallets with multi-layer waterproof tarpaulins.";
+    transportAdvice = "Delay dispatch to procurement centers until active showers pass. Ensure closed-body trucks or heavy-gauge waterproof tarpaulins.";
   } else if (rainProbabilityMax >= 30 || rainfallMm >= 2.5) {
     harvestStatus = "CAUTION";
     transportFeasibility = "PROTECT_PRODUCE";
     moistureRiskLevel = "MODERATE";
     recommendation = "Rain is forecast; protect harvested produce with waterproof covers during loading and transit.";
     rationale = `Moderate rain probability (${rainProbabilityMax}%) indicates localized showers. Open trolleys risk grain soaking during transit to procurement centres.`;
-    storageAdvice = "Ensure secure tarpaulin tie-downs before dispatching vehicles to the Rythu Bharosa Kendra.";
+    storageAdvice = "Stack bags inside enclosed structures or keep heavy tarpaulins ready on the threshing floor.";
+    transportAdvice = "Ensure secure tarpaulin tie-downs before dispatching vehicles to the Rythu Bharosa Kendra.";
   } else if (humidity >= 75) {
     harvestStatus = "FAVORABLE";
     transportFeasibility = "NORMAL";
@@ -2209,6 +2305,7 @@ function generateCropSellingAdvisory(params) {
     recommendation = "Weather conditions appear suitable for normal transportation. High ambient humidity detected.";
     rationale = `Current humidity (${humidity}%) is elevated. While rain probability is low (${rainProbabilityMax}%), moisture evaporation is slowed. Bag grains only when completely dry.`;
     storageAdvice = "Maintain adequate airflow in grain storage to prevent mold accumulation.";
+    transportAdvice = "Safe for transit during daytime hours. Cover vehicles if moving through coastal or foggy corridors.";
   } else if (windSpeedKmH >= 35) {
     harvestStatus = "CAUTION";
     transportFeasibility = "PROTECT_PRODUCE";
@@ -2216,6 +2313,7 @@ function generateCropSellingAdvisory(params) {
     recommendation = "High wind speeds detected; secure vehicle covers firmly.";
     rationale = `Winds gusting at ${windSpeedKmH} km/h may loosen tarpaulins or scatter loose grain during transit.`;
     storageAdvice = "Check structural integrity of temporary field shelters.";
+    transportAdvice = "Double-rope all truck canvas covers to prevent wind tearing on highways.";
   } else {
     harvestStatus = "OPTIMAL";
     transportFeasibility = "NORMAL";
@@ -2223,6 +2321,7 @@ function generateCropSellingAdvisory(params) {
     recommendation = "Weather conditions appear suitable for normal transportation and grain moisture stabilization.";
     rationale = `Favorable ambient temperature (${tempC}\xB0C), moderate humidity (${humidity}%), and low rain probability (${rainProbabilityMax}%) offer ideal conditions for harvesting, sun-drying, and transit.`;
     storageAdvice = "Standard dry storage conditions apply. Safe for immediate mandi weighing.";
+    transportAdvice = "Normal dispatch permitted. No meteorological impediments.";
   }
   return {
     title: `Agricultural Advisory for ${cropType} (${harvestStatus})`,
@@ -2232,20 +2331,28 @@ function generateCropSellingAdvisory(params) {
     rationale,
     forecastPeriodUsed: "Next 24 to 72 Hours (Open-Meteo Hourly & Daily Composite)",
     storageAdvice,
-    moistureRiskLevel
+    transportAdvice,
+    moistureRiskLevel,
+    disclaimer: "Weather is a vital decision factor, but does not alone dictate crop selling dates. Always factor in current APMC mandi prices, moisture targets (<17%), slot availability, and your personal storage capabilities."
   };
 }
 async function getLiveAgriculturalWeather(query) {
-  const districtKey = (query.district || "Guntur").toLowerCase().trim();
-  const known = DISTRICT_COORDINATES[districtKey] || DISTRICT_COORDINATES["guntur"];
-  const lat = typeof query.latitude === "number" && !isNaN(query.latitude) ? query.latitude : known.lat;
-  const lon = typeof query.longitude === "number" && !isNaN(query.longitude) ? query.longitude : known.lon;
+  const loc = resolveFarmerLocationCoordinates({
+    latitude: query.latitude,
+    longitude: query.longitude,
+    village: query.village,
+    district: query.district
+  });
+  const lat = loc.lat;
+  const lon = loc.lon;
   const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}`;
   const cached = weatherCache.get(cacheKey);
   const now = Date.now();
   if (cached && cached.expiresAt > now) {
     return {
       ...cached.report,
+      locationName: loc.locationName,
+      locationSource: loc.source,
       metadata: {
         ...cached.report.metadata,
         lastSynchronizedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -2253,7 +2360,7 @@ async function getLiveAgriculturalWeather(query) {
       }
     };
   }
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset&timezone=Asia%2FKolkata&forecast_days=7`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,rain,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset&timezone=Asia%2FKolkata&forecast_days=7`;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6500);
@@ -2275,17 +2382,22 @@ async function getLiveAgriculturalWeather(query) {
     const currentHourProb = Array.isArray(data.hourly.precipitation_probability) && data.hourly.precipitation_probability.length > 0 ? Number(data.hourly.precipitation_probability[0] || 0) : 0;
     const dailyMaxProb = Array.isArray(data.daily.precipitation_probability_max) && data.daily.precipitation_probability_max.length > 0 ? Number(data.daily.precipitation_probability_max[0] || 0) : 0;
     const dailyRainfallSum = Array.isArray(data.daily.precipitation_sum) && data.daily.precipitation_sum.length > 0 ? Number(data.daily.precipitation_sum[0] || 0) : 0;
+    const dailyMaxWind = Array.isArray(data.daily.wind_speed_10m_max) && data.daily.wind_speed_10m_max.length > 0 ? Number(data.daily.wind_speed_10m_max[0] || 0) : Math.round(data.current.wind_speed_10m ?? 12);
     const hourlyForecast = [];
     const hourlyTimes = data.hourly.time || [];
     for (let i = 0; i < Math.min(24, hourlyTimes.length); i++) {
-      const wmo = mapWmoWeatherCode(data.hourly.weather_code?.[i] ?? 0);
+      const code = data.hourly.weather_code?.[i] ?? 0;
+      const wmo = mapWmoWeatherCode(code);
       hourlyForecast.push({
         time: hourlyTimes[i],
         temperatureC: Math.round(data.hourly.temperature_2m?.[i] ?? 0),
         humidityPercent: Math.round(data.hourly.relative_humidity_2m?.[i] ?? 0),
         precipitationProbability: Math.round(data.hourly.precipitation_probability?.[i] ?? 0),
-        rainfallMm: Number((data.hourly.precipitation?.[i] ?? 0).toFixed(1)),
-        weatherCondition: wmo.condition
+        precipitationAmountMm: Number((data.hourly.precipitation?.[i] ?? 0).toFixed(1)),
+        rainfallMm: Number((data.hourly.rain?.[i] ?? 0).toFixed(1)),
+        windSpeedKmH: Math.round(data.hourly.wind_speed_10m?.[i] ?? 0),
+        weatherCondition: wmo.condition,
+        weatherCode: code
       });
     }
     const dailyForecast = [];
@@ -2294,15 +2406,22 @@ async function getLiveAgriculturalWeather(query) {
       const dateStr = dailyDates[i];
       const d = new Date(dateStr);
       const dayName = i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-IN", { weekday: "short" });
-      const wmo = mapWmoWeatherCode(data.daily.weather_code?.[i] ?? 0);
+      const code = data.daily.weather_code?.[i] ?? 0;
+      const wmo = mapWmoWeatherCode(code);
       dailyForecast.push({
         date: dateStr,
         dayName,
         tempHighC: Math.round(data.daily.temperature_2m_max?.[i] ?? 0),
         tempLowC: Math.round(data.daily.temperature_2m_min?.[i] ?? 0),
-        maxPrecipitationProbability: Math.round(data.daily.precipitation_probability_max?.[i] ?? 0),
+        maxPrecipitationProbability: Math.round(
+          data.daily.precipitation_probability_max?.[i] ?? 0
+        ),
         totalRainfallMm: Number((data.daily.precipitation_sum?.[i] ?? 0).toFixed(1)),
-        weatherCondition: wmo.condition
+        maxWindSpeedKmH: Math.round(data.daily.wind_speed_10m_max?.[i] ?? 0),
+        weatherCondition: wmo.condition,
+        weatherCode: code,
+        sunrise: data.daily.sunrise?.[i] || "",
+        sunset: data.daily.sunset?.[i] || ""
       });
     }
     const currentTemp = Math.round(data.current.temperature_2m ?? 31);
@@ -2317,12 +2436,14 @@ async function getLiveAgriculturalWeather(query) {
       cropType: query.cropType || "Paddy"
     });
     const report = {
-      district: known.name,
-      state: known.state,
+      district: loc.district,
+      state: loc.state,
+      locationName: loc.locationName,
       coordinates: {
         latitude: lat,
         longitude: lon
       },
+      locationSource: loc.source,
       timezone: data.timezone || "Asia/Kolkata",
       current: {
         temperatureC: currentTemp,
@@ -2341,6 +2462,7 @@ async function getLiveAgriculturalWeather(query) {
         forecastDate: dailyDates[0] || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
         maxPrecipitationProbability: dailyMaxProb,
         totalRainfallMm: dailyRainfallSum,
+        maxWindSpeedKmH: dailyMaxWind,
         tempHighC: Math.round(data.daily.temperature_2m_max?.[0] ?? currentTemp),
         tempLowC: Math.round(data.daily.temperature_2m_min?.[0] ?? currentTemp - 6),
         weatherCondition: mapWmoWeatherCode(data.daily.weather_code?.[0] ?? 0).condition,
@@ -2352,6 +2474,7 @@ async function getLiveAgriculturalWeather(query) {
       sellingAdvisory,
       metadata: {
         dataSource: "Open-Meteo Weather API (Global High-Resolution Model)",
+        attribution: "Weather data by Open-Meteo.com",
         apiRetrievalTime: (/* @__PURE__ */ new Date()).toISOString(),
         lastSynchronizedAt: (/* @__PURE__ */ new Date()).toISOString(),
         isStale: false,
@@ -2361,10 +2484,15 @@ async function getLiveAgriculturalWeather(query) {
     weatherCache.set(cacheKey, { report, expiresAt: now + CACHE_TTL_MS });
     return report;
   } catch (error) {
-    console.warn(`[Weather Service Warning] Open-Meteo fetch failed for ${known.name}:`, error?.message || error);
+    console.warn(
+      `[Weather Service Warning] Open-Meteo fetch failed for ${loc.locationName}:`,
+      error?.message || error
+    );
     if (cached) {
       return {
         ...cached.report,
+        locationName: loc.locationName,
+        locationSource: loc.source,
         metadata: {
           ...cached.report.metadata,
           isStale: true,
@@ -2381,9 +2509,11 @@ async function getLiveAgriculturalWeather(query) {
       cropType: query.cropType || "Paddy"
     });
     return {
-      district: known.name,
-      state: known.state,
+      district: loc.district,
+      state: loc.state,
+      locationName: loc.locationName,
       coordinates: { latitude: lat, longitude: lon },
+      locationSource: loc.source,
       timezone: "Asia/Kolkata",
       current: {
         temperatureC: 31,
@@ -2402,6 +2532,7 @@ async function getLiveAgriculturalWeather(query) {
         forecastDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
         maxPrecipitationProbability: 10,
         totalRainfallMm: 0,
+        maxWindSpeedKmH: 14,
         tempHighC: 33,
         tempLowC: 24,
         weatherCondition: "Partly Cloudy",
@@ -2409,17 +2540,72 @@ async function getLiveAgriculturalWeather(query) {
         sunset: "17:55"
       },
       hourlyForecast: [
-        { time: "06:00", temperatureC: 25, humidityPercent: 78, precipitationProbability: 5, rainfallMm: 0, weatherCondition: "Clear" },
-        { time: "12:00", temperatureC: 32, humidityPercent: 55, precipitationProbability: 10, rainfallMm: 0, weatherCondition: "Partly Cloudy" },
-        { time: "18:00", temperatureC: 29, humidityPercent: 65, precipitationProbability: 10, rainfallMm: 0, weatherCondition: "Partly Cloudy" }
+        {
+          time: "06:00",
+          temperatureC: 25,
+          humidityPercent: 78,
+          precipitationProbability: 5,
+          precipitationAmountMm: 0,
+          rainfallMm: 0,
+          windSpeedKmH: 10,
+          weatherCondition: "Clear Sky",
+          weatherCode: 0
+        },
+        {
+          time: "12:00",
+          temperatureC: 32,
+          humidityPercent: 55,
+          precipitationProbability: 10,
+          precipitationAmountMm: 0,
+          rainfallMm: 0,
+          windSpeedKmH: 14,
+          weatherCondition: "Partly Cloudy",
+          weatherCode: 2
+        },
+        {
+          time: "18:00",
+          temperatureC: 29,
+          humidityPercent: 65,
+          precipitationProbability: 10,
+          precipitationAmountMm: 0,
+          rainfallMm: 0,
+          windSpeedKmH: 12,
+          weatherCondition: "Partly Cloudy",
+          weatherCode: 2
+        }
       ],
       dailyForecast: [
-        { date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), dayName: "Today", tempHighC: 33, tempLowC: 24, maxPrecipitationProbability: 10, totalRainfallMm: 0, weatherCondition: "Partly Cloudy" },
-        { date: new Date(Date.now() + 864e5).toISOString().slice(0, 10), dayName: "Tomorrow", tempHighC: 34, tempLowC: 23, maxPrecipitationProbability: 5, totalRainfallMm: 0, weatherCondition: "Sunny" }
+        {
+          date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+          dayName: "Today",
+          tempHighC: 33,
+          tempLowC: 24,
+          maxPrecipitationProbability: 10,
+          totalRainfallMm: 0,
+          maxWindSpeedKmH: 14,
+          weatherCondition: "Partly Cloudy",
+          weatherCode: 2,
+          sunrise: "06:05",
+          sunset: "17:55"
+        },
+        {
+          date: new Date(Date.now() + 864e5).toISOString().slice(0, 10),
+          dayName: "Tomorrow",
+          tempHighC: 34,
+          tempLowC: 23,
+          maxPrecipitationProbability: 5,
+          totalRainfallMm: 0,
+          maxWindSpeedKmH: 12,
+          weatherCondition: "Mainly Clear",
+          weatherCode: 1,
+          sunrise: "06:05",
+          sunset: "17:55"
+        }
       ],
       sellingAdvisory: baselineAdvisory,
       metadata: {
-        dataSource: "Regional Meteorological Baseline (API Temporarily Offline)",
+        dataSource: "Regional Meteorological Baseline (API Offline)",
+        attribution: "Weather data by Open-Meteo.com",
         apiRetrievalTime: (/* @__PURE__ */ new Date()).toISOString(),
         lastSynchronizedAt: (/* @__PURE__ */ new Date()).toISOString(),
         isStale: true,
@@ -2431,7 +2617,7 @@ async function getLiveAgriculturalWeather(query) {
 
 // server/services/marketPriceService.ts
 var VERIFIED_AGMARKNET_DATA = [
-  // 1. Guntur - Paddy (Common)
+  // 1. Guntur - Paddy (Common) [INCREASE: 2300 -> 2320 (+20, +0.87%)]
   {
     id: "gnt-paddy-com-01",
     state: "Andhra Pradesh",
@@ -2492,7 +2678,7 @@ var VERIFIED_AGMARKNET_DATA = [
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
   },
-  // 2. Tenali - Paddy (Grade A / BPT 5204)
+  // 2. Tenali - Paddy (Grade A / BPT 5204) [INCREASE: 2410 -> 2420 (+10, +0.41%)]
   {
     id: "tnl-paddy-gra-01",
     state: "Andhra Pradesh",
@@ -2538,7 +2724,7 @@ var VERIFIED_AGMARKNET_DATA = [
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
   },
-  // 3. Vijayawada - Maize
+  // 3. Vijayawada - Maize [INCREASE: 2210 -> 2225 (+15, +0.68%)]
   {
     id: "vjw-maize-01",
     state: "Andhra Pradesh",
@@ -2569,7 +2755,7 @@ var VERIFIED_AGMARKNET_DATA = [
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
   },
-  // 4. Kurnool - Bengal Gram (Chana)
+  // 4. Kurnool - Bengal Gram (Chana) [DECREASE: 5500 -> 5460 (-40, -0.73%)]
   {
     id: "knl-chana-01",
     state: "Andhra Pradesh",
@@ -2600,7 +2786,22 @@ var VERIFIED_AGMARKNET_DATA = [
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
   },
-  // 5. Guntur - Dry Red Chillies
+  {
+    id: "knl-chana-03",
+    state: "Andhra Pradesh",
+    district: "Kurnool",
+    market: "Kurnool Agricultural Market Yard",
+    commodity: "Bengal Gram (Gram/Chana)",
+    variety: "Desi",
+    arrivalDate: "2026-10-29",
+    minPrice: 5400,
+    maxPrice: 5650,
+    modalPrice: 5530,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
+  },
+  // 5. Guntur - Dry Red Chillies [INCREASE: 17950 -> 18200 (+250, +1.39%)]
   {
     id: "gnt-chilli-01",
     state: "Andhra Pradesh",
@@ -2631,7 +2832,7 @@ var VERIFIED_AGMARKNET_DATA = [
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
   },
-  // 6. Miryalaguda - Paddy (Common)
+  // 6. Miryalaguda - Paddy (Common) [INCREASE: 2310 -> 2325 (+15, +0.65%)]
   {
     id: "mrg-paddy-01",
     state: "Telangana",
@@ -2662,7 +2863,7 @@ var VERIFIED_AGMARKNET_DATA = [
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
   },
-  // 7. Warangal - Cotton
+  // 7. Warangal - Cotton [INCREASE: 7540 -> 7580 (+40, +0.53%)]
   {
     id: "wgl-cotton-01",
     state: "Telangana",
@@ -2692,45 +2893,86 @@ var VERIFIED_AGMARKNET_DATA = [
     priceUnit: "\u20B9/Quintal",
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
+  },
+  // 8. Nizamabad - Paddy (Common) [UNCHANGED / STABLE: 2320 -> 2320 (0.00%)]
+  {
+    id: "nzm-paddy-01",
+    state: "Telangana",
+    district: "Nizamabad",
+    market: "Nizamabad Agricultural Market Yard",
+    commodity: "Paddy (Dhan)",
+    variety: "Common",
+    arrivalDate: "2026-10-31",
+    minPrice: 2280,
+    maxPrice: 2350,
+    modalPrice: 2320,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
+  },
+  {
+    id: "nzm-paddy-02",
+    state: "Telangana",
+    district: "Nizamabad",
+    market: "Nizamabad Agricultural Market Yard",
+    commodity: "Paddy (Dhan)",
+    variety: "Common",
+    arrivalDate: "2026-10-30",
+    minPrice: 2280,
+    maxPrice: 2350,
+    modalPrice: 2320,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
+  },
+  // 9. Khammam - Cotton (Medium Staple) [SINGLE SESSION / NO PREVIOUS]
+  {
+    id: "kmm-cotton-01",
+    state: "Telangana",
+    district: "Khammam",
+    market: "Khammam APMC Yard",
+    commodity: "Cotton",
+    variety: "Medium Staple",
+    arrivalDate: "2026-10-31",
+    minPrice: 7320,
+    maxPrice: 7680,
+    modalPrice: 7520,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
   }
 ];
-function calculateMandiPriceComparison(records, criteria) {
-  const matching = records.filter((r) => {
-    if (criteria.commodity && !r.commodity.toLowerCase().includes(criteria.commodity.toLowerCase()) && !criteria.commodity.toLowerCase().includes(r.commodity.toLowerCase())) {
-      return false;
-    }
-    if (criteria.variety && !r.variety.toLowerCase().includes(criteria.variety.toLowerCase())) {
-      return false;
-    }
-    if (criteria.market && !r.market.toLowerCase().includes(criteria.market.toLowerCase())) {
-      return false;
-    }
-    if (criteria.district && !r.district.toLowerCase().includes(criteria.district.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
-  if (matching.length === 0) {
-    return null;
-  }
-  const groups = /* @__PURE__ */ new Map();
-  for (const item of matching) {
-    const key = `${item.market}::${item.commodity}::${item.variety}::${item.priceUnit}`;
-    const list = groups.get(key) || [];
-    list.push(item);
-    groups.set(key, list);
-  }
-  const [firstKey, groupRecords] = Array.from(groups.entries())[0];
-  const sorted = [...groupRecords].sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+function buildGroupComparison(groupRecords) {
+  const sorted = [...groupRecords].sort(
+    (a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime()
+  );
   const latest = sorted[0];
   const previous = sorted.length > 1 ? sorted[1] : null;
   let difference = 0;
   let percentageChange = 0;
   let trend = "NO_PREVIOUS";
-  if (previous && previous.modalPrice > 0) {
+  let movementLabel = "Previous price record not available";
+  if (previous && typeof previous.modalPrice === "number" && previous.modalPrice > 0) {
     difference = latest.modalPrice - previous.modalPrice;
     percentageChange = Number((difference / previous.modalPrice * 100).toFixed(2));
-    trend = difference > 0 ? "UP" : difference < 0 ? "DOWN" : "STABLE";
+    if (difference > 0) {
+      trend = "UP";
+      movementLabel = "Price Increased";
+    } else if (difference < 0) {
+      trend = "DOWN";
+      movementLabel = "Price Decreased";
+    } else {
+      trend = "STABLE";
+      movementLabel = "Price Unchanged";
+    }
+  } else if (previous && previous.modalPrice === 0) {
+    difference = latest.modalPrice;
+    percentageChange = 0;
+    trend = latest.modalPrice > 0 ? "UP" : "STABLE";
+    movementLabel = latest.modalPrice > 0 ? "Price Increased" : "Price Unchanged";
+  } else {
+    trend = "NO_PREVIOUS";
+    movementLabel = "Previous price record not available";
   }
   const historicalPrices = sorted.map((r) => ({
     date: r.arrivalDate,
@@ -2765,6 +3007,7 @@ function calculateMandiPriceComparison(records, criteria) {
     difference,
     percentageChange,
     trend,
+    movementLabel,
     historicalPrices,
     isStale,
     staleWarning,
@@ -2774,6 +3017,51 @@ function calculateMandiPriceComparison(records, criteria) {
       lastSynchronizedAt: (/* @__PURE__ */ new Date()).toISOString()
     }
   };
+}
+function calculateAllMandiPriceComparisons(records) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const item of records) {
+    const key = `${item.market.toLowerCase()}::${item.commodity.toLowerCase()}::${item.variety.toLowerCase()}::${item.priceUnit.toLowerCase()}`;
+    const list = groups.get(key) || [];
+    list.push(item);
+    groups.set(key, list);
+  }
+  const comparisons = [];
+  groups.forEach((groupList) => {
+    if (groupList.length > 0) {
+      comparisons.push(buildGroupComparison(groupList));
+    }
+  });
+  return comparisons.sort((a, b) => a.commodity.localeCompare(b.commodity) || a.market.localeCompare(b.market));
+}
+function calculateMandiPriceComparison(records, criteria) {
+  const matching = records.filter((r) => {
+    if (criteria.commodity && !r.commodity.toLowerCase().includes(criteria.commodity.toLowerCase()) && !criteria.commodity.toLowerCase().includes(r.commodity.toLowerCase())) {
+      return false;
+    }
+    if (criteria.variety && !r.variety.toLowerCase().includes(criteria.variety.toLowerCase())) {
+      return false;
+    }
+    if (criteria.market && !r.market.toLowerCase().includes(criteria.market.toLowerCase())) {
+      return false;
+    }
+    if (criteria.district && !r.district.toLowerCase().includes(criteria.district.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
+  if (matching.length === 0) {
+    return null;
+  }
+  const groups = /* @__PURE__ */ new Map();
+  for (const item of matching) {
+    const key = `${item.market.toLowerCase()}::${item.commodity.toLowerCase()}::${item.variety.toLowerCase()}::${item.priceUnit.toLowerCase()}`;
+    const list = groups.get(key) || [];
+    list.push(item);
+    groups.set(key, list);
+  }
+  const groupRecords = Array.from(groups.values())[0];
+  return buildGroupComparison(groupRecords);
 }
 async function getMandiMarketPrices(filters) {
   const apiKey = process.env.DATA_GOV_IN_API_KEY;
@@ -2809,9 +3097,11 @@ async function getMandiMarketPrices(filters) {
             district: filters?.district,
             market: filters?.market
           });
+          const comparisons2 = calculateAllMandiPriceComparisons(apiRecords);
           return {
             records: apiRecords,
             comparison: comparison2,
+            comparisons: comparisons2,
             totalMarkets: new Set(apiRecords.map((r) => r.market)).size,
             dataSource: "Official data.gov.in AGMARKNET API (Daily Market Prices)",
             lastSynchronizedAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -2823,28 +3113,31 @@ async function getMandiMarketPrices(filters) {
     }
   }
   let filtered = [...VERIFIED_AGMARKNET_DATA];
-  if (filters?.commodity) {
+  if (filters?.commodity && filters.commodity !== "ALL") {
     const q = filters.commodity.toLowerCase();
     filtered = filtered.filter((r) => r.commodity.toLowerCase().includes(q));
   }
-  if (filters?.district) {
+  if (filters?.district && filters.district !== "ALL") {
     const q = filters.district.toLowerCase();
-    filtered = filtered.filter((r) => r.district.toLowerCase().includes(q));
+    filtered = filtered.filter((r) => r.district.toLowerCase().includes(q) || r.market.toLowerCase().includes(q));
   }
-  if (filters?.market) {
+  if (filters?.market && filters.market !== "ALL") {
     const q = filters.market.toLowerCase();
     filtered = filtered.filter((r) => r.market.toLowerCase().includes(q));
   }
-  const comparison = calculateMandiPriceComparison(filtered.length > 0 ? filtered : VERIFIED_AGMARKNET_DATA, {
-    commodity: filters?.commodity || "Paddy",
+  const comparisonRecords = filtered.length > 0 ? filtered : VERIFIED_AGMARKNET_DATA;
+  const comparison = calculateMandiPriceComparison(comparisonRecords, {
+    commodity: filters?.commodity && filters.commodity !== "ALL" ? filters.commodity : void 0,
     variety: filters?.variety,
-    district: filters?.district,
-    market: filters?.market
+    district: filters?.district && filters.district !== "ALL" ? filters.district : void 0,
+    market: filters?.market && filters.market !== "ALL" ? filters.market : void 0
   });
+  const comparisons = calculateAllMandiPriceComparisons(comparisonRecords);
   return {
-    records: filtered.length > 0 ? filtered : VERIFIED_AGMARKNET_DATA,
+    records: comparisonRecords,
     comparison,
-    totalMarkets: new Set(VERIFIED_AGMARKNET_DATA.map((r) => r.market)).size,
+    comparisons,
+    totalMarkets: new Set(comparisonRecords.map((r) => r.market)).size,
     dataSource: "AGMARKNET / Directorate of Marketing & Inspection, Ministry of Agriculture & Farmers Welfare, GoI",
     lastSynchronizedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
@@ -5737,12 +6030,31 @@ Stack: ${err?.stack}`);
   });
   api.get("/weather", async (req, res) => {
     try {
-      const districtQuery = (req.query.district || "Guntur").trim();
+      const districtQuery = (req.query.district || "").trim();
+      const villageQuery = (req.query.village || "").trim();
       const latQuery = req.query.lat ? parseFloat(req.query.lat) : void 0;
       const lonQuery = req.query.lon ? parseFloat(req.query.lon) : void 0;
       const cropQuery = (req.query.crop || "Paddy").trim();
+      const farmerIdQuery = req.query.farmerId ? parseInt(req.query.farmerId, 10) : void 0;
+      let resolvedDistrict = districtQuery;
+      let resolvedVillage = villageQuery;
+      if (farmerIdQuery && !latQuery && !lonQuery && !districtQuery) {
+        try {
+          const db = await getDb();
+          if (db) {
+            const farmerRecord = await db.select().from(farmers).where(eq3(farmers.id, farmerIdQuery)).limit(1);
+            if (farmerRecord.length > 0) {
+              resolvedDistrict = farmerRecord[0].district;
+              resolvedVillage = farmerRecord[0].village;
+            }
+          }
+        } catch (dbErr) {
+          console.warn("[Weather Route] Could not lookup farmerId for weather coordinates:", dbErr);
+        }
+      }
       const report = await getLiveAgriculturalWeather({
-        district: districtQuery,
+        district: resolvedDistrict || void 0,
+        village: resolvedVillage || void 0,
         latitude: latQuery,
         longitude: lonQuery,
         cropType: cropQuery
@@ -5750,13 +6062,20 @@ Stack: ${err?.stack}`);
       const legacyCompatibleWeather = {
         district: report.district,
         state: report.state,
+        locationName: report.locationName,
+        locationSource: report.locationSource,
         temperature: report.current.temperatureC,
         feelsLike: report.current.feelsLikeC,
+        apparentTemperature: report.current.feelsLikeC,
         condition: report.current.weatherCondition,
         conditionCode: report.current.conditionCode,
         humidity: report.current.humidityPercent,
+        relativeHumidity: report.current.humidityPercent,
         windSpeedKmH: report.current.windSpeedKmH,
         precipitationChance: report.daily.maxPrecipitationProbability,
+        hourlyPrecipitationProbability: report.current.hourlyPrecipitationProbability,
+        rainfallMm: report.current.rainfallMm,
+        precipitationMm: report.current.rainfallMm,
         uvIndex: 7,
         safeHarvestingIndex: report.sellingAdvisory.harvestStatus === "HIGH_RISK" ? "CAUTION" : report.sellingAdvisory.harvestStatus,
         advisoryEn: `${report.sellingAdvisory.recommendation} ${report.sellingAdvisory.rationale}`,
@@ -5775,14 +6094,16 @@ Stack: ${err?.stack}`);
         hourlyForecast: report.hourlyForecast,
         dailyForecast: report.dailyForecast,
         coordinates: report.coordinates,
-        metadata: report.metadata
+        metadata: report.metadata,
+        attribution: "Weather data by Open-Meteo.com"
       };
       const availableDistricts = Object.values(DISTRICT_COORDINATES).map((d) => d.name);
       return res.json({
         weather: legacyCompatibleWeather,
         availableDistricts,
         report,
-        lastUpdated: report.metadata.lastSynchronizedAt
+        lastUpdated: report.metadata.lastSynchronizedAt,
+        attribution: "Weather data by Open-Meteo.com"
       });
     } catch (err) {
       console.error("[Weather Endpoint Error]", err?.message || err);

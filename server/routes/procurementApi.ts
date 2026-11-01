@@ -3174,13 +3174,35 @@ export function createProcurementApi() {
   // 17. Live Agricultural Weather Report & Forecast via Open-Meteo API
   api.get("/weather", async (req, res) => {
     try {
-      const districtQuery = (req.query.district as string || "Guntur").trim();
+      const districtQuery = (req.query.district as string || "").trim();
+      const villageQuery = (req.query.village as string || "").trim();
       const latQuery = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
       const lonQuery = req.query.lon ? parseFloat(req.query.lon as string) : undefined;
       const cropQuery = (req.query.crop as string || "Paddy").trim();
+      const farmerIdQuery = req.query.farmerId ? parseInt(req.query.farmerId as string, 10) : undefined;
+
+      let resolvedDistrict = districtQuery;
+      let resolvedVillage = villageQuery;
+
+      // If farmerId is provided and explicit coordinates/district are not given, load registered farm location
+      if (farmerIdQuery && !latQuery && !lonQuery && !districtQuery) {
+        try {
+          const db = await getDb();
+          if (db) {
+            const farmerRecord = await db.select().from(farmers).where(eq(farmers.id, farmerIdQuery)).limit(1);
+            if (farmerRecord.length > 0) {
+              resolvedDistrict = farmerRecord[0].district;
+              resolvedVillage = farmerRecord[0].village;
+            }
+          }
+        } catch (dbErr) {
+          console.warn("[Weather Route] Could not lookup farmerId for weather coordinates:", dbErr);
+        }
+      }
 
       const report = await getLiveAgriculturalWeather({
-        district: districtQuery,
+        district: resolvedDistrict || undefined,
+        village: resolvedVillage || undefined,
         latitude: latQuery,
         longitude: lonQuery,
         cropType: cropQuery,
@@ -3190,13 +3212,20 @@ export function createProcurementApi() {
       const legacyCompatibleWeather = {
         district: report.district,
         state: report.state,
+        locationName: report.locationName,
+        locationSource: report.locationSource,
         temperature: report.current.temperatureC,
         feelsLike: report.current.feelsLikeC,
+        apparentTemperature: report.current.feelsLikeC,
         condition: report.current.weatherCondition,
         conditionCode: report.current.conditionCode,
         humidity: report.current.humidityPercent,
+        relativeHumidity: report.current.humidityPercent,
         windSpeedKmH: report.current.windSpeedKmH,
         precipitationChance: report.daily.maxPrecipitationProbability,
+        hourlyPrecipitationProbability: report.current.hourlyPrecipitationProbability,
+        rainfallMm: report.current.rainfallMm,
+        precipitationMm: report.current.rainfallMm,
         uvIndex: 7,
         safeHarvestingIndex: report.sellingAdvisory.harvestStatus === "HIGH_RISK"
           ? "CAUTION"
@@ -3218,6 +3247,7 @@ export function createProcurementApi() {
         dailyForecast: report.dailyForecast,
         coordinates: report.coordinates,
         metadata: report.metadata,
+        attribution: "Weather data by Open-Meteo.com",
       };
 
       const availableDistricts = Object.values(DISTRICT_COORDINATES).map(d => d.name);
@@ -3227,6 +3257,7 @@ export function createProcurementApi() {
         availableDistricts,
         report,
         lastUpdated: report.metadata.lastSynchronizedAt,
+        attribution: "Weather data by Open-Meteo.com",
       });
     } catch (err: any) {
       console.error("[Weather Endpoint Error]", err?.message || err);
