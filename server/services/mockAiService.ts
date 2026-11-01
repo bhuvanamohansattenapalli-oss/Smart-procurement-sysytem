@@ -12,7 +12,7 @@ export interface ExtendedAssistantContext extends Partial<BookingContext> {
 /** Comprehensive, context-aware agricultural assistant in English, Telugu, and Hindi */
 export function createMockAssistantReply(
   question: string,
-  context: Partial<BookingContext> = {},
+  context: ExtendedAssistantContext = {},
   language: AssistantLanguage = "EN"
 ): string {
   const prompt = (question || "").trim().toLowerCase();

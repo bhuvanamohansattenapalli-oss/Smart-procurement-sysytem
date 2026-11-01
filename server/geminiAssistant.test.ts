@@ -8,7 +8,10 @@ import {
   testGeminiConnectivity,
   generateFarmerAssistantReply,
   generateOfficerAssistantReply,
+  validateAndSanitizeImage,
 } from "./services/geminiService";
+import { getLiveAgriculturalWeather } from "./services/weatherService";
+import { isWeatherQuery, extractDistrictFromText } from "./routes/procurementApi";
 
 describe("Gemini AI Assistant Service & Diagnostics Suite", () => {
   it("detects language correctly for English, Telugu, and Hindi", () => {
@@ -37,6 +40,47 @@ describe("Gemini AI Assistant Service & Diagnostics Suite", () => {
     const check3 = checkAiRateLimit(testKey, 2, 5000);
     expect(check3.allowed).toBe(false);
     expect(check3.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it("accurately identifies weather queries in English, Telugu, and Hindi", () => {
+    expect(isWeatherQuery("Is today suitable for paddy harvesting in Guntur?")).toBe(true);
+    expect(isWeatherQuery("What is tomorrow's rain probability?")).toBe(true);
+    expect(isWeatherQuery("ఈరోజు వరి కోతకు వర్షం పడుతుందా?")).toBe(true);
+    expect(isWeatherQuery("क्या कल बारिश होगी और धान सुखाने के लिए मौसम ठीक है?")).toBe(true);
+    expect(isWeatherQuery("What is the price of Paddy?")).toBe(false);
+  });
+
+  it("extracts Andhra Pradesh / Telangana districts correctly from text", () => {
+    expect(extractDistrictFromText("Is it raining in Guntur today?")).toBe("Guntur");
+    expect(extractDistrictFromText("Weather forecast for Kurnool mandi")).toBe("Kurnool");
+    expect(extractDistrictFromText("Vijayawada market yard rain status")).toBe("Vijayawada");
+    expect(extractDistrictFromText("General harvest question")).toBeUndefined();
+  });
+
+  it("validates images using magic bytes and enforces size limits", () => {
+    // 1x1 PNG image in base64
+    const validPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const pngResult = validateAndSanitizeImage(validPng);
+    expect(pngResult.isValid).toBe(true);
+    expect(pngResult.mimeType).toBe("image/png");
+
+    // JPEG header: FF D8 FF E0 00 10 4A 46 49 46 00 01
+    const validJpg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x00, 0x00, 0x00]).toString("base64");
+    const jpgResult = validateAndSanitizeImage(validJpg);
+    expect(jpgResult.isValid).toBe(true);
+    expect(jpgResult.mimeType).toBe("image/jpeg");
+
+    // Invalid non-image file pretending to be image
+    const invalidText = Buffer.from("THIS_IS_NOT_AN_IMAGE_FILE_DATA").toString("base64");
+    const invalidResult = validateAndSanitizeImage(invalidText);
+    expect(invalidResult.isValid).toBe(false);
+    expect(invalidResult.error).toContain("Unsupported image format");
+
+    // Oversized buffer (>5MB)
+    const largeDummy = Buffer.alloc(6 * 1024 * 1024, 0).toString("base64");
+    const largeResult = validateAndSanitizeImage(largeDummy);
+    expect(largeResult.isValid).toBe(false);
+    expect(largeResult.error).toContain("exceeds");
   });
 
   it("verifies Gemini API configuration and supported model", () => {
@@ -72,4 +116,45 @@ describe("Gemini AI Assistant Service & Diagnostics Suite", () => {
     expect(result.source).toBe("gemini");
     expect(result.text).toContain("2,300");
   }, 15000);
+
+  it("generates weather-grounded advisory using live Open-Meteo data", async () => {
+    if (!isGeminiConfigured()) return;
+    const weatherReport = await getLiveAgriculturalWeather({ district: "Guntur" });
+    expect(weatherReport).toBeDefined();
+    expect(weatherReport.district).toBe("Guntur");
+
+    const result = await generateFarmerAssistantReply({
+      question: "Is today suitable for paddy harvesting in Guntur?",
+      weatherReport,
+      language: "EN",
+    });
+
+    expect(result.source).toBe("gemini");
+    expect(result.text).toBeDefined();
+    expect(result.text.length).toBeGreaterThan(50);
+    // Verified that it cites location and meteorological readings
+    expect(result.text.toLowerCase()).toContain("guntur");
+  }, 15000);
+
+  it("analyzes multimodal agricultural image with Gemini vision", async () => {
+    if (!isGeminiConfigured()) return;
+    // 1x1 green PNG pixel
+    const samplePng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const imageInput = {
+      base64: samplePng,
+      mimeType: "image/png" as const,
+    };
+
+    const result = await generateFarmerAssistantReply({
+      question: "What color is this image?",
+      image: imageInput,
+      language: "EN",
+    });
+
+    expect(result.source).toBe("gemini");
+    expect(result.text).toBeDefined();
+    expect(result.text.length).toBeGreaterThan(5);
+  }, 15000);
 });
+
+

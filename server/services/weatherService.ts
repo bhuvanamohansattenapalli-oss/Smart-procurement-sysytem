@@ -693,3 +693,43 @@ export async function getLiveAgriculturalWeather(query: {
     };
   }
 }
+
+/**
+ * Formats live Open-Meteo meteorological report into a structured, ground-truth context block for the AI Assistant.
+ */
+export function formatWeatherForAiPrompt(report: OpenMeteoWeatherReport): string {
+  const c = report.current;
+  const d = report.daily;
+  const adv = report.sellingAdvisory;
+  return `
+[LIVE OPEN-METEO WEATHER REPORT]
+- Forecast Location: ${report.locationName} (${report.state})
+- Coordinates: ${report.coordinates.latitude.toFixed(4)}°N, ${report.coordinates.longitude.toFixed(4)}°E (Source: ${report.locationSource})
+- Last Synchronized: ${report.metadata.lastSynchronizedAt} (Asia/Kolkata)
+- Freshness Status: ${report.metadata.isStale ? "STALE (API Offline / Fallback in effect)" : "LIVE & CURRENT (Open-Meteo API)"}
+
+CURRENT OBSERVATIONS:
+- Weather Condition: ${c.weatherCondition} (WMO Code ${c.weatherCode})
+- Temperature: ${c.temperatureC}°C (Feels like: ${c.feelsLikeC}°C)
+- Relative Humidity: ${c.humidityPercent}%
+- Wind Speed: ${c.windSpeedKmH} km/h
+- Precipitation / Rainfall: ${c.rainfallMm} mm
+- Hourly Rain Probability: ${c.hourlyPrecipitationProbability}%
+
+TODAY & 3-DAY FORECAST:
+- Today's Forecast: High ${d.tempHighC}°C / Low ${d.tempLowC}°C | Max Rain Probability: ${d.maxPrecipitationProbability}% | Total Expected Rainfall: ${d.totalRainfallMm} mm | Condition: ${d.weatherCondition}
+${report.dailyForecast.slice(1, 4).map(f => `- ${f.dayName} (${f.date}): High ${f.tempHighC}°C, Low ${f.tempLowC}°C, Rain Probability: ${f.maxPrecipitationProbability}%, Rainfall: ${f.totalRainfallMm}mm, Condition: ${f.weatherCondition}`).join("\n")}
+
+AGRICULTURAL HARVESTING & LOGISTICS ADVISORY:
+- Harvest Status: ${adv.harvestStatus}
+- Moisture Risk Level: ${adv.moistureRiskLevel} (FAQ standard for paddy moisture: strictly <= 17.0%)
+- Transport Feasibility: ${adv.transportFeasibility}
+- Recommendation: ${adv.recommendation}
+- Rationale: ${adv.rationale}
+- Grain Storage Guidance: ${adv.storageAdvice}
+- Transport Transit Guidance: ${adv.transportAdvice}
+- Disclaimer: ${adv.disclaimer}
+[END WEATHER REPORT]
+`.trim();
+}
+

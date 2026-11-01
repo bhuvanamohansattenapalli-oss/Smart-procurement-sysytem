@@ -35,11 +35,14 @@ import {
   getGeminiModel,
   checkAiRateLimit,
   testGeminiConnectivity,
+  validateAndSanitizeImage,
+  type ChatImageInput,
 } from "../services/geminiService";
 import {
   getLiveAgriculturalWeather,
   generateCropSellingAdvisory,
   DISTRICT_COORDINATES,
+  type OpenMeteoWeatherReport,
 } from "../services/weatherService";
 import {
   getMandiMarketPrices,
@@ -136,17 +139,113 @@ const transportBookingSchema = z.object({
 const paymentSchema = z.object({ bookingId: idSchema, method: z.enum(["UPI", "CARD", "NET_BANKING"]) });
 const paymentOutcomeSchema = z.object({ outcome: z.enum(["SUCCESS", "FAILED"]), failureReason: z.string().trim().max(240).optional() });
 const statusSchema = z.object({ status: z.enum(["BOOKED", "ARRIVED", "DOCUMENT_VERIFICATION", "WEIGHING", "QUALITY_CHECK", "PROCESSING", "COMPLETED"]), weighedQuantityQuintals: z.coerce.number().positive().optional(), qualityGrade: z.string().trim().max(32).optional() });
-const questionSchema = z.object({
-  question: z.string().trim().min(1, "Question must not be empty.").max(1200, "Question too long (max 1200 characters)."),
-  bookingId: idSchema.optional(),
-  language: z.enum(["EN", "HI", "TE", "AUTO"]).default("AUTO"),
-  role: z.enum(["farmer", "officer"]).default("farmer"),
-  sessionId: z.string().max(64).optional(),
-  history: z.array(z.object({
-    role: z.enum(["user", "assistant"]),
-    content: z.string().max(1200),
-  })).max(10).optional(),
-});
+const questionSchema = z
+  .object({
+    question: z.string().trim().max(1200, "Question too long (max 1200 characters).").optional().default(""),
+    image: z
+      .object({
+        data: z.string().min(20, "Image base64 data is required."),
+        mimeType: z.string().optional(),
+      })
+      .optional(),
+    location: z
+      .object({
+        latitude: z.number().min(-90).max(90).optional(),
+        longitude: z.number().min(-180).max(180).optional(),
+        district: z.string().max(100).optional(),
+        village: z.string().max(100).optional(),
+      })
+      .optional(),
+    bookingId: idSchema.optional(),
+    language: z.enum(["EN", "HI", "TE", "AUTO"]).default("AUTO"),
+    role: z.enum(["farmer", "officer"]).default("farmer"),
+    sessionId: z.string().max(64).optional(),
+    history: z
+      .array(
+        z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string().max(1200),
+        })
+      )
+      .max(10)
+      .optional(),
+  })
+  .refine(data => (data.question && data.question.length > 0) || Boolean(data.image), {
+    message: "Either a question or an image must be provided.",
+    path: ["question"],
+  });
+
+/** Helper to detect if a question requires live meteorological context */
+export function isWeatherQuery(text?: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const lower = text.toLowerCase();
+
+  // English meteorological & harvesting keywords
+  const enKeywords = [
+    "weather", "rain", "raining", "rainfall", "forecast", "temperature",
+    "humidity", "wind", "storm", "cyclone", "harvest", "drying", "sun-drying",
+    "moisture", "climate", "sunny", "cloudy", "overcast", "drizzle", "precipitation",
+    "storage condition", "safe harvest", "transit weather"
+  ];
+  if (enKeywords.some(kw => lower.includes(kw))) return true;
+
+  // Telugu meteorological & harvesting keywords
+  const teKeywords = [
+    "వాతావరణం", "వర్షం", "వాన", "తుఫాను", "ఎండ", "తేమ", "కోత", "నూర్పిడి", "ఆరబెట్టడం"
+  ];
+  if (teKeywords.some(kw => text.includes(kw))) return true;
+
+  // Hindi meteorological & harvesting keywords
+  const hiKeywords = [
+    "मौसम", "बारिश", "वर्षा", "तूफान", "धूप", "नमी", "तापमान", "कटाई", "सुखाना"
+  ];
+  if (hiKeywords.some(kw => text.includes(kw))) return true;
+
+  return false;
+}
+
+/** Extracts explicitly mentioned Andhra Pradesh / Telangana district or major city from text */
+export function extractDistrictFromText(text?: string): string | undefined {
+  if (!text || typeof text !== "string") return undefined;
+  const lower = text.toLowerCase();
+  const knownLocations: Record<string, string> = {
+    guntur: "Guntur",
+    tenali: "Tenali",
+    bapatla: "Bapatla",
+    palnadu: "Palnadu",
+    vijayawada: "Vijayawada",
+    ntr: "NTR",
+    krishna: "Krishna",
+    kurnool: "Kurnool",
+    nandyal: "Nandyal",
+    rajahmundry: "Rajahmundry",
+    kakinada: "Kakinada",
+    konaseema: "Konaseema",
+    eluru: "Eluru",
+    bhimavaram: "Bhimavaram",
+    nellore: "Nellore",
+    tirupati: "Tirupati",
+    chittoor: "Chittoor",
+    kadapa: "Kadapa",
+    anantapur: "Anantapur",
+    visakhapatnam: "Visakhapatnam",
+    anakapalli: "Anakapalli",
+    srikakulam: "Srikakulam",
+    vizianagaram: "Vizianagaram",
+    prakasam: "Prakasam",
+    nizamabad: "Nizamabad",
+    karimnagar: "Karimnagar",
+    warangal: "Warangal",
+    khammam: "Khammam",
+    hyderabad: "Hyderabad",
+  };
+
+  for (const [key, name] of Object.entries(knownLocations)) {
+    const regex = new RegExp(`\\b${key}\\b`, "i");
+    if (regex.test(lower)) return name;
+  }
+  return undefined;
+}
 
 const VEHICLE_CATALOG = {
   TRACTOR_TROLLEY: {
@@ -2782,7 +2881,64 @@ export function createProcurementApi() {
       } catch {}
     }
 
-    let result: { text: string; source: "gemini" | "fallback"; model: string; languageDetected?: string; warning?: string };
+    // 1. Image Validation & Processing (if uploaded)
+    let validatedImage: ChatImageInput | undefined = undefined;
+    if (input.image) {
+      const imgCheck = validateAndSanitizeImage(input.image.data, input.image.mimeType);
+      if (!imgCheck.isValid) {
+        return res.status(400).json({
+          error: "INVALID_IMAGE",
+          message: imgCheck.error || "The uploaded image is invalid or exceeds the 5.0MB limit.",
+        });
+      }
+      validatedImage = {
+        base64: imgCheck.base64,
+        mimeType: imgCheck.mimeType,
+      };
+    }
+
+    // 2. Weather Detection & Integration (Open-Meteo)
+    let weatherReport: OpenMeteoWeatherReport | undefined = undefined;
+    const needsWeather = isWeatherQuery(input.question);
+    if (needsWeather) {
+      let targetDistrict = extractDistrictFromText(input.question) || input.location?.district;
+      let targetVillage = input.location?.village;
+      let targetLat = input.location?.latitude;
+      let targetLon = input.location?.longitude;
+
+      // If location is not in prompt/input and farmer is authenticated, lookup their registered farm village/district
+      if (!targetDistrict && !targetLat && db && principal && principal.role === "farmer") {
+        try {
+          const farmerRec = (await db.select().from(farmers).where(eq(farmers.id, principal.id)).limit(1))[0];
+          if (farmerRec) {
+            targetDistrict = farmerRec.district;
+            targetVillage = farmerRec.village;
+          }
+        } catch (locErr) {
+          console.warn("[AI Weather] Failed to lookup farmer registered location:", locErr);
+        }
+      }
+
+      try {
+        weatherReport = await getLiveAgriculturalWeather({
+          district: targetDistrict || "Guntur",
+          village: targetVillage,
+          latitude: targetLat,
+          longitude: targetLon,
+        });
+      } catch (weatherErr) {
+        console.warn("[AI Weather] Open-Meteo weather fetch error:", weatherErr);
+      }
+    }
+
+    let result: {
+      text: string;
+      source: "gemini" | "fallback";
+      model: string;
+      languageDetected?: string;
+      warning?: string;
+      weatherContext?: any;
+    };
     let assistantContext: Partial<BookingContext> = {
       farmerName: "Ramesh Kumar",
       bookingCode: "BK-2026-7294",
@@ -2813,6 +2969,8 @@ export function createProcurementApi() {
 
       result = await generateOfficerAssistantReply({
         question: input.question,
+        image: validatedImage,
+        weatherReport,
         history: input.history,
         officerRole,
         officerName,
@@ -2849,6 +3007,8 @@ export function createProcurementApi() {
 
       result = await generateFarmerAssistantReply({
         question: input.question,
+        image: validatedImage,
+        weatherReport,
         history: input.history,
         context: assistantContext,
         language: input.language,
@@ -2864,7 +3024,7 @@ export function createProcurementApi() {
             userRole: isOfficerQuery ? "officer" : "farmer",
             userId: principal?.id ?? null,
             sender: "user",
-            message: input.question,
+            message: input.question || (validatedImage ? "[Agricultural Photo Uploaded]" : "Question"),
             language: input.language,
             source: "user",
           },
@@ -2892,6 +3052,22 @@ export function createProcurementApi() {
       language: result.languageDetected || input.language,
       sessionId,
       warning: result.warning || null,
+      weather: weatherReport
+        ? {
+            location: weatherReport.locationName,
+            district: weatherReport.district,
+            state: weatherReport.state,
+            observedAt: weatherReport.metadata.lastSynchronizedAt,
+            isStale: weatherReport.metadata.isStale,
+            condition: weatherReport.current.weatherCondition,
+            temperatureC: weatherReport.current.temperatureC,
+            humidityPercent: weatherReport.current.humidityPercent,
+            rainProbability: weatherReport.daily.maxPrecipitationProbability,
+            harvestStatus: weatherReport.sellingAdvisory.harvestStatus,
+            recommendation: weatherReport.sellingAdvisory.recommendation,
+          }
+        : null,
+      hasImage: Boolean(validatedImage),
       context: {
         tokenNumber: assistantContext.tokenNumber,
         centreName: assistantContext.centreName,

@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BookingContext } from "../types/api";
-import { createMockAssistantReply, type AssistantLanguage } from "./mockAiService";
+import { createMockAssistantReply, type AssistantLanguage, type ExtendedAssistantContext } from "./mockAiService";
+import { OpenMeteoWeatherReport, formatWeatherForAiPrompt } from "./weatherService";
 
 export type AssistantRole = "farmer" | "officer";
 
@@ -9,8 +10,15 @@ export interface ChatHistoryMessage {
   content: string;
 }
 
+export interface ChatImageInput {
+  base64: string;
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+}
+
 export interface FarmerChatOptions {
   question: string;
+  image?: ChatImageInput;
+  weatherReport?: OpenMeteoWeatherReport;
   history?: ChatHistoryMessage[];
   context?: Partial<BookingContext>;
   language?: AssistantLanguage | "AUTO";
@@ -18,6 +26,8 @@ export interface FarmerChatOptions {
 
 export interface OfficerChatOptions {
   question: string;
+  image?: ChatImageInput;
+  weatherReport?: OpenMeteoWeatherReport;
   history?: ChatHistoryMessage[];
   officerRole?: string;
   officerName?: string;
@@ -32,6 +42,87 @@ export interface GeminiChatResponse {
   languageDetected?: string;
   warning?: string;
   latencyMs?: number;
+  weatherContext?: {
+    location: string;
+    lastUpdated: string;
+    temperatureC: number;
+    weatherCondition: string;
+    rainProbability: number;
+  };
+}
+
+/**
+ * Validates, checks magic bytes, and cleans uploaded images.
+ * Rejects non-image files, spoofed extensions, and oversized files (>5MB).
+ */
+export function validateAndSanitizeImage(rawBase64: string, declaredMime?: string): {
+  isValid: boolean;
+  base64: string;
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  error?: string;
+  sizeBytes?: number;
+} {
+  if (!rawBase64 || typeof rawBase64 !== "string") {
+    return { isValid: false, base64: "", mimeType: "image/jpeg", error: "Missing image data." };
+  }
+
+  // Strip data URL scheme prefix if present
+  let cleanBase64 = rawBase64.trim();
+  const commaIndex = cleanBase64.indexOf(",");
+  if (commaIndex !== -1 && cleanBase64.slice(0, commaIndex).includes("base64")) {
+    cleanBase64 = cleanBase64.slice(commaIndex + 1).trim();
+  }
+
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(cleanBase64, "base64");
+  } catch {
+    return { isValid: false, base64: "", mimeType: "image/jpeg", error: "Invalid base64 encoding." };
+  }
+
+  // Max 5MB file size limit
+  const maxBytes = 5 * 1024 * 1024;
+  if (buffer.length > maxBytes) {
+    return {
+      isValid: false,
+      base64: "",
+      mimeType: "image/jpeg",
+      error: `Image size exceeds 5MB limit (${(buffer.length / (1024 * 1024)).toFixed(1)}MB).`,
+      sizeBytes: buffer.length,
+    };
+  }
+
+  if (buffer.length < 12) {
+    return { isValid: false, base64: "", mimeType: "image/jpeg", error: "File too small to be a valid image." };
+  }
+
+  // Verify magic bytes (file signatures)
+  const hexHeader = buffer.slice(0, 12).toString("hex").toLowerCase();
+  let resolvedMime: "image/jpeg" | "image/png" | "image/webp" | null = null;
+  if (hexHeader.startsWith("ffd8ff")) {
+    resolvedMime = "image/jpeg";
+  } else if (hexHeader.startsWith("89504e470d0a1a0a")) {
+    resolvedMime = "image/png";
+  } else if (hexHeader.startsWith("52494646") && hexHeader.slice(16, 24) === "57454250") {
+    resolvedMime = "image/webp";
+  }
+
+  if (!resolvedMime) {
+    return {
+      isValid: false,
+      base64: "",
+      mimeType: "image/jpeg",
+      error: "Unsupported image format. Only authentic JPEG, PNG, and WebP images are permitted.",
+      sizeBytes: buffer.length,
+    };
+  }
+
+  return {
+    isValid: true,
+    base64: cleanBase64,
+    mimeType: resolvedMime,
+    sizeBytes: buffer.length,
+  };
 }
 
 // In-memory sliding window rate limiter (30 requests/minute per client key)
@@ -162,7 +253,11 @@ export function detectLanguage(text: string, manualLang?: AssistantLanguage | "A
 }
 
 // System instruction for the Farmer Assistant
-function buildFarmerSystemInstruction(context?: Partial<BookingContext>, lang: "TE" | "HI" | "EN" = "EN"): string {
+function buildFarmerSystemInstruction(
+  context?: Partial<BookingContext>,
+  lang: "TE" | "HI" | "EN" = "EN",
+  weatherReport?: OpenMeteoWeatherReport
+): string {
   const contextSnippet = `
 CURRENT FARMER & AP PROCUREMENT CONTEXT:
 - Farmer Name: ${context?.farmerName || "Farmer Friend / రైతు మిత్రమా"}
@@ -179,6 +274,10 @@ CURRENT FARMER & AP PROCUREMENT CONTEXT:
 - Official Helplines: Rythu Bharosa Kendra (RBK): 1800-425-0002, Kisan Call Centre: 1800-180-1551, AP Grievance: 1902.
 `;
 
+  const weatherSnippet = weatherReport
+    ? `\n${formatWeatherForAiPrompt(weatherReport)}\n`
+    : `\n[WEATHER STATUS]: Live weather was not queried for this prompt, or no specific farm location was passed. If the user asks about weather, remind them they can check the 'Live Weather' tab or mention their district.\n`;
+
   return `
 You are "ProcureFlow Krishi Mitra" (రైతు మిత్ర / किसान मित्र), the official AI agricultural assistant embedded in the Andhra Pradesh Smart Procurement System (ProcureFlow).
 
@@ -188,7 +287,26 @@ YOUR ROLES & CAPABILITIES:
 3. Government MSP guidance: Cite exact government minimum support prices accurately. Never fabricate or invent MSP rates.
 4. Mandi arrival guidance: Explain required documents (Aadhaar Card, Bank Passbook copy with IFSC, Pattadar Passbook / Land title or VRO cultivation certificate).
 5. Subsidized Transport: Help farmers understand vehicle types (Tractor Trolley, Mini Truck, Heavy Lorry) and 30% government freight subsidy.
-6. Weather & Harvesting: Provide realistic guidance regarding rain, humidity, and grain moisture stabilization.
+6. Weather & Harvesting: Provide realistic guidance regarding rain, humidity, and grain moisture stabilization based strictly on live Open-Meteo meteorological data.
+7. Multimodal Agricultural Document & Crop Inspection: Analyze farmer-uploaded photos of crops (pests, disease symptoms, grain moisture condition) and mandi documents (gate pass, weight slip, fertilizer packaging).
+
+WEATHER INTEGRATION INSTRUCTIONS (STRICT COMPLIANCE):
+- When live weather data is present in the prompt:
+  • Always state the forecast location and its update/sync timestamp (Asia/Kolkata).
+  • Use the actual readings (temperature, humidity, rain probability, wind speed, precipitation). NEVER invent weather readings.
+  • Distinguish current observed conditions from future predictions (e.g. today vs tomorrow vs day 3).
+  • For paddy harvesting and grain drying: Paddy moisture MUST be strictly <= 17.0% for mandi classification. Recommend sun-drying or tarpaulin cover based on the specific rain probabilities.
+  • For transit: Recommend whether dispatch to the procurement centre is normal, or if protective tarpaulins or delay is needed.
+  • Mandatory Disclaimer: Explicitly remind the farmer that weather is an essential decision factor, but does not alone dictate crop selling dates (market prices, moisture targets, and slot availability must also be considered).
+  • If weather data is unavailable or stale, clearly communicate that to the farmer.
+
+MULTIMODAL AGRICULTURAL VISION & SAFETY INSTRUCTIONS:
+- When an image is provided:
+  • Crop Health & Pests: Carefully inspect visible leaves, stems, or grains for signs of pest damage, chlorosis, blast, blight, or discoloration.
+  • Mandatory Safety Rule: NEVER claim a 100% definitive diagnosis from a photograph alone. State observations as possibilities and advise physical verification by the local Village Agricultural Assistant (VAA) or Rythu Bharosa Kendra (RBK).
+  • Image Clarity: If lighting, resolution, or focus is inadequate, explain politely what details are unclear and guide the farmer on how to take a clearer photo.
+  • Chemical Safety: Do NOT recommend dangerous chemical dosages or hazardous pesticides without adequate evidence; promote Integrated Pest Management (IPM) and safe handling.
+  • Mandi Receipts / Documents: Extract key data accurately (weights, deductions, net amounts, token numbers) and remind the farmer to keep the physical slip safe.
 
 STRICT ACCURACY & INTEGRITY RULES:
 - Never fabricate or invent government schemes, subsidies, or prices. Only reference verified official schemes (Rythu Bharosa, PM-Kisan, AP Civil Supplies, e-Crop).
@@ -203,6 +321,7 @@ LANGUAGE & TONE:
 - Keep answers concise, structured with bullet points or numbered steps where appropriate, and easy to read on mobile devices.
 
 ${contextSnippet}
+${weatherSnippet}
 `;
 }
 
@@ -211,8 +330,13 @@ function buildOfficerSystemInstruction(
   officerRole = "OFFICER",
   officerName = "Procurement Officer",
   centreName = "Mandi Yard",
-  lang: "TE" | "HI" | "EN" = "EN"
+  lang: "TE" | "HI" | "EN" = "EN",
+  weatherReport?: OpenMeteoWeatherReport
 ): string {
+  const weatherSnippet = weatherReport
+    ? `\n${formatWeatherForAiPrompt(weatherReport)}\n`
+    : "";
+
   return `
 You are "ProcureFlow Officer Copilot", an AI operational assistant built for Mandi Procurement Officers, Quality Control Inspectors, and Logistics Managers in Andhra Pradesh.
 
@@ -227,18 +351,27 @@ YOUR ROLES & RESPONSIBILITIES:
 3. Queue & Mandi Congestion Management: Advisories for bottleneck alleviation, slot re-allocation during bad weather, token calling order, and truck turnaround time optimization.
 4. Farmer Registration Verification: Guidelines for verifying land title (Pattadar 1-B / ROR), Aadhaar matching, duplicate phone prevention, and e-Crop validation.
 5. Dispute Resolution: Fair sampling procedures in the presence of the farmer, issuing official lab analysis slips when moisture is marginally high, and advising drying bays before re-inspection.
+6. Document & Gate Pass OCR: Extract details from weighbridge slips, gate passes, and farmer IDs.
 
 CRITICAL SECURITY & ROLE CONSTRAINTS:
 - NEVER reveal personal, financial, or sensitive information of other farmers (e.g., Aadhaar digits, personal bank account numbers).
 - YOU CANNOT execute administrative transactions (approving registrations, processing DBT payments, cancelling bookings, changing status). Remind the officer to perform all state-changing actions via the dedicated, authenticated buttons in the Officer Dashboard.
 - Provide crisp, professional, bulleted operational summaries.
 - Target Language: ${lang === "TE" ? "Telugu (తెలుగు)" : lang === "HI" ? "Hindi (हिंदी)" : "English"}. Respond fluently in the target language.
+${weatherSnippet}
 `;
 }
 
-/** Formats chat history array into Gemini contents structure */
-function formatContents(history: ChatHistoryMessage[] = [], currentQuestion: string) {
-  const contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
+/** Formats chat history array and optional image into Gemini contents structure */
+function formatContents(
+  history: ChatHistoryMessage[] = [],
+  currentQuestion: string,
+  image?: ChatImageInput
+) {
+  const contents: Array<{
+    role: "user" | "model";
+    parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+  }> = [];
 
   // Take up to 6 recent messages to keep latency low and context relevant
   const recentHistory = history.slice(-6);
@@ -250,9 +383,28 @@ function formatContents(history: ChatHistoryMessage[] = [], currentQuestion: str
     });
   }
 
+  const userParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+
+  // Attach multimodal image part first if present
+  if (image && image.base64) {
+    userParts.push({
+      inlineData: {
+        mimeType: image.mimeType,
+        data: image.base64,
+      },
+    });
+  }
+
+  const cleanPrompt = sanitizeInput(currentQuestion, 1000);
+  const promptText = cleanPrompt || (image ? "Please examine this attached agricultural image, explain what you observe (crop disease symptoms, pest, grain quality, or document details), and provide clear, practical guidance." : "");
+
+  if (promptText) {
+    userParts.push({ text: promptText });
+  }
+
   contents.push({
     role: "user",
-    parts: [{ text: sanitizeInput(currentQuestion, 1000) }],
+    parts: userParts,
   });
 
   return contents;
@@ -261,15 +413,19 @@ function formatContents(history: ChatHistoryMessage[] = [], currentQuestion: str
 /**
  * Robust Gemini model invoker with:
  * 1. Automatic model fallback chain (e.g. primary -> gemini-3.5-flash-lite -> gemini-flash-lite-latest)
- * 2. Thinking budget optimization for reasoning models
- * 3. Per-model execution timeout (12s per model, max 22s total to protect Vercel 30s limit)
- * 4. Exponential backoff on rate-limits (HTTP 429) or transient server load (HTTP 503)
- * 5. Structured, safe logging (no secrets or sensitive farmer data)
+ * 2. Multimodal vision support for images and documents
+ * 3. Thinking budget optimization for reasoning models
+ * 4. Per-model execution timeout (12s per model, max 22s total to protect Vercel 30s limit)
+ * 5. Exponential backoff on rate-limits (HTTP 429) or transient server load (HTTP 503)
+ * 6. Structured, safe logging (no secrets, image bytes, or sensitive farmer data)
  */
 async function executeGeminiWithFallback(params: {
   client: GoogleGenAI;
   primaryModel: string;
-  contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }>;
+  contents: Array<{
+    role: "user" | "model";
+    parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+  }>;
   systemInstruction: string;
   role: "farmer" | "officer";
   lang: "TE" | "HI" | "EN";
@@ -373,35 +529,52 @@ async function executeGeminiWithFallback(params: {
  * Generate a response for the Farmer Chatbot using Gemini, with full fallback protection.
  */
 export async function generateFarmerAssistantReply(options: FarmerChatOptions): Promise<GeminiChatResponse> {
-  const { question, history = [], context = {}, language: manualLang } = options;
+  const { question, image, weatherReport, history = [], context = {}, language: manualLang } = options;
   const cleanQuestion = sanitizeInput(question);
-  if (!cleanQuestion) {
+
+  if (!cleanQuestion && !image) {
     return {
-      text: "Please enter a question regarding crops, MSP, or procurement.",
+      text: "Please enter a question or upload a photo regarding crops, MSP, or procurement.",
       source: "fallback",
       model: "local",
     };
   }
 
-  const detectedLang = detectLanguage(cleanQuestion, manualLang);
+  const detectedLang = detectLanguage(cleanQuestion || "image observation", manualLang);
   const client = getGeminiClient();
   const primaryModel = getGeminiModel();
 
+  const weatherContextSummary = weatherReport
+    ? {
+        location: weatherReport.locationName,
+        lastUpdated: weatherReport.metadata.lastSynchronizedAt,
+        temperatureC: weatherReport.current.temperatureC,
+        weatherCondition: weatherReport.current.weatherCondition,
+        rainProbability: weatherReport.daily.maxPrecipitationProbability,
+      }
+    : undefined;
+
   if (!client) {
     console.warn("[Gemini AI] No API key configured. Utilizing local offline rule engine.");
-    const fallbackText = createMockAssistantReply(cleanQuestion, context, detectedLang);
+    const fallbackText = createMockAssistantReply(cleanQuestion, {
+      ...context,
+      district: weatherReport?.district,
+      weatherCondition: weatherReport?.current?.weatherCondition,
+      temperature: weatherReport?.current?.temperatureC,
+    }, detectedLang);
     return {
       text: fallbackText,
       source: "fallback",
       model: "offline-rule-engine",
       languageDetected: detectedLang,
       warning: "Gemini API key is not configured. Running in offline rule-based advisor mode.",
+      weatherContext: weatherContextSummary,
     };
   }
 
   try {
-    const systemInstruction = buildFarmerSystemInstruction(context, detectedLang);
-    const contents = formatContents(history, cleanQuestion);
+    const systemInstruction = buildFarmerSystemInstruction(context, detectedLang, weatherReport);
+    const contents = formatContents(history, cleanQuestion, image);
 
     const result = await executeGeminiWithFallback({
       client,
@@ -410,7 +583,7 @@ export async function generateFarmerAssistantReply(options: FarmerChatOptions): 
       systemInstruction,
       role: "farmer",
       lang: detectedLang,
-      previewQuestion: cleanQuestion,
+      previewQuestion: cleanQuestion || "[Image uploaded]",
     });
 
     return {
@@ -419,16 +592,23 @@ export async function generateFarmerAssistantReply(options: FarmerChatOptions): 
       model: result.model,
       languageDetected: detectedLang,
       latencyMs: result.latencyMs,
+      weatherContext: weatherContextSummary,
     };
   } catch (err: any) {
     console.warn(`[Gemini Farmer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisor.`);
-    const fallbackText = createMockAssistantReply(cleanQuestion, context, detectedLang);
+    const fallbackText = createMockAssistantReply(cleanQuestion, {
+      ...context,
+      district: weatherReport?.district,
+      weatherCondition: weatherReport?.current?.weatherCondition,
+      temperature: weatherReport?.current?.temperatureC,
+    }, detectedLang);
     return {
       text: fallbackText,
       source: "fallback",
       model: "offline-rule-engine",
       languageDetected: detectedLang,
       warning: `Gemini temporarily unavailable (${err?.message || "connection error"}). Displaying verified offline response. You may retry.`,
+      weatherContext: weatherContextSummary,
     };
   }
 }
@@ -439,6 +619,8 @@ export async function generateFarmerAssistantReply(options: FarmerChatOptions): 
 export async function generateOfficerAssistantReply(options: OfficerChatOptions): Promise<GeminiChatResponse> {
   const {
     question,
+    image,
+    weatherReport,
     history = [],
     officerRole = "OFFICER",
     officerName = "Officer",
@@ -447,17 +629,27 @@ export async function generateOfficerAssistantReply(options: OfficerChatOptions)
   } = options;
 
   const cleanQuestion = sanitizeInput(question);
-  if (!cleanQuestion) {
+  if (!cleanQuestion && !image) {
     return {
-      text: "Please provide a query regarding procurement operations, FAQ quality standards, or mandi queue management.",
+      text: "Please provide a query or image regarding procurement operations, FAQ quality standards, or mandi queue management.",
       source: "fallback",
       model: "local",
     };
   }
 
-  const detectedLang = detectLanguage(cleanQuestion, manualLang);
+  const detectedLang = detectLanguage(cleanQuestion || "document analysis", manualLang);
   const client = getGeminiClient();
   const primaryModel = getGeminiModel();
+
+  const weatherContextSummary = weatherReport
+    ? {
+        location: weatherReport.locationName,
+        lastUpdated: weatherReport.metadata.lastSynchronizedAt,
+        temperatureC: weatherReport.current.temperatureC,
+        weatherCondition: weatherReport.current.weatherCondition,
+        rainProbability: weatherReport.daily.maxPrecipitationProbability,
+      }
+    : undefined;
 
   if (!client) {
     console.warn("[Gemini AI] No API key configured for Officer Copilot. Utilizing offline advisory.");
@@ -468,12 +660,13 @@ export async function generateOfficerAssistantReply(options: OfficerChatOptions)
       model: "offline-rule-engine",
       languageDetected: detectedLang,
       warning: "Gemini API key is not configured. Running in offline rule-based advisory mode.",
+      weatherContext: weatherContextSummary,
     };
   }
 
   try {
-    const systemInstruction = buildOfficerSystemInstruction(officerRole, officerName, centreName, detectedLang);
-    const contents = formatContents(history, cleanQuestion);
+    const systemInstruction = buildOfficerSystemInstruction(officerRole, officerName, centreName, detectedLang, weatherReport);
+    const contents = formatContents(history, cleanQuestion, image);
 
     const result = await executeGeminiWithFallback({
       client,
@@ -482,7 +675,7 @@ export async function generateOfficerAssistantReply(options: OfficerChatOptions)
       systemInstruction,
       role: "officer",
       lang: detectedLang,
-      previewQuestion: cleanQuestion,
+      previewQuestion: cleanQuestion || "[Officer Image Uploaded]",
     });
 
     return {
@@ -491,6 +684,7 @@ export async function generateOfficerAssistantReply(options: OfficerChatOptions)
       model: result.model,
       languageDetected: detectedLang,
       latencyMs: result.latencyMs,
+      weatherContext: weatherContextSummary,
     };
   } catch (err: any) {
     console.warn(`[Gemini Officer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisory.`);
@@ -501,6 +695,7 @@ export async function generateOfficerAssistantReply(options: OfficerChatOptions)
       model: "offline-rule-engine",
       languageDetected: detectedLang,
       warning: `Gemini temporarily unavailable (${err?.message || "connection error"}). Displaying verified offline advisory.`,
+      weatherContext: weatherContextSummary,
     };
   }
 }

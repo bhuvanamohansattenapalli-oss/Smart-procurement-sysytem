@@ -11,6 +11,7 @@ import {
   Bell,
   Bot,
   CalendarDays,
+  Camera,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -27,6 +28,7 @@ import {
   Globe,
   Headphones,
   HelpCircle,
+  Image as ImageIcon,
   Landmark,
   Leaf,
   LoaderCircle,
@@ -738,9 +740,21 @@ export default function Home() {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSessionId, setChatSessionId] = useState<string>(() => `farmer-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
-  const [chat, setChat] = useState<Array<{ role: string; text: string; source?: string; model?: string; warning?: string }>>([
+  const [chat, setChat] = useState<Array<{ role: string; text: string; source?: string; model?: string; warning?: string; imageUrl?: string }>>([
     { role: "assistant", text: "Namaste, Ramesh. I can help you plan your visit to the procurement centre.", source: "gemini", model: "gemini-3.5-flash-lite" }
   ]);
+  const [attachedImage, setAttachedImage] = useState<{
+    file: File;
+    previewUrl: string;
+    base64: string;
+    mimeType: "image/jpeg" | "image/png" | "image/webp";
+  } | null>(null);
+  const [isCameraMenuOpen, setIsCameraMenuOpen] = useState(false);
+  const [imageCompressing, setImageCompressing] = useState(false);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraMenuRef = useRef<HTMLDivElement>(null);
   const [officerChatInput, setOfficerChatInput] = useState("");
   const [officerChatLoading, setOfficerChatLoading] = useState(false);
   const [officerChatSessionId, setOfficerChatSessionId] = useState<string>(() => `officer-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
@@ -3295,12 +3309,126 @@ export default function Home() {
     return `Namaste ${farmerName}! Your token is ${token} at ${centre} with ${peopleAhead} farmers ahead in queue. Current status: ${status}.\nI can answer anything regarding: Official Helplines (1800-425-0002 / 1902), Farmer Registration, Crop MSP Prices, 30% Subsidized Transport, Live Weather, Token & Queue, or DBT Payments. What would you like to know?`;
   };
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (cameraMenuRef.current && !cameraMenuRef.current.contains(event.target as Node)) {
+        setIsCameraMenuOpen(false);
+      }
+    }
+    if (isCameraMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isCameraMenuOpen]);
+
+  const processSelectedImage = async (file: File) => {
+    if (!file) return;
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      toast.error("Please select a valid JPG, PNG, or WebP photograph.");
+      return;
+    }
+
+    // Enforce 10MB pre-compression browser limit
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Original photo is too large (>10MB). Please choose a smaller photo.");
+      return;
+    }
+
+    setImageCompressing(true);
+    try {
+      const reader = new FileReader();
+      const dataUrlPromise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const rawDataUrl = await dataUrlPromise;
+
+      // Downscale and compress image on canvas to max 1024px to minimize token consumption
+      const img = new Image();
+      const imgLoadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = rawDataUrl;
+      });
+
+      const loadedImg = await imgLoadPromise;
+      const maxDimension = 1024;
+      let width = loadedImg.width;
+      let height = loadedImg.height;
+
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not create canvas rendering context");
+
+      ctx.drawImage(loadedImg, 0, 0, width, height);
+
+      const targetMime: "image/jpeg" | "image/png" | "image/webp" =
+        file.type === "image/png" ? "image/png" : "image/jpeg";
+      const compressedDataUrl = canvas.toDataURL(targetMime, 0.82);
+      const base64Data = compressedDataUrl.replace(/^data:image\/[a-z]+;base64,/, "");
+
+      setAttachedImage({
+        file,
+        previewUrl: compressedDataUrl,
+        base64: base64Data,
+        mimeType: targetMime,
+      });
+      toast.success("Photo attached ready for AI inspection.");
+    } catch (err: any) {
+      console.error("Image processing error:", err);
+      toast.error("Could not process the selected image. Please try another photo.");
+    } finally {
+      setImageCompressing(false);
+      setIsCameraMenuOpen(false);
+    }
+  };
+
+  const removeAttachedImage = () => {
+    setAttachedImage(null);
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  };
+
   const assistantReply = async (question: string) => {
-    if (chatLoading) return;
+    if (chatLoading || imageCompressing) return;
     const prompt = question.trim();
-    if (!prompt) return;
-    setChat(items => [...items, { role: "user", text: prompt }]);
+    const currentImage = attachedImage;
+
+    // Allow sending if prompt is provided OR image is attached
+    if (!prompt && !currentImage) return;
+
+    const displayPrompt = prompt || (currentImage ? "Uploaded an agricultural photograph for inspection" : "");
+
+    // Add user message to chat feed with image preview if present
+    setChat(items => [
+      ...items,
+      {
+        role: "user",
+        text: displayPrompt,
+        imageUrl: currentImage?.previewUrl,
+      },
+    ]);
+
     setChatInput("");
+    setAttachedImage(null);
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
     setLiveInterimTranscript("");
     setChatLoading(true);
 
@@ -3321,18 +3449,27 @@ export default function Home() {
         content: m.text,
       })).slice(-6);
 
+      const payload: any = {
+        question: prompt || "Please analyze this image, identify what you observe (crop disease symptoms, pest, grain quality, or document details), and provide a safe, clear agricultural advisory.",
+        bookingId: bookingId || undefined,
+        language,
+        role: "farmer",
+        sessionId: chatSessionId,
+        history,
+      };
+
+      if (currentImage) {
+        payload.image = {
+          data: currentImage.base64,
+          mimeType: currentImage.mimeType,
+        };
+      }
+
       const response = await fetch(apiUrl("/ai/chat"), {
         method: "POST",
         headers,
         signal: controller.signal,
-        body: JSON.stringify({
-          question: prompt,
-          bookingId: bookingId || undefined,
-          language,
-          role: "farmer",
-          sessionId: chatSessionId,
-          history,
-        }),
+        body: JSON.stringify(payload),
       });
 
       clearTimeout(timeoutId);
@@ -3378,6 +3515,7 @@ export default function Home() {
         body: JSON.stringify({ sessionId: chatSessionId }),
       });
     } catch {}
+    removeAttachedImage();
     setChat([]);
     toast.success("Chat history cleared.");
   };
@@ -6494,6 +6632,16 @@ export default function Home() {
                         You (Farmer)
                       </span>
                       <div className="bg-[#ecf7f0] border border-[#d0e9d6] text-[#133e29] rounded-2xl rounded-tr-xs px-4 py-2.5 shadow-2xs">
+                        {message.imageUrl && (
+                          <div className="mb-2 max-w-[220px] sm:max-w-[260px] rounded-xl overflow-hidden border border-emerald-300/80 shadow-2xs">
+                            <img
+                              src={message.imageUrl}
+                              alt="Uploaded agricultural photograph"
+                              className="w-full h-auto max-h-[160px] sm:max-h-[190px] object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                        )}
                         <p className="text-xs sm:text-sm font-medium leading-relaxed whitespace-pre-wrap break-words m-0">
                           {message.text}
                         </p>
@@ -6625,6 +6773,45 @@ export default function Home() {
 
           {/* Chat Input Area */}
           <div className="p-4 sm:p-5 border-t border-slate-100 bg-white shrink-0">
+            {/* Selected Image Thumbnail Preview before sending */}
+            {attachedImage && (
+              <div className="mb-2.5 flex items-center justify-between p-2 sm:p-2.5 bg-emerald-50/90 border border-emerald-200/80 rounded-xl">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-emerald-300 shrink-0 shadow-2xs">
+                    <img
+                      src={attachedImage.previewUrl}
+                      alt="Attached preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-emerald-950 truncate block">
+                      📷 {tUi("Photograph Attached", language)}
+                    </span>
+                    <span className="text-[11px] text-emerald-700 block truncate">
+                      {attachedImage.file.name || "Ready for AI inspection"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeAttachedImage}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                  title="Remove photo"
+                  aria-label="Remove photo"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {imageCompressing && (
+              <div className="mb-2 p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-pulse">
+                <LoaderCircle size={14} className="animate-spin text-emerald-700" />
+                <span>{tUi("Optimizing photograph...", language)}</span>
+              </div>
+            )}
+
             {isListening && (
               <div className="p-2.5 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs font-bold flex items-center gap-2 mb-2 animate-pulse">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
@@ -6633,17 +6820,89 @@ export default function Home() {
             )}
 
             <form
-              className="flex items-center gap-2"
+              className="flex items-center gap-1.5 sm:gap-2"
               onSubmit={e => {
                 e.preventDefault();
                 void assistantReply(chatInput);
               }}
             >
+              {/* Hidden HTML file inputs for Camera and Gallery */}
+              <input
+                type="file"
+                ref={cameraInputRef}
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) void processSelectedImage(file);
+                }}
+              />
+              <input
+                type="file"
+                ref={galleryInputRef}
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) void processSelectedImage(file);
+                }}
+              />
+
+              {/* 1. Camera Button & Popup Menu */}
+              <div className="relative" ref={cameraMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsCameraMenuOpen(open => !open)}
+                  title="Attach agricultural photograph or document"
+                  aria-label="Attach photograph or document"
+                  className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors cursor-pointer border ${
+                    attachedImage
+                      ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-200"
+                      : isCameraMenuOpen
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                      : "bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border-slate-200 hover:border-emerald-200"
+                  }`}
+                >
+                  <Camera size={18} />
+                </button>
+
+                {/* Small clean dropdown menu */}
+                {isCameraMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-48 sm:w-52 bg-white rounded-xl shadow-lg border border-slate-200 p-1.5 z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCameraMenuOpen(false);
+                        cameraInputRef.current?.click();
+                      }}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-900 hover:bg-emerald-50 rounded-lg transition-colors text-left cursor-pointer"
+                    >
+                      <Camera size={16} className="text-emerald-700 shrink-0" />
+                      <span>{tUi("Take a Photo", language)}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCameraMenuOpen(false);
+                        galleryInputRef.current?.click();
+                      }}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-900 hover:bg-emerald-50 rounded-lg transition-colors text-left cursor-pointer"
+                    >
+                      <ImageIcon size={16} className="text-emerald-700 shrink-0" />
+                      <span>{tUi("Select from Gallery", language)}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Microphone Button */}
               <button
                 type="button"
                 onClick={listen}
                 title={isListening ? "Stop listening" : "Use voice input"}
-                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors cursor-pointer border ${
+                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors cursor-pointer border ${
                   isListening
                     ? "bg-red-600 text-white border-red-600 animate-pulse ring-4 ring-red-100"
                     : "bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border-slate-200 hover:border-emerald-200"
@@ -6653,22 +6912,26 @@ export default function Home() {
                 <Mic size={18} />
               </button>
 
+              {/* 3. Message Input */}
               <Input
                 value={chatInput}
                 onChange={event => setChatInput(event.target.value)}
                 placeholder={
-                  isListening
+                  attachedImage
+                    ? tUi("Ask something about this image... (or click send)", language)
+                    : isListening
                     ? tUi("Listening... Speak now", language)
                     : tUi("Ask in English, Telugu, or Hindi (e.g. 'What is the paddy MSP today?')", language)
                 }
-                className="h-11 rounded-xl text-xs sm:text-sm border-slate-200 focus:border-emerald-600 focus:ring-emerald-200 flex-1"
+                className="h-10 sm:h-11 rounded-xl text-xs sm:text-sm border-slate-200 focus:border-emerald-600 focus:ring-emerald-200 flex-1 min-w-0"
               />
 
+              {/* 4. Send Button */}
               <Button
                 type="submit"
-                disabled={chatLoading || !chatInput.trim()}
-                title="Send question"
-                className="bg-emerald-700 hover:bg-emerald-800 text-white w-11 h-11 rounded-xl flex items-center justify-center shrink-0 p-0"
+                disabled={chatLoading || (!chatInput.trim() && !attachedImage)}
+                title="Send question or image"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 p-0 cursor-pointer"
               >
                 <ArrowRight size={18} />
               </Button>
