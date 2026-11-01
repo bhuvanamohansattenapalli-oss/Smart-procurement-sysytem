@@ -33,6 +33,20 @@ import {
   getGeminiModel,
   checkAiRateLimit,
 } from "../services/geminiService";
+import {
+  getLiveAgriculturalWeather,
+  generateCropSellingAdvisory,
+  DISTRICT_COORDINATES,
+} from "../services/weatherService";
+import {
+  getMandiMarketPrices,
+  calculateMandiPriceComparison,
+  VERIFIED_AGMARKNET_DATA,
+} from "../services/marketPriceService";
+import {
+  calculateOsrmRoadRoute,
+  resolveLocationCoordinates,
+} from "../services/routingService";
 import type { AuthenticatedRequest, BookingContext, StaffRole } from "../types/api";
 
 function maskPhone(phone: string | undefined | null): string {
@@ -3157,212 +3171,143 @@ export function createProcurementApi() {
     });
   });
 
-  // 17. Live Agricultural Weather Report & Forecast for Andhra Pradesh
-  api.get("/weather", (req, res) => {
-    const districtQuery = (req.query.district as string || "Guntur").toLowerCase().trim();
+  // 17. Live Agricultural Weather Report & Forecast via Open-Meteo API
+  api.get("/weather", async (req, res) => {
+    try {
+      const districtQuery = (req.query.district as string || "Guntur").trim();
+      const latQuery = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
+      const lonQuery = req.query.lon ? parseFloat(req.query.lon as string) : undefined;
+      const cropQuery = (req.query.crop as string || "Paddy").trim();
 
-    const DISTRICT_WEATHER: Record<string, {
-      district: string;
-      state: string;
-      temperature: number;
-      feelsLike: number;
-      condition: string;
-      conditionCode: "SUNNY" | "PARTLY_CLOUDY" | "LIGHT_RAIN" | "CLEAR" | "HUMID";
-      humidity: number;
-      windSpeedKmH: number;
-      precipitationChance: number;
-      uvIndex: number;
-      safeHarvestingIndex: "OPTIMAL" | "FAVORABLE" | "CAUTION";
-      advisoryEn: string;
-      advisoryTe: string;
-      advisoryHi: string;
-      forecast: Array<{
-        day: string;
-        tempHigh: number;
-        tempLow: number;
-        condition: string;
-        rainChance: number;
-      }>;
-    }> = {
-      guntur: {
-        district: "Guntur",
-        state: "Andhra Pradesh",
-        temperature: 31,
-        feelsLike: 33,
-        condition: "Partly Cloudy & Warm",
-        conditionCode: "PARTLY_CLOUDY",
-        humidity: 62,
-        windSpeedKmH: 14,
-        precipitationChance: 10,
-        uvIndex: 7,
-        safeHarvestingIndex: "OPTIMAL",
-        advisoryEn: "Optimal weather for paddy harvesting and drying. Moisture levels are ideal (< 17%). Safe for open transit to market yards.",
-        advisoryTe: "వరి కోత మరియు ఆరబెట్టడానికి అనుకూల వాతావరణం. తేమ శాతం 17% లోపు స్థిరంగా ఉంది. మార్కెట్ యార్డుకు రవాణా సురక్షితం.",
-        advisoryHi: "धान की कटाई और सुखाने के लिए मौसम अनुकूल है। नमी का स्तर 17% से कम रहेगा। मंडी तक सुरक्षित परिवहन संभव है।",
-        forecast: [
-          { day: "Today", tempHigh: 32, tempLow: 24, condition: "Partly Cloudy", rainChance: 10 },
-          { day: "Tomorrow", tempHigh: 33, tempLow: 23, condition: "Sunny & Clear", rainChance: 5 },
-          { day: "Day 3", tempHigh: 31, tempLow: 24, condition: "Breezy", rainChance: 15 },
-        ],
-      },
-      vijayawada: {
-        district: "NTR / Vijayawada",
-        state: "Andhra Pradesh",
-        temperature: 32,
-        feelsLike: 35,
-        condition: "Sunny & Clear",
-        conditionCode: "SUNNY",
-        humidity: 58,
-        windSpeedKmH: 12,
-        precipitationChance: 5,
-        uvIndex: 8,
-        safeHarvestingIndex: "OPTIMAL",
-        advisoryEn: "Clear sunny skies. Excellent conditions for combine harvesters and grain loading at Gollapudi hub.",
-        advisoryTe: "స్పష్టమైన ఎండ వాతావరణం. గొల్లపూడి హబ్‌లో హార్వెస్టర్ల ద్వారా కోత మరియు ధాన్యం లోడింగ్ చేయడానికి ఉత్తమ సమయం.",
-        advisoryHi: "साफ और धूप वाला मौसम। गोलपुडी हब में कंबाइन हार्वेस्टर और अनाज लोडिंग के लिए बेहतरीन स्थिति।",
-        forecast: [
-          { day: "Today", tempHigh: 33, tempLow: 25, condition: "Sunny", rainChance: 5 },
-          { day: "Tomorrow", tempHigh: 34, tempLow: 25, condition: "Clear Sky", rainChance: 0 },
-          { day: "Day 3", tempHigh: 32, tempLow: 24, condition: "Partly Cloudy", rainChance: 10 },
-        ],
-      },
-      kurnool: {
-        district: "Kurnool",
-        state: "Andhra Pradesh",
-        temperature: 34,
-        feelsLike: 36,
-        condition: "Dry & Sunny",
-        conditionCode: "SUNNY",
-        humidity: 46,
-        windSpeedKmH: 16,
-        precipitationChance: 0,
-        uvIndex: 9,
-        safeHarvestingIndex: "OPTIMAL",
-        advisoryEn: "Dry and sunny weather. Highly favorable for grain moisture stabilization and prompt weighing at Rythu Bharosa Kendras.",
-        advisoryTe: "పొడి ఎండ వాతావరణం. ధాన్యం తేమ స్థిరీకరణకు మరియు రైతు భరోసా కేంద్రాలలో వేగవంతమైన తూకానికి ఎంతో అనుకూలం.",
-        advisoryHi: "शुष्क और धूपदार मौसम। अनाज की नमी नियंत्रण और रायथू भरोसा केंद्रों पर शीघ्र तौल के लिए बहुत अनुकूल।",
-        forecast: [
-          { day: "Today", tempHigh: 35, tempLow: 23, condition: "Dry Sunny", rainChance: 0 },
-          { day: "Tomorrow", tempHigh: 36, tempLow: 24, condition: "Sunny", rainChance: 0 },
-          { day: "Day 3", tempHigh: 34, tempLow: 23, condition: "Clear", rainChance: 5 },
-        ],
-      },
-      rajahmundry: {
-        district: "East Godavari / Rajahmundry",
-        state: "Andhra Pradesh",
-        temperature: 30,
-        feelsLike: 33,
-        condition: "Humid & Partly Cloudy",
-        conditionCode: "HUMID",
-        humidity: 68,
-        windSpeedKmH: 10,
-        precipitationChance: 15,
-        uvIndex: 6,
-        safeHarvestingIndex: "FAVORABLE",
-        advisoryEn: "Morning hours recommended for paddy threshing. Keep tarpaulin coverings accessible for vehicle transit.",
-        advisoryTe: "ఉదయం వేళల్లో వరి నూర్పిడి పూర్తి చేయండి. వాహన రవాణా సమయంలో టార్పాలిన్ కవర్లు అందుబాటులో ఉంచండి.",
-        advisoryHi: "सुबह के समय धान की मड़ाई पूरी करें। वाहन परिवहन के दौरान तिरपाल कवर साथ रखें।",
-        forecast: [
-          { day: "Today", tempHigh: 31, tempLow: 24, condition: "Partly Cloudy", rainChance: 15 },
-          { day: "Tomorrow", tempHigh: 30, tempLow: 23, condition: "Scattered Clouds", rainChance: 20 },
-          { day: "Day 3", tempHigh: 32, tempLow: 24, condition: "Sunny", rainChance: 10 },
-        ],
-      },
-      visakhapatnam: {
-        district: "Visakhapatnam",
-        state: "Andhra Pradesh",
-        temperature: 29,
-        feelsLike: 32,
-        condition: "Coastal Breeze & Mild",
-        conditionCode: "CLEAR",
-        humidity: 74,
-        windSpeedKmH: 20,
-        precipitationChance: 20,
-        uvIndex: 6,
-        safeHarvestingIndex: "FAVORABLE",
-        advisoryEn: "Coastal breeze active. Confirm grain moisture percentage with moisture meter before dispatching vehicle.",
-        advisoryTe: "తీరప్రాంత గాలి వీస్తోంది. వాహనం పంపే ముందు తేమ మీటర్ ద్వారా ధాన్యం తేమ శాతాన్ని సరిచూసుకోండి.",
-        advisoryHi: "तटीय हवा चल रही है। वाहन भेजने से पहले नमी मीटर से अनाज की नमी अवश्य जांच लें।",
-        forecast: [
-          { day: "Today", tempHigh: 30, tempLow: 25, condition: "Coastal Breeze", rainChance: 20 },
-          { day: "Tomorrow", tempHigh: 29, tempLow: 24, condition: "Partly Cloudy", rainChance: 15 },
-          { day: "Day 3", tempHigh: 31, tempLow: 25, condition: "Breezy", rainChance: 10 },
-        ],
-      },
-      eluru: {
-        district: "Eluru",
-        state: "Andhra Pradesh",
-        temperature: 31,
-        feelsLike: 34,
-        condition: "Clear & Pleasant",
-        conditionCode: "CLEAR",
-        humidity: 60,
-        windSpeedKmH: 11,
-        precipitationChance: 5,
-        uvIndex: 7,
-        safeHarvestingIndex: "OPTIMAL",
-        advisoryEn: "Pleasant weather with calm winds. Safe for immediate field cutting and yard booking.",
-        advisoryTe: "ప్రశాంతమైన వాతావరణం. పొలంలో కోతలు మరియు మార్కెట్ యార్డ్ బుకింగ్ కోసం అత్యంత అనుకూలం.",
-        advisoryHi: "सुखद मौसम और शांत हवाएं। खेत की कटाई और मंडी यार्ड बुकिंग के लिए उपयुक्त समय।",
-        forecast: [
-          { day: "Today", tempHigh: 32, tempLow: 24, condition: "Clear", rainChance: 5 },
-          { day: "Tomorrow", tempHigh: 33, tempLow: 24, condition: "Sunny", rainChance: 5 },
-          { day: "Day 3", tempHigh: 32, tempLow: 23, condition: "Partly Cloudy", rainChance: 10 },
-        ],
-      },
-      nellore: {
-        district: "Nellore",
-        state: "Andhra Pradesh",
-        temperature: 30,
-        feelsLike: 33,
-        condition: "Sunny Coastal",
-        conditionCode: "SUNNY",
-        humidity: 65,
-        windSpeedKmH: 15,
-        precipitationChance: 10,
-        uvIndex: 7,
-        safeHarvestingIndex: "OPTIMAL",
-        advisoryEn: "Good sunlight for drying grain bags. Mandi weighing operating at optimal speed.",
-        advisoryTe: "ధాన్యం బస్తాలను ఆరబెట్టడానికి మంచి ఎండ ఉంది. మండి తూకం వేగంగా సాగుతోంది.",
-        advisoryHi: "अनाज की बोरियों को सुखाने के लिए अच्छी धूप। मंडी में तौल प्रक्रिया तेजी से जारी है।",
-        forecast: [
-          { day: "Today", tempHigh: 31, tempLow: 24, condition: "Sunny", rainChance: 10 },
-          { day: "Tomorrow", tempHigh: 32, tempLow: 24, condition: "Clear", rainChance: 5 },
-          { day: "Day 3", tempHigh: 30, tempLow: 23, condition: "Mild Breeze", rainChance: 15 },
-        ],
-      },
-      tirupati: {
-        district: "Tirupati",
-        state: "Andhra Pradesh",
-        temperature: 32,
-        feelsLike: 34,
-        condition: "Clear Sky",
-        conditionCode: "CLEAR",
-        humidity: 52,
-        windSpeedKmH: 13,
-        precipitationChance: 5,
-        uvIndex: 8,
-        safeHarvestingIndex: "OPTIMAL",
-        advisoryEn: "Sunny and stable atmosphere. Ideal for bagging and transportation to Renigunta yard.",
-        advisoryTe: "ఎండతో కూడిన ప్రశాంతమైన వాతావరణం. ధాన్యం బస్తాలు కట్టడానికి మరియు రేణిగుంట యార్డుకు తరలించడానికి అనువైనది.",
-        advisoryHi: "धूपदार और स्थिर मौसम। बोरियों की भराई और रेनिगुंटा यार्ड तक परिवहन के लिए आदर्श।",
-        forecast: [
-          { day: "Today", tempHigh: 33, tempLow: 24, condition: "Clear Sky", rainChance: 5 },
-          { day: "Tomorrow", tempHigh: 34, tempLow: 24, condition: "Sunny", rainChance: 5 },
-          { day: "Day 3", tempHigh: 32, tempLow: 23, condition: "Clear", rainChance: 5 },
-        ],
-      },
-    };
+      const report = await getLiveAgriculturalWeather({
+        district: districtQuery,
+        latitude: latQuery,
+        longitude: lonQuery,
+        cropType: cropQuery,
+      });
 
-    const matchedKey = Object.keys(DISTRICT_WEATHER).find(k => districtQuery.includes(k)) || "guntur";
-    const report = DISTRICT_WEATHER[matchedKey];
-    const availableDistricts = Object.values(DISTRICT_WEATHER).map(d => d.district);
+      // Backward compatible adapter so existing UI fields work immediately
+      const legacyCompatibleWeather = {
+        district: report.district,
+        state: report.state,
+        temperature: report.current.temperatureC,
+        feelsLike: report.current.feelsLikeC,
+        condition: report.current.weatherCondition,
+        conditionCode: report.current.conditionCode,
+        humidity: report.current.humidityPercent,
+        windSpeedKmH: report.current.windSpeedKmH,
+        precipitationChance: report.daily.maxPrecipitationProbability,
+        uvIndex: 7,
+        safeHarvestingIndex: report.sellingAdvisory.harvestStatus === "HIGH_RISK"
+          ? "CAUTION"
+          : report.sellingAdvisory.harvestStatus,
+        advisoryEn: `${report.sellingAdvisory.recommendation} ${report.sellingAdvisory.rationale}`,
+        advisoryTe: `వ్యవసాయ సలహా (${report.district}): ${report.sellingAdvisory.recommendation}`,
+        advisoryHi: `कृषि मौसम परामर्श (${report.district}): ${report.sellingAdvisory.recommendation}`,
+        forecast: report.dailyForecast.slice(0, 3).map(f => ({
+          day: f.dayName,
+          tempHigh: f.tempHighC,
+          tempLow: f.tempLowC,
+          condition: f.weatherCondition,
+          rainChance: f.maxPrecipitationProbability,
+        })),
+        // Enriched Open-Meteo fields
+        openMeteo: report,
+        sellingAdvisory: report.sellingAdvisory,
+        hourlyForecast: report.hourlyForecast,
+        dailyForecast: report.dailyForecast,
+        coordinates: report.coordinates,
+        metadata: report.metadata,
+      };
 
-    return res.json({
-      weather: report,
-      availableDistricts,
-      lastUpdated: new Date().toISOString(),
-    });
+      const availableDistricts = Object.values(DISTRICT_COORDINATES).map(d => d.name);
+
+      return res.json({
+        weather: legacyCompatibleWeather,
+        availableDistricts,
+        report,
+        lastUpdated: report.metadata.lastSynchronizedAt,
+      });
+    } catch (err: any) {
+      console.error("[Weather Endpoint Error]", err?.message || err);
+      return res.status(500).json({
+        error: "WEATHER_FETCH_FAILED",
+        message: "Failed to retrieve live agricultural weather from Open-Meteo.",
+      });
+    }
+  });
+
+  // 18. Live AGMARKNET Agricultural Market Prices & Modal Comparison
+  api.get("/market-prices", async (req, res) => {
+    try {
+      const commodity = (req.query.commodity as string || "").trim();
+      const variety = (req.query.variety as string || "").trim();
+      const district = (req.query.district as string || "").trim();
+      const market = (req.query.market as string || "").trim();
+      const state = (req.query.state as string || "Andhra Pradesh").trim();
+
+      const result = await getMandiMarketPrices({
+        commodity: commodity || undefined,
+        variety: variety || undefined,
+        district: district || undefined,
+        market: market || undefined,
+        state: state || undefined,
+      });
+
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Market Prices Endpoint Error]", err?.message || err);
+      return res.status(500).json({
+        error: "MARKET_PRICES_FAILED",
+        message: "Failed to retrieve AGMARKNET market prices.",
+      });
+    }
+  });
+
+  // 19. OSRM Logistics Road Route & GeoJSON Geometry
+  api.get("/transport/route", async (req, res) => {
+    try {
+      const originText = (req.query.origin as string || req.query.pickupVillage as string || "").trim();
+      const destinationText = (req.query.destination as string || req.query.mandiName as string || "").trim();
+      const originLat = req.query.originLat ? parseFloat(req.query.originLat as string) : undefined;
+      const originLon = req.query.originLon ? parseFloat(req.query.originLon as string) : undefined;
+      const destLat = req.query.destLat ? parseFloat(req.query.destLat as string) : undefined;
+      const destLon = req.query.destLon ? parseFloat(req.query.destLon as string) : undefined;
+
+      const route = await calculateOsrmRoadRoute({
+        originText,
+        destinationText,
+        originLat,
+        originLon,
+        destLat,
+        destLon,
+      });
+
+      return res.json({ route, status: "ok" });
+    } catch (err: any) {
+      console.error("[Transport Route Error]", err?.message || err);
+      return res.status(500).json({
+        error: "ROUTING_FAILED",
+        message: "Failed to calculate road route from OSRM.",
+      });
+    }
+  });
+
+  api.post("/transport/route", async (req, res) => {
+    try {
+      const { originText, destinationText, originLat, originLon, destLat, destLon } = req.body || {};
+      const route = await calculateOsrmRoadRoute({
+        originText,
+        destinationText,
+        originLat: typeof originLat === "number" ? originLat : undefined,
+        originLon: typeof originLon === "number" ? originLon : undefined,
+        destLat: typeof destLat === "number" ? destLat : undefined,
+        destLon: typeof destLon === "number" ? destLon : undefined,
+      });
+      return res.json({ route, status: "ok" });
+    } catch (err: any) {
+      return res.status(500).json({ error: "ROUTING_FAILED", message: err?.message || "Route calculation failed" });
+    }
   });
 
   api.use("*", (req, res) => {

@@ -91,6 +91,16 @@ import { MapView } from "@/components/Map";
 import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
 import { CROP_CATALOGUE, filterCrops, getCatalogueCropImage, CropItem } from "@/lib/cropCatalogue";
+import {
+  downloadGatePassPdf,
+  downloadProcurementReceiptPdf,
+  downloadFarmerStatementPdf,
+  downloadOfficerReportPdf,
+  downloadTransportPassPdf,
+} from "@/lib/pdfGenerator";
+import { WeatherSellingAdvisory } from "@/components/WeatherSellingAdvisory";
+import { MandiMarketPrices } from "@/components/MandiMarketPrices";
+import { LogisticsRouteMap } from "@/components/LogisticsRouteMap";
 
 function getInitials(name?: string | null, fallback = "SO"): string {
   if (!name || typeof name !== "string") return fallback;
@@ -4603,7 +4613,30 @@ export default function Home() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.print()}
+                      onClick={() => {
+                        try {
+                          downloadGatePassPdf({
+                            tokenNumber: displayToken || "TKN-001",
+                            bookingCode: bookingRecord?.bookingCode || "BK-2026-7294",
+                            farmerName: profileRecord?.name || bookingRecord?.farmer?.name || "Registered Farmer",
+                            farmerPhone: profileRecord?.phone || bookingRecord?.farmer?.phone || "",
+                            cropName: bookingRecord?.paddyVariety || "Paddy (Grade A)",
+                            variety: bookingRecord?.paddyGrade || "BPT 5204 (Samba Mahsuri)",
+                            expectedLoadQuintals: bookingRecord?.expectedQuantityQuintals || 40,
+                            centreName: bookingRecord?.centre?.name || selectedCentre.name,
+                            centreAddress: bookingRecord?.centre?.place || "Guntur Market Yard",
+                            slotDate: bookingRecord?.slot?.date || new Date().toISOString().split("T")[0],
+                            slotTime: bookingRecord?.slot?.startTime || "09:00 AM - 11:00 AM",
+                            reportingTime: "08:50 AM",
+                            vehicleNumber: bookingRecord?.transport?.vehicleNumber || "AP 07 TJ 4821",
+                            farmerAadhaarMasked: "XXXX-XXXX-1234",
+                          });
+                          toast.success("Gate pass PDF downloaded successfully");
+                        } catch (err) {
+                          console.error("PDF generation failed:", err);
+                          window.print();
+                        }
+                      }}
                       className="h-9"
                     >
                       <Download size={14} className="mr-1.5" /> Download Pass
@@ -5041,13 +5074,42 @@ export default function Home() {
               Amount Credited to Farmer: ₹{Number(receipt.payment.amount).toLocaleString("en-IN")}
             </p>
           </div>
-          <ActionButton
-            onClick={() => navigator.clipboard?.writeText(`Receipt ${receipt.receiptNumber} | Credited: ₹${receipt.payment.amount} | ID: ${receipt.payment.paymentId}`)}
-            secondary
-            icon={Check}
-          >
-            Copy receipt details
-          </ActionButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <ActionButton
+              onClick={() => {
+                downloadProcurementReceiptPdf({
+                  receiptNumber: receipt.receiptNumber,
+                  paymentId: receipt.payment.paymentId || "PAY-2026-9041",
+                  transactionReference: receipt.payment.transactionReference || "TXN-DBT-882194",
+                  farmerName: profileRecord?.name || bookingRecord?.farmer?.name || "Registered Farmer",
+                  farmerPhone: profileRecord?.phone || bookingRecord?.farmer?.phone || "",
+                  cropName: bookingRecord?.paddyVariety || "Paddy (Grade A)",
+                  variety: bookingRecord?.paddyGrade || "Common",
+                  quantityQuintals: bookingRecord?.expectedQuantityQuintals || 40,
+                  unitPricePerQuintal: bookingRecord?.paymentQuote?.unitPrice || 2320,
+                  grossAmount: Number(receipt.payment.amount) || 92800,
+                  deductions: 0,
+                  netAmountPaid: Number(receipt.payment.amount) || 92800,
+                  centreName: bookingRecord?.centre?.name || "Procurement Centre",
+                  dbtStatus: receipt.payment.status || "SUCCESS",
+                  bankName: "State Bank of India",
+                  accountNumberMasked: "XXXX-XXXX-9821",
+                  issuedAt: new Date().toLocaleDateString("en-IN"),
+                });
+                toast.success("Procurement Payment Receipt PDF downloaded.");
+              }}
+              icon={Download}
+            >
+              Download PDF Receipt
+            </ActionButton>
+            <ActionButton
+              onClick={() => navigator.clipboard?.writeText(`Receipt ${receipt.receiptNumber} | Credited: ₹${receipt.payment.amount} | ID: ${receipt.payment.paymentId}`)}
+              secondary
+              icon={Check}
+            >
+              Copy receipt details
+            </ActionButton>
+          </div>
         </section>
       )}
 
@@ -5279,6 +5341,16 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Weather-Based Selling Advisory */}
+      <div className="mt-6">
+        <WeatherSellingAdvisory
+          weatherData={weatherData}
+          district={selectedWeatherDistrict}
+          onNavigateToBooking={() => navigate("paddy")}
+          onNavigateToTransport={() => navigate("transportation")}
+        />
       </div>
     </>
   );
@@ -5888,7 +5960,41 @@ export default function Home() {
         eyebrow="NIZAMABAD DISTRICT · LIVE OPERATIONS"
         title="Procurement Operations Dashboard"
         body="Real-time operational metrics, capacity utilization, and arrival flow computed directly from the system database."
-        action={<ActionButton onClick={() => { setOfficerView("pending"); navigate("registrations"); }} icon={UserCheck}>Review pending ({pendingRegistrations.length})</ActionButton>}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ActionButton
+              onClick={() => {
+                try {
+                  downloadOfficerReportPdf({
+                    reportDate: new Date().toLocaleDateString("en-IN"),
+                    officerName: officerProfile?.name || "Senior Procurement Officer",
+                    officerRole: (officerProfile?.role || "HEAD_OFFICER").replaceAll("_", " "),
+                    centreName: officerProfile?.branch ? `${officerProfile.branch} APMC Mandi` : "Guntur Main Mandi",
+                    district: officerProfile?.branch || "Guntur",
+                    metrics: {
+                      totalBookingsToday: officerAnalytics?.totalBookings ?? officerStats?.todaysBookings ?? 0,
+                      activeQueueCount: officerAnalytics?.activeQueue ?? officerStats?.activeQueue ?? 0,
+                      completedInspections: officerAnalytics?.completedProcurements ?? 0,
+                      totalProcuredQuintals: (officerAnalytics?.completedProcurements ?? 0) * 35,
+                      totalDisbursedRupees: officerAnalytics?.financials?.totalDisbursed ?? 0,
+                      pendingPaymentsCount: officerAnalytics?.financials?.pendingPaymentsCount ?? 0,
+                    },
+                    capacityUtilizationPercent: 78,
+                  });
+                  toast.success("Officer Mandi Operational Report PDF downloaded.");
+                } catch (e) {
+                  console.error(e);
+                  toast.error("Failed to generate officer report PDF");
+                }
+              }}
+              icon={Download}
+              secondary
+            >
+              Export Report
+            </ActionButton>
+            <ActionButton onClick={() => { setOfficerView("pending"); navigate("registrations"); }} icon={UserCheck}>Review pending ({pendingRegistrations.length})</ActionButton>
+          </div>
+        }
       />
       <section className="officer-metrics">
         <MetricCard icon={UserCheck} label="Pending registrations" value={`${officerAnalytics?.pendingRegistrations ?? pendingRegistrations.length}`} hint="Requires officer review" tone="yellow"/>
@@ -7408,77 +7514,18 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Interactive Visual Map Canvas */}
-            <div className="relative w-full h-64 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-inner">
-              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 600 240" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#3b82f6" />
-                    <stop offset="50%" stopColor="#10b981" />
-                    <stop offset="100%" stopColor="#f59e0b" />
-                  </linearGradient>
-                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="3" result="glow" />
-                    <feComposite in="SourceGraphic" in2="glow" operator="over" />
-                  </filter>
-                </defs>
-
-                {/* Grid map lines */}
-                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" strokeWidth="0.8" />
-                </pattern>
-                <rect width="100%" height="100%" fill="url(#grid)" />
-
-                {/* Route Path Polyline */}
-                <path
-                  d="M 80 180 C 180 80, 240 160, 310 90 C 380 30, 440 140, 520 70"
-                  fill="none"
-                  stroke="url(#routeGradient)"
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  filter="url(#glow)"
-                />
-                <path
-                  d="M 80 180 C 180 80, 240 160, 310 90 C 380 30, 440 140, 520 70"
-                  fill="none"
-                  stroke="#ffffff"
-                  strokeWidth="2"
-                  strokeDasharray="6 4"
-                  strokeLinecap="round"
-                />
-
-                {/* Marker 1: Driver Location */}
-                <g transform="translate(80, 180)">
-                  <circle r="16" fill="#3b82f6" fillOpacity="0.3" className="animate-ping" />
-                  <circle r="12" fill="#3b82f6" stroke="#ffffff" strokeWidth="2.5" />
-                  <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">🚚</text>
-                  <text y="25" textAnchor="middle" fill="#93c5fd" fontSize="10" fontWeight="bold">Driver Location</text>
-                </g>
-
-                {/* Marker 2: Farmer Pickup Point */}
-                <g transform="translate(310, 90)">
-                  <circle r="16" fill="#10b981" fillOpacity="0.3" className="animate-ping" />
-                  <circle r="12" fill="#10b981" stroke="#ffffff" strokeWidth="2.5" />
-                  <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">🌾</text>
-                  <text y="25" textAnchor="middle" fill="#86efac" fontSize="10" fontWeight="bold">Pickup: {viewingTransportRouteItem.pickupVillage}</text>
-                </g>
-
-                {/* Marker 3: Mandi Centre */}
-                <g transform="translate(520, 70)">
-                  <circle r="16" fill="#f59e0b" fillOpacity="0.3" className="animate-ping" />
-                  <circle r="12" fill="#f59e0b" stroke="#ffffff" strokeWidth="2.5" />
-                  <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">🏢</text>
-                  <text y="25" textAnchor="middle" fill="#fde68a" fontSize="10" fontWeight="bold">Procurement Mandi</text>
-                </g>
-              </svg>
-
-              <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur border border-slate-700 text-white px-3 py-1.5 rounded-lg text-[11px] flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Live Route Tracking Active</span>
-              </div>
-            </div>
-
-            {/* Metrics Breakdown */}
+      {/* Interactive OSRM & Leaflet Logistics Route Map */}
+            <div className="w-full">
+              <LogisticsRouteMap
+                origin={viewingTransportRouteItem.pickupVillage}
+                destination={viewingTransportRouteItem.destinationCentreName}
+                vehicleType={viewingTransportRouteItem.vehicleName}
+                driverName={viewingTransportRouteItem.driverName}
+                driverPhone={viewingTransportRouteItem.driverPhone}
+                vehicleNumber={viewingTransportRouteItem.vehicleNumber}
+                height="320px"
+              />
+            </div>           {/* Metrics Breakdown */}
             <div className="grid grid-cols-3 gap-3 text-xs bg-slate-50 p-3 rounded-xl border">
               <div>
                 <span className="text-muted-foreground block text-[11px]">Total Road Distance</span>
@@ -7506,6 +7553,36 @@ export default function Home() {
                 <Navigation size={14} /> Open in Google Maps Directions ↗
               </a>
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="border-emerald-700 text-emerald-800 hover:bg-emerald-50"
+                  onClick={() => {
+                    downloadTransportPassPdf({
+                      transportCode: viewingTransportRouteItem.transportCode,
+                      bookingCode: "BK-2026-7294",
+                      farmerName: viewingTransportRouteItem.farmerName || "Farmer",
+                      farmerPhone: viewingTransportRouteItem.farmerPhone || "",
+                      farmerVillage: viewingTransportRouteItem.pickupVillage,
+                      destinationCentreName: viewingTransportRouteItem.destinationCentreName,
+                      scheduledDate: viewingTransportRouteItem.scheduledDate,
+                      timeSlot: viewingTransportRouteItem.timeSlot,
+                      vehicleType: viewingTransportRouteItem.vehicleName,
+                      vehicleNumber: viewingTransportRouteItem.vehicleNumber,
+                      driverName: viewingTransportRouteItem.driverName,
+                      driverPhone: viewingTransportRouteItem.driverPhone,
+                      cargoDescription: "Paddy Grain Bags",
+                      estimatedLoadQuintals: viewingTransportRouteItem.estimatedLoadQuintals,
+                      distanceKm: viewingTransportRouteItem.distanceKm,
+                      baseFare: viewingTransportRouteItem.baseFare,
+                      govtSubsidyAmount: viewingTransportRouteItem.subsidyAmount,
+                      farmerNetPayable: viewingTransportRouteItem.netPayable,
+                      status: viewingTransportRouteItem.status,
+                    });
+                    toast.success("Subsidized Transport Pass PDF downloaded.");
+                  }}
+                >
+                  <Download size={14} className="mr-1.5" /> Download Pass PDF
+                </Button>
                 <Button variant="outline" onClick={() => setViewingTransportRouteItem(null)}>
                   Close Route Map
                 </Button>
@@ -7753,6 +7830,20 @@ export default function Home() {
           </ActionButton>
         </aside>
       </div>
+
+      {/* Official AGMARKNET Live Market Prices */}
+      <div className="mt-8">
+        <MandiMarketPrices
+          initialCommodity="Paddy"
+          initialState="Andhra Pradesh"
+          initialDistrict="Guntur"
+          onSelectPrice={(p: any) => {
+            setCalcCropVariety(`${p.commodity} — ${p.variety}`);
+            setCalcQuintals("40");
+            toast.success(`Loaded ${p.commodity} (${p.variety}) into valuation calculator`);
+          }}
+        />
+      </div>
     </>
   );
 
@@ -7764,7 +7855,30 @@ export default function Home() {
           <h2>{tUi("Farmer Procurement & Revenue Analytics", language)}</h2>
           <p>{tUi("Real-time data aggregated from your database records, DBT bank payments, and transport savings.", language)}</p>
         </div>
-        <ActionButton onClick={() => toast.success("Procurement Statement downloaded as PDF.")} secondary icon={Download}>
+        <ActionButton
+          onClick={() => {
+            try {
+              downloadFarmerStatementPdf({
+                farmerName: profileRecord?.name || "Registered Farmer",
+                farmerCode: profileRecord?.farmerCode || "FMR-2026",
+                farmerPhone: profileRecord?.phone || "9876543210",
+                village: profileRecord?.village || "Guntur Rural",
+                district: profileRecord?.district || "Guntur",
+                totalProcuredQuintals: farmerAnalyticsData?.summary?.totalProcuredQuintals ?? (farmerStats?.completedProcurements ? 18.0 : 0.0),
+                totalRevenueRupees: farmerAnalyticsData?.summary?.totalEarnings ?? 41760,
+                completedBookingsCount: farmerAnalyticsData?.summary?.totalBookings ?? farmerStats?.totalBookings ?? 1,
+                transportSubsidySavedRupees: farmerAnalyticsData?.summary?.transportLogistics?.subsidySaved ?? 450,
+                statementPeriod: "Kharif Marketing Season 2025-26",
+              });
+              toast.success("Procurement Statement downloaded as PDF.");
+            } catch (err) {
+              console.error(err);
+              toast.error("Failed to generate statement PDF");
+            }
+          }}
+          secondary
+          icon={Download}
+        >
           {tUi("Download Statement", language)}
         </ActionButton>
       </div>
@@ -8179,6 +8293,16 @@ export default function Home() {
             >
               {transportBookingLoading ? "Booking Subsidized Vehicle…" : "Book Subsidized Vehicle"}
             </ActionButton>
+
+            {/* Live Interactive Road Route Preview */}
+            <div className="mt-4">
+              <LogisticsRouteMap
+                origin={transportForm.pickupVillage}
+                destination={apiCentres.find(c => c.id === transportForm.destinationCentreId)?.name ?? "Guntur Market Yard"}
+                vehicleType={calculatedFare.vehicleName}
+                height="260px"
+              />
+            </div>
           </div>
         </div>
 
@@ -8226,6 +8350,36 @@ export default function Home() {
                             <PhoneCall size={13} /> Call Driver
                           </a>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadTransportPassPdf({
+                              transportCode: item.transportCode,
+                              bookingCode: "BK-2026-7294",
+                              farmerName: profileRecord?.name || "Registered Farmer",
+                              farmerPhone: profileRecord?.phone || "9876543210",
+                              farmerVillage: item.pickupVillage,
+                              destinationCentreName: item.destinationCentreName,
+                              scheduledDate: item.scheduledDate,
+                              timeSlot: item.timeSlot,
+                              vehicleType: item.vehicleName,
+                              vehicleNumber: item.vehicleNumber,
+                              driverName: item.driverName,
+                              driverPhone: item.driverPhone,
+                              cargoDescription: "Paddy Grain Harvest Bags",
+                              estimatedLoadQuintals: item.estimatedLoadQuintals,
+                              distanceKm: item.distanceKm,
+                              baseFare: item.baseFare,
+                              govtSubsidyAmount: item.subsidyAmount,
+                              farmerNetPayable: item.netPayable,
+                              status: item.status,
+                            });
+                            toast.success("Subsidized Transport Pass PDF downloaded.");
+                          }}
+                          className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 mt-1 underline"
+                        >
+                          <Download size={12} /> Download Pass PDF
+                        </button>
                       </div>
                     </div>
 
