@@ -44,3 +44,4 @@ describe("OSRM Logistics & Road Routing Service Suite", () => {
     expect(route.isRoadRoute).toBe(true);
   });
 });
+

@@ -60,3 +60,4 @@ describe("Open-Meteo Weather Service & Selling Advisory Tests", () => {
     expect(report.metadata.dataSource).toContain("Open-Meteo");
   });
 });
+

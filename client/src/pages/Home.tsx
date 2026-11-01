@@ -100,7 +100,7 @@ import {
 } from "@/lib/pdfGenerator";
 import { WeatherSellingAdvisory } from "@/components/WeatherSellingAdvisory";
 import { MandiMarketPrices } from "@/components/MandiMarketPrices";
-import { LogisticsRouteMap } from "@/components/LogisticsRouteMap";
+import { openGoogleMapsDirections, generateGoogleMapsDirectionsUrl } from "@/lib/googleMaps";
 
 function getInitials(name?: string | null, fallback = "SO"): string {
   if (!name || typeof name !== "string") return fallback;
@@ -7443,9 +7443,21 @@ export default function Home() {
                       size="sm"
                       variant="outline"
                       className="text-xs border-blue-600/80 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 font-bold shadow-2xs"
-                      onClick={() => setViewingTransportRouteItem(t)}
+                      onClick={() => {
+                        if (!t.pickupVillage || !t.destinationCentreName) {
+                          toast.error("Pickup village or destination mandi is missing for this booking.");
+                          return;
+                        }
+                        const opened = openGoogleMapsDirections({
+                          origin: t.pickupVillage,
+                          destination: t.destinationCentreName,
+                        }, (err) => toast.error(err));
+                        if (opened) {
+                          toast.success("Opening Google Maps Directions in new tab...");
+                        }
+                      }}
                     >
-                      <MapPin size={14} className="mr-1.5 text-blue-700" /> View Route Map
+                      <Navigation size={14} className="mr-1.5 text-blue-700" /> View Route in Google Maps
                     </Button>
                     <Button
                       size="sm"
@@ -7514,17 +7526,44 @@ export default function Home() {
               </div>
             </div>
 
-      {/* Interactive OSRM & Leaflet Logistics Route Map */}
-            <div className="w-full">
-              <LogisticsRouteMap
-                origin={viewingTransportRouteItem.pickupVillage}
-                destination={viewingTransportRouteItem.destinationCentreName}
-                vehicleType={viewingTransportRouteItem.vehicleName}
-                driverName={viewingTransportRouteItem.driverName}
-                driverPhone={viewingTransportRouteItem.driverPhone}
-                vehicleNumber={viewingTransportRouteItem.vehicleNumber}
-                height="320px"
-              />
+      {/* Direct Transit Route Summary (No Embedded Maps) */}
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Navigation size={14} className="text-blue-600" />
+                  Direct Highway Route Navigation
+                </span>
+                <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-900 font-bold text-[10px]">
+                  GOOGLE MAPS DRIVING DIRECTIONS
+                </span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">Pickup Origin</span>
+                  <b className="text-foreground">{viewingTransportRouteItem.pickupVillage}</b>
+                </div>
+                <span className="text-muted-foreground font-bold hidden sm:inline">→</span>
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">Destination Mandi</span>
+                  <b className="text-foreground">{viewingTransportRouteItem.destinationCentreName}</b>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (!viewingTransportRouteItem.pickupVillage || !viewingTransportRouteItem.destinationCentreName) {
+                      toast.error("Pickup village or destination mandi is missing.");
+                      return;
+                    }
+                    openGoogleMapsDirections({
+                      origin: viewingTransportRouteItem.pickupVillage,
+                      destination: viewingTransportRouteItem.destinationCentreName,
+                    }, (err) => toast.error(err));
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8 px-3 shadow-2xs shrink-0"
+                >
+                  <Navigation size={13} className="mr-1.5" /> View Route in Google Maps
+                </Button>
+              </div>
             </div>           {/* Metrics Breakdown */}
             <div className="grid grid-cols-3 gap-3 text-xs bg-slate-50 p-3 rounded-xl border">
               <div>
@@ -7544,14 +7583,23 @@ export default function Home() {
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t flex-wrap gap-2">
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&origin=${driverGps.lat},${driverGps.lng}&destination=${16.2970},${80.4350}&travelmode=driving`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg border border-blue-200 transition-colors"
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (!viewingTransportRouteItem.pickupVillage || !viewingTransportRouteItem.destinationCentreName) {
+                    toast.error("Pickup or destination location is missing.");
+                    return;
+                  }
+                  openGoogleMapsDirections({
+                    origin: viewingTransportRouteItem.pickupVillage,
+                    destination: viewingTransportRouteItem.destinationCentreName,
+                  }, (err) => toast.error(err));
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200 transition-colors"
               >
-                <Navigation size={14} /> Open in Google Maps Directions ↗
-              </a>
+                <Navigation size={14} /> View Route in Google Maps ↗
+              </Button>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -8294,14 +8342,36 @@ export default function Home() {
               {transportBookingLoading ? "Booking Subsidized Vehicle…" : "Book Subsidized Vehicle"}
             </ActionButton>
 
-            {/* Live Interactive Road Route Preview */}
-            <div className="mt-4">
-              <LogisticsRouteMap
-                origin={transportForm.pickupVillage}
-                destination={apiCentres.find(c => c.id === transportForm.destinationCentreId)?.name ?? "Guntur Market Yard"}
-                vehicleType={calculatedFare.vehicleName}
-                height="260px"
-              />
+            {/* Google Maps Route Redirection Preview (No Embedded Map) */}
+            <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Navigation size={16} className="text-blue-600 shrink-0" />
+                <div>
+                  <span className="font-bold text-slate-800 block">External Route Navigation</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Driving route via Google Maps with real-time road directions
+                  </span>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const destName = apiCentres.find(c => c.id === transportForm.destinationCentreId)?.name ?? "Guntur Agricultural Market Yard";
+                  if (!transportForm.pickupVillage) {
+                    toast.error("Please enter a pickup village name to preview driving route.");
+                    return;
+                  }
+                  openGoogleMapsDirections({
+                    origin: transportForm.pickupVillage,
+                    destination: destName,
+                  }, (err) => toast.error(err));
+                }}
+                className="border-blue-600/70 text-blue-800 hover:bg-blue-50 font-bold text-xs h-8 shrink-0 w-full sm:w-auto"
+              >
+                <Navigation size={13} className="mr-1.5 text-blue-600" /> View Route in Google Maps
+              </Button>
             </div>
           </div>
         </div>
@@ -8380,6 +8450,26 @@ export default function Home() {
                         >
                           <Download size={12} /> Download Pass PDF
                         </button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (!item.pickupVillage || !item.destinationCentreName) {
+                              toast.error("Pickup village or destination mandi is missing for this booking.");
+                              return;
+                            }
+                            const opened = openGoogleMapsDirections({
+                              origin: item.pickupVillage,
+                              destination: item.destinationCentreName,
+                            }, (err) => toast.error(err));
+                            if (opened) {
+                              toast.success("Opening Google Maps Directions in new tab...");
+                            }
+                          }}
+                          className="h-8 px-2 text-[11px] font-bold border-blue-600 text-blue-800 hover:bg-blue-50 mt-1 shadow-2xs"
+                        >
+                          <Navigation size={12} className="mr-1 text-blue-600" /> View Route in Google Maps
+                        </Button>
                       </div>
                     </div>
 
