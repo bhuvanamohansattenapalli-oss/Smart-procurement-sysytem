@@ -38053,8 +38053,9 @@ async function initDbInternal() {
     console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
     try {
       const isSslRequired = connectionString.includes("supabase.co") || connectionString.includes("pooler.supabase.com") || connectionString.includes("render.com") || connectionString.includes("aivencloud.com") || connectionString.includes("sslmode=require") || process.env.NODE_ENV === "production";
+      const cleanConnectionString = connectionString.replace(/([?&])sslmode=[^&]+(&|$)/g, "$1").replace(/\?$/, "").replace(/[?&]$/, "");
       const pool = new Pool4({
-        connectionString,
+        connectionString: cleanConnectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
         connectionTimeoutMillis: 15e3,
         idleTimeoutMillis: 1e4,

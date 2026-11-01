@@ -597,8 +597,14 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
         connectionString.includes("sslmode=require") ||
         process.env.NODE_ENV === "production";
 
+      // Strip sslmode from query string to prevent pg-connection-string from overriding rejectUnauthorized: false with verify-full
+      const cleanConnectionString = connectionString
+        .replace(/([?&])sslmode=[^&]+(&|$)/g, "$1")
+        .replace(/\?$/, "")
+        .replace(/[?&]$/, "");
+
       const pool = new Pool({
-        connectionString,
+        connectionString: cleanConnectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
         connectionTimeoutMillis: 15000,
         idleTimeoutMillis: 10000,
