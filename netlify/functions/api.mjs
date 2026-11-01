@@ -38033,6 +38033,22 @@ async function initDbInternal() {
       return null;
     }
     _lastConnectionAttempt = Date.now();
+    try {
+      const parsed = new URL(connectionString);
+      _lastDbDiagnostics = {
+        host: parsed.hostname,
+        port: parsed.port || "5432",
+        dbname: parsed.pathname.replace(/^\//, ""),
+        userMasked: parsed.username ? `${parsed.username.slice(0, 4)}***` : "none"
+      };
+    } catch {
+      _lastDbDiagnostics = {
+        host: "invalid-url-format",
+        port: "",
+        dbname: "",
+        userMasked: "unknown"
+      };
+    }
     const masked = maskConnectionString(connectionString);
     console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
     try {
@@ -38040,7 +38056,7 @@ async function initDbInternal() {
       const pool = new Pool4({
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
-        connectionTimeoutMillis: 1e4,
+        connectionTimeoutMillis: 15e3,
         idleTimeoutMillis: 1e4,
         max: 10,
         statement_timeout: 25e3,
@@ -38053,8 +38069,8 @@ async function initDbInternal() {
       });
       const testRes = await withTimeout2(
         pool.query("SELECT 1 AS connected"),
-        5e3,
-        `PostgreSQL connection probe to ${masked} timed out after 5000ms.`
+        1e4,
+        `PostgreSQL connection probe to ${masked} timed out after 10000ms.`
       );
       if (!testRes || !testRes.rows || testRes.rows.length === 0) {
         throw new Error("PostgreSQL handshake returned empty response.");
@@ -38068,8 +38084,10 @@ async function initDbInternal() {
       _pool = pool;
       _db = drizzle(pool);
       _isPostgres = true;
+      _lastDbError = null;
       return _db;
     } catch (error46) {
+      _lastDbError = error46 instanceof Error ? error46.message : String(error46);
       console.warn(
         `
 ================================================================================
@@ -38121,7 +38139,7 @@ async function getDb() {
   }
   return _initDbPromise;
 }
-var Pool4, _db, _pool, _isPostgres, LocalDatabaseStore, localStore, _initDbPromise, _lastConnectionAttempt, CONNECTION_COOLDOWN_MS;
+var Pool4, _db, _pool, _isPostgres, LocalDatabaseStore, localStore, _initDbPromise, _lastConnectionAttempt, CONNECTION_COOLDOWN_MS, _lastDbError, _lastDbDiagnostics;
 var init_db2 = __esm({
   "server/db.ts"() {
     "use strict";
@@ -38480,7 +38498,9 @@ var init_db2 = __esm({
     localStore = new LocalDatabaseStore();
     _initDbPromise = null;
     _lastConnectionAttempt = 0;
-    CONNECTION_COOLDOWN_MS = 8e3;
+    CONNECTION_COOLDOWN_MS = 2e3;
+    _lastDbError = null;
+    _lastDbDiagnostics = null;
   }
 });
 
