@@ -22,6 +22,7 @@ export const REQUIRED_TABLES = [
   "cropPrices",
   "transportBookings",
   "chatMessages",
+  "passwordResetRequests",
 ] as const;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> {
@@ -258,6 +259,32 @@ CREATE TABLE IF NOT EXISTS "chatMessages" (
   "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS "passwordResetRequests" (
+  "id" SERIAL PRIMARY KEY,
+  "requestId" VARCHAR(48) NOT NULL UNIQUE,
+  "userType" VARCHAR(20) NOT NULL,
+  "userId" INTEGER NOT NULL,
+  "userCode" VARCHAR(64) NOT NULL,
+  "name" VARCHAR(160) NOT NULL,
+  "contact" VARCHAR(320) NOT NULL,
+  "role" VARCHAR(64),
+  "centreName" VARCHAR(160),
+  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING_APPROVAL',
+  "resetToken" VARCHAR(64),
+  "tokenExpiresAt" TIMESTAMP,
+  "rejectionReason" TEXT,
+  "reviewedByOfficerId" INTEGER,
+  "reviewedByOfficerName" VARCHAR(160),
+  "reviewedAt" TIMESTAMP,
+  "completedAt" TIMESTAMP,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS "idx_pwd_reset_code" ON "passwordResetRequests" ("userCode");
+CREATE INDEX IF NOT EXISTS "idx_pwd_reset_status" ON "passwordResetRequests" ("status");
+
+
 CREATE INDEX IF NOT EXISTS "idx_chat_session" ON "chatMessages" ("sessionId");
 CREATE INDEX IF NOT EXISTS "idx_farmers_phone" ON "farmers" ("phone");
 CREATE INDEX IF NOT EXISTS "idx_farmers_code" ON "farmers" ("farmerCode");
@@ -271,14 +298,19 @@ CREATE INDEX IF NOT EXISTS "idx_notifications_farmer" ON "notifications" ("farme
 `;
 
 export async function ensurePostgresSchema(pool: pg.Pool): Promise<void> {
-  // Fast check: If key tables already exist, skip redundant DDL execution
+  // Fast check: If key tables already exist including passwordResetRequests, skip redundant DDL execution
   try {
     const checkRes = await withTimeout(
-      pool.query("SELECT to_regclass('public.farmers') as f, to_regclass('public.users') as u"),
+      pool.query(`
+        SELECT 
+          to_regclass('public.farmers') as f, 
+          to_regclass('public.users') as u,
+          to_regclass('public."passwordResetRequests"') as p
+      `),
       3000,
       "Table existence probe timed out"
     );
-    if (checkRes.rows[0]?.f && checkRes.rows[0]?.u) {
+    if (checkRes.rows[0]?.f && checkRes.rows[0]?.u && checkRes.rows[0]?.p) {
       console.log("[Database Migration] PostgreSQL tables verified. Skipping redundant DDL initialization.");
       return;
     }

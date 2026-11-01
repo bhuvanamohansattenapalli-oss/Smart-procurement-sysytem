@@ -295,3 +295,29 @@ export const chatMessages = pgTable("chatMessages", {
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
 
+export const passwordResetRequests = pgTable("passwordResetRequests", {
+  id: serial("id").primaryKey(),
+  requestId: varchar("requestId", { length: 48 }).notNull().unique(),
+  userType: varchar("userType", { length: 20 }).notNull(), // 'OFFICER' | 'FARMER'
+  userId: integer("userId").notNull(),
+  userCode: varchar("userCode", { length: 64 }).notNull(),
+  name: varchar("name", { length: 160 }).notNull(),
+  contact: varchar("contact", { length: 320 }).notNull(),
+  role: varchar("role", { length: 64 }),
+  centreName: varchar("centreName", { length: 160 }),
+  status: varchar("status", { length: 32 }).notNull().default("PENDING_APPROVAL"), // 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
+  resetToken: varchar("resetToken", { length: 64 }),
+  tokenExpiresAt: timestamp("tokenExpiresAt"),
+  rejectionReason: text("rejectionReason"),
+  reviewedByOfficerId: integer("reviewedByOfficerId"),
+  reviewedByOfficerName: varchar("reviewedByOfficerName", { length: 160 }),
+  reviewedAt: timestamp("reviewedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+export type PasswordResetRequest = typeof passwordResetRequests.$inferSelect;
+export type InsertPasswordResetRequest = typeof passwordResetRequests.$inferInsert;
+
+

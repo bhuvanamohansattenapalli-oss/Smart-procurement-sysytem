@@ -237,3 +237,29 @@ CREATE INDEX IF NOT EXISTS "idx_slots_centre" ON "slots" ("centreId", "slotDate"
 CREATE INDEX IF NOT EXISTS "idx_queue_centre" ON "queueEntries" ("centreId", "status");
 CREATE INDEX IF NOT EXISTS "idx_payments_code" ON "payments" ("paymentCode");
 CREATE INDEX IF NOT EXISTS "idx_notifications_farmer" ON "notifications" ("farmerId");
+
+CREATE TABLE IF NOT EXISTS "passwordResetRequests" (
+  "id" SERIAL PRIMARY KEY,
+  "requestId" VARCHAR(48) NOT NULL UNIQUE,
+  "userType" VARCHAR(20) NOT NULL,
+  "userId" INTEGER NOT NULL,
+  "userCode" VARCHAR(64) NOT NULL,
+  "name" VARCHAR(160) NOT NULL,
+  "contact" VARCHAR(320) NOT NULL,
+  "role" VARCHAR(64),
+  "centreName" VARCHAR(160),
+  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING_APPROVAL',
+  "resetToken" VARCHAR(64),
+  "tokenExpiresAt" TIMESTAMP,
+  "rejectionReason" TEXT,
+  "reviewedByOfficerId" INTEGER,
+  "reviewedByOfficerName" VARCHAR(160),
+  "reviewedAt" TIMESTAMP,
+  "completedAt" TIMESTAMP,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS "idx_pwd_reset_code" ON "passwordResetRequests" ("userCode");
+CREATE INDEX IF NOT EXISTS "idx_pwd_reset_status" ON "passwordResetRequests" ("status");
+

@@ -17,7 +17,9 @@ import {
   staffAuditLogs,
   staffNotifications,
   chatMessages,
+  passwordResetRequests,
 } from "../../drizzle/schema";
+import crypto from "crypto";
 import { getDb, normalizePhone, isPostgresActive } from "../db";
 import { requireApiAuth, requireRole } from "../middleware/apiAuth";
 import { hashPassword, verifyPassword } from "../services/passwordService";
@@ -76,6 +78,28 @@ const forgotPasswordSchema = z.object({
   phone: phoneSchema,
   newPassword: passwordSchema,
 });
+const officerForgotPasswordRequestSchema = z.object({
+  officerCode: z.string().trim().min(3).max(64),
+  contact: z.string().trim().min(3).max(320),
+});
+const officerForgotPasswordCompleteSchema = z.object({
+  officerCode: z.string().trim().min(3).max(64),
+  requestId: z.string().trim().min(3).max(48),
+  resetToken: z.string().trim().min(4).max(64),
+  newPassword: z.string().min(8, "Password must be at least 8 characters."),
+});
+const farmerForgotPasswordVerifySchema = z.object({
+  phone: phoneSchema,
+  farmerCode: z.string().trim().optional(),
+  village: z.string().trim().optional(),
+  aadhaarLast4: z.string().trim().optional(),
+});
+const farmerForgotPasswordResetSchema = z.object({
+  phone: phoneSchema,
+  resetToken: z.string().trim().min(4).max(64),
+  newPassword: z.string().min(4, "Password or PIN must be at least 4 characters."),
+});
+
 const loginSchema = z.object({ phone: phoneSchema, password: passwordSchema });
 const officerLoginSchema = z.object({ officerCode: z.string().trim().min(3).max(64), password: passwordSchema });
 const staffRegistrationSchema = z.object({
@@ -671,6 +695,503 @@ export function createProcurementApi() {
     }
   });
 
+  // =========================================================
+  // SECURE PASSWORD RESET WORKFLOWS (OFFICER & FARMER)
+  // =========================================================
+
+  interface PasswordResetItem {
+    id: number;
+    requestId: string;
+    userType: "OFFICER" | "FARMER";
+    userId: number;
+    userCode: string;
+    name: string;
+    contact: string;
+    role?: string;
+    centreName?: string;
+    status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "COMPLETED";
+    resetToken?: string;
+    tokenExpiresAt?: Date;
+    rejectionReason?: string;
+    reviewedByOfficerId?: number;
+    reviewedByOfficerName?: string;
+    reviewedAt?: Date;
+    completedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  const memoryPasswordResetRequests = new Map<string, PasswordResetItem>();
+  let nextResetAutoId = 1;
+
+  function ensureDemoResetRequests() {
+    if (memoryPasswordResetRequests.size === 0) {
+      const demoReq: PasswordResetItem = {
+        id: nextResetAutoId++,
+        requestId: "REQ-OFF-DEMO1",
+        userType: "OFFICER",
+        userId: 2,
+        userCode: "QC-2026-4892",
+        name: "Suresh Kumar",
+        contact: "suresh.kumar@ap.gov.in",
+        role: "QUALITY_CONTROL_INSPECTOR",
+        centreName: "Guntur Mandi Hub",
+        status: "PENDING_APPROVAL",
+        createdAt: new Date(Date.now() - 35 * 60 * 1000),
+        updatedAt: new Date(Date.now() - 35 * 60 * 1000),
+      };
+      memoryPasswordResetRequests.set(demoReq.requestId, demoReq);
+    }
+  }
+  ensureDemoResetRequests();
+
+  const resetAttemptRateLimits = new Map<string, { count: number; resetAt: number }>();
+  function checkResetRateLimit(key: string, maxAttempts = 5, windowMinutes = 15): boolean {
+    const now = Date.now();
+    const entry = resetAttemptRateLimits.get(key);
+    if (!entry || now > entry.resetAt) {
+      resetAttemptRateLimits.set(key, { count: 1, resetAt: now + windowMinutes * 60 * 1000 });
+      return true;
+    }
+    if (entry.count >= maxAttempts) return false;
+    entry.count++;
+    return true;
+  }
+
+  function isStrongOfficerPassword(pw: string): { valid: boolean; reason?: string } {
+    if (pw.length < 8) {
+      return { valid: false, reason: "Password must be at least 8 characters long." };
+    }
+    if (!/[A-Z]/.test(pw)) {
+      return { valid: false, reason: "Password must contain at least one uppercase letter (A-Z)." };
+    }
+    if (!/[a-z]/.test(pw)) {
+      return { valid: false, reason: "Password must contain at least one lowercase letter (a-z)." };
+    }
+    if (!/[0-9]/.test(pw)) {
+      return { valid: false, reason: "Password must contain at least one numerical digit (0-9)." };
+    }
+    return { valid: true };
+  }
+
+  async function saveResetRequest(item: Omit<PasswordResetItem, "id" | "createdAt" | "updatedAt">): Promise<PasswordResetItem> {
+    const fullItem: PasswordResetItem = {
+      ...item,
+      id: nextResetAutoId++,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    memoryPasswordResetRequests.set(fullItem.requestId, fullItem);
+
+    try {
+      const db = await getDb();
+      if (db) {
+        await db.insert(passwordResetRequests).values({
+          requestId: fullItem.requestId,
+          userType: fullItem.userType,
+          userId: fullItem.userId,
+          userCode: fullItem.userCode,
+          name: fullItem.name,
+          contact: fullItem.contact,
+          role: fullItem.role,
+          centreName: fullItem.centreName,
+          status: fullItem.status,
+          resetToken: fullItem.resetToken,
+          tokenExpiresAt: fullItem.tokenExpiresAt,
+          rejectionReason: fullItem.rejectionReason,
+          reviewedByOfficerId: fullItem.reviewedByOfficerId,
+          reviewedByOfficerName: fullItem.reviewedByOfficerName,
+          reviewedAt: fullItem.reviewedAt,
+          completedAt: fullItem.completedAt,
+          createdAt: fullItem.createdAt,
+          updatedAt: fullItem.updatedAt,
+        });
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres insert error (using memory store):", (err as Error)?.message);
+    }
+
+    return fullItem;
+  }
+
+  async function getResetRequests(): Promise<PasswordResetItem[]> {
+    try {
+      const db = await getDb();
+      if (db) {
+        const rows = await db.select().from(passwordResetRequests).orderBy(desc(passwordResetRequests.createdAt));
+        if (rows && rows.length > 0) {
+          return rows as PasswordResetItem[];
+        }
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres select error (falling back to memory):", (err as Error)?.message);
+    }
+    return Array.from(memoryPasswordResetRequests.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async function findResetRequest(requestIdOrUserCode: string): Promise<PasswordResetItem | undefined> {
+    const memoryItems = Array.from(memoryPasswordResetRequests.values());
+    for (let i = 0; i < memoryItems.length; i++) {
+      const item = memoryItems[i];
+      if (item.requestId === requestIdOrUserCode || item.userCode === requestIdOrUserCode) {
+        return item;
+      }
+    }
+
+    try {
+      const db = await getDb();
+      if (db) {
+        const rows = await db.select().from(passwordResetRequests).where(
+          or(eq(passwordResetRequests.requestId, requestIdOrUserCode), eq(passwordResetRequests.userCode, requestIdOrUserCode))
+        ).limit(1);
+        if (rows[0]) return rows[0] as PasswordResetItem;
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres find error:", (err as Error)?.message);
+    }
+    return undefined;
+  }
+
+  async function updateResetRequest(requestId: string, updates: Partial<PasswordResetItem>): Promise<PasswordResetItem | undefined> {
+    const memoryItem = memoryPasswordResetRequests.get(requestId);
+    if (memoryItem) {
+      Object.assign(memoryItem, updates, { updatedAt: new Date() });
+    }
+
+    try {
+      const db = await getDb();
+      if (db) {
+        await db.update(passwordResetRequests).set({
+          ...updates,
+          updatedAt: new Date(),
+        }).where(eq(passwordResetRequests.requestId, requestId));
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres update error:", (err as Error)?.message);
+    }
+
+    return memoryItem;
+  }
+
+  // 1A. Officer Forgot Password Request
+  api.post("/officers/forgot-password/request", async (req, res) => {
+    const input = respondValidation(res, officerForgotPasswordRequestSchema, req.body);
+    if (!input) return;
+
+    if (!checkResetRateLimit(`officer_req_${input.officerCode}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many password reset requests. Please wait a few minutes before trying again.",
+      });
+    }
+
+    const db = await getDb();
+    if (!db) {
+      return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+    }
+
+    try {
+      const officer = (await db.select().from(officers).where(
+        or(eq(officers.officerCode, input.officerCode), eq(officers.employeeId, input.officerCode))
+      ).limit(1))[0];
+
+      if (!officer) {
+        return res.status(404).json({
+          error: "OFFICER_NOT_FOUND",
+          message: "No staff account found matching Officer ID / Login ID: " + input.officerCode,
+        });
+      }
+
+      const cleanContact = input.contact.trim().toLowerCase();
+      const officerEmail = (officer.email || "").trim().toLowerCase();
+      const officerPhone = normalizePhone(officer.phone);
+      const inputPhone = normalizePhone(input.contact);
+
+      const contactMatches = (officerEmail && cleanContact === officerEmail) ||
+        (officerPhone && (inputPhone === officerPhone || cleanContact.includes(officerPhone)));
+
+      if (!contactMatches) {
+        return res.status(400).json({
+          error: "CONTACT_MISMATCH",
+          message: "The provided email or phone does not match our registered records for this Officer ID.",
+        });
+      }
+
+      const requestId = `REQ-OFF-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+      await saveResetRequest({
+        requestId,
+        userType: "OFFICER",
+        userId: officer.id,
+        userCode: officer.officerCode,
+        name: officer.name,
+        contact: input.contact,
+        role: officer.role,
+        centreName: officer.centreName || officer.branch || "Headquarters",
+        status: "PENDING_APPROVAL",
+      });
+
+      console.info(`[Auth Audit] Officer password reset requested: code=${officer.officerCode} requestId=${requestId}`);
+
+      return res.json({
+        success: true,
+        requestId,
+        officerCode: officer.officerCode,
+        officerName: officer.name,
+        message: `Password reset request submitted. Please contact your Head Officer for approval. Request ID: ${requestId}`,
+      });
+    } catch (err: any) {
+      console.error("[Officer Forgot Password Request Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to generate password reset request. Please try again.",
+      });
+    }
+  });
+
+  // 1B. Officer Password Reset Complete (with approved token)
+  api.post("/officers/forgot-password/complete", async (req, res) => {
+    const input = respondValidation(res, officerForgotPasswordCompleteSchema, req.body);
+    if (!input) return;
+
+    const pwCheck = isStrongOfficerPassword(input.newPassword);
+    if (!pwCheck.valid) {
+      return res.status(400).json({
+        error: "WEAK_PASSWORD",
+        message: pwCheck.reason,
+      });
+    }
+
+    if (!checkResetRateLimit(`officer_comp_${input.officerCode}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many attempts. Please try again later.",
+      });
+    }
+
+    try {
+      const resetReq = await findResetRequest(input.requestId);
+      if (!resetReq || resetReq.userCode !== input.officerCode) {
+        return res.status(404).json({
+          error: "REQUEST_NOT_FOUND",
+          message: "No matching password reset request found for this Officer Code and Request ID.",
+        });
+      }
+
+      if (resetReq.status === "PENDING_APPROVAL") {
+        return res.status(403).json({
+          error: "PENDING_APPROVAL",
+          message: "Your reset request has not been approved yet. Please ask your Head Officer to approve Request ID: " + resetReq.requestId,
+        });
+      }
+
+      if (resetReq.status === "REJECTED") {
+        return res.status(403).json({
+          error: "REQUEST_REJECTED",
+          message: `This password reset request was rejected by the Head Officer: ${resetReq.rejectionReason || "Contact administrator."}`,
+        });
+      }
+
+      if (resetReq.status === "COMPLETED") {
+        return res.status(400).json({
+          error: "ALREADY_COMPLETED",
+          message: "This password reset token has already been used. Please log in or request a new reset.",
+        });
+      }
+
+      if (resetReq.tokenExpiresAt && new Date() > new Date(resetReq.tokenExpiresAt)) {
+        return res.status(400).json({
+          error: "TOKEN_EXPIRED",
+          message: "This reset token has expired (validity: 24 hours). Please request a new approval from your Head Officer.",
+        });
+      }
+
+      if (!resetReq.resetToken || resetReq.resetToken.trim().toUpperCase() !== input.resetToken.trim().toUpperCase()) {
+        return res.status(401).json({
+          error: "INVALID_TOKEN",
+          message: "The approval token provided does not match. Please verify the exact token given by your Head Officer.",
+        });
+      }
+
+      const db = await getDb();
+      if (!db) {
+        return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+      }
+
+      const newHash = hashPassword(input.newPassword);
+      await db.update(officers).set({
+        passwordHash: newHash,
+        mustChangePassword: 0,
+        updatedAt: new Date(),
+      }).where(eq(officers.officerCode, input.officerCode));
+
+      await updateResetRequest(resetReq.requestId, {
+        status: "COMPLETED",
+        completedAt: new Date(),
+      });
+
+      console.info(`[Auth Audit] Officer password reset completed successfully: code=${input.officerCode}`);
+
+      return res.json({
+        success: true,
+        message: "Password updated successfully. You can now log in with your new credentials.",
+      });
+    } catch (err: any) {
+      console.error("[Officer Forgot Password Complete Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to reset officer password. Please try again.",
+      });
+    }
+  });
+
+  // 1C. Farmer Forgot Password - Identity Verification
+  api.post("/farmers/forgot-password/verify", async (req, res) => {
+    const input = respondValidation(res, farmerForgotPasswordVerifySchema, req.body);
+    if (!input) return;
+
+    const cleanPhone = normalizePhone(input.phone);
+    if (!checkResetRateLimit(`farmer_verify_${cleanPhone}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many attempts. Please wait 15 minutes before retrying.",
+      });
+    }
+
+    const db = await getDb();
+    if (!db) {
+      return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+    }
+
+    try {
+      const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+      if (!farmer) {
+        return res.status(404).json({
+          error: "FARMER_NOT_FOUND",
+          message: "No registered farmer found with mobile number " + cleanPhone,
+        });
+      }
+
+      let verified = false;
+      let matchedFactor = "";
+
+      if (input.village && farmer.village && farmer.village.trim().toLowerCase() === input.village.trim().toLowerCase()) {
+        verified = true;
+        matchedFactor = "village name";
+      } else if (input.farmerCode && farmer.farmerCode && farmer.farmerCode.trim().toLowerCase() === input.farmerCode.trim().toLowerCase()) {
+        verified = true;
+        matchedFactor = "Farmer ID";
+      } else if (input.aadhaarLast4) {
+        const reg = (await db.select().from(registrations).where(eq(registrations.farmerId, farmer.id)).limit(1))[0];
+        if (reg?.aadhaarMasked && reg.aadhaarMasked.replace(/\s/g, "").endsWith(input.aadhaarLast4.trim())) {
+          verified = true;
+          matchedFactor = "Aadhaar digits";
+        }
+      }
+
+      if (!verified) {
+        return res.status(400).json({
+          error: "IDENTITY_VERIFICATION_FAILED",
+          message: "Identity verification failed. Please enter the correct Village Name, Farmer ID, or last 4 digits of Aadhaar registered with your account.",
+        });
+      }
+
+      const resetToken = `FMR-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+      const requestId = `REQ-FMR-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+
+      await saveResetRequest({
+        requestId,
+        userType: "FARMER",
+        userId: farmer.id,
+        userCode: cleanPhone,
+        name: farmer.name,
+        contact: cleanPhone,
+        role: "FARMER",
+        centreName: farmer.village + " Centroid",
+        status: "APPROVED",
+        resetToken,
+        tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      });
+
+      console.info(`[Auth Audit] Farmer identity verified for password reset: phone=${cleanPhone} factor=${matchedFactor}`);
+
+      return res.json({
+        success: true,
+        verified: true,
+        resetToken,
+        farmerName: farmer.name,
+        village: farmer.village,
+        message: `Identity verified (${matchedFactor}). Please set your new password or PIN.`,
+      });
+    } catch (err: any) {
+      console.error("[Farmer Forgot Password Verify Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to verify farmer identity. Please try again.",
+      });
+    }
+  });
+
+  // 1D. Farmer Forgot Password - Reset Password/PIN
+  api.post("/farmers/forgot-password/reset", async (req, res) => {
+    const input = respondValidation(res, farmerForgotPasswordResetSchema, req.body);
+    if (!input) return;
+
+    const cleanPhone = normalizePhone(input.phone);
+    if (!checkResetRateLimit(`farmer_reset_${cleanPhone}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many attempts. Please try again later.",
+      });
+    }
+
+    try {
+      const resetReq = await findResetRequest(cleanPhone);
+      if (!resetReq || resetReq.resetToken !== input.resetToken || resetReq.status !== "APPROVED") {
+        return res.status(401).json({
+          error: "INVALID_SESSION",
+          message: "Invalid or expired reset session. Please re-verify your identity.",
+        });
+      }
+
+      if (resetReq.tokenExpiresAt && new Date() > new Date(resetReq.tokenExpiresAt)) {
+        return res.status(400).json({
+          error: "TOKEN_EXPIRED",
+          message: "Reset session expired. Please verify your identity again.",
+        });
+      }
+
+      const db = await getDb();
+      if (!db) {
+        return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+      }
+
+      const newHash = hashPassword(input.newPassword);
+      await db.update(farmers).set({
+        passwordHash: newHash,
+        updatedAt: new Date(),
+      }).where(eq(farmers.phone, cleanPhone));
+
+      await updateResetRequest(resetReq.requestId, {
+        status: "COMPLETED",
+        completedAt: new Date(),
+      });
+
+      console.info(`[Auth Audit] Farmer password reset completed: phone=${cleanPhone}`);
+
+      return res.json({
+        success: true,
+        message: "Your farmer password has been reset successfully. You can now log in.",
+      });
+    } catch (err: any) {
+      console.error("[Farmer Forgot Password Reset Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to reset farmer password. Please try again.",
+      });
+    }
+  });
+
+
   // 2. Farmer Registration (Direct - No OTP)
   api.post(["/registration", "/farmers/register"], async (req, res) => {
     const input = respondValidation(res, registrationSchema, req.body);
@@ -1178,6 +1699,104 @@ export function createProcurementApi() {
     const logs = await db.select().from(staffAuditLogs).orderBy(desc(staffAuditLogs.createdAt)).limit(50);
     return res.json({ auditLogs: logs });
   });
+
+  // Head Officer: View All Password Reset Requests
+  api.get("/officers/password-resets", requireApiAuth, requireRole("HEAD_OFFICER"), async (_req, res) => {
+    try {
+      const requests = await getResetRequests();
+      return res.json({ requests });
+    } catch (err: any) {
+      return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: err?.message || err });
+    }
+  });
+
+  // Head Officer: Approve Password Reset Request
+  api.put("/officers/password-resets/:id/approve", requireApiAuth, requireRole("HEAD_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const idParam = String(req.params.id);
+    const existing = await findResetRequest(idParam);
+    if (!existing) {
+      return res.status(404).json({ error: "NOT_FOUND", message: "Password reset request not found." });
+    }
+
+    const resetToken = `HO-RES-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+    const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const updated = await updateResetRequest(existing.requestId, {
+      status: "APPROVED",
+      resetToken,
+      tokenExpiresAt,
+      reviewedByOfficerId: req.principal!.id,
+      reviewedByOfficerName: req.principal!.name,
+      reviewedAt: new Date(),
+    });
+
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.insert(staffAuditLogs).values({
+          performedByOfficerId: req.principal!.id,
+          performedByOfficerName: req.principal!.name,
+          targetOfficerId: existing.userId,
+          targetOfficerName: existing.name,
+          action: "PASSWORD_RESET_APPROVED",
+          details: `Approved password reset for ${existing.userCode} (${existing.name}). Token issued: ${resetToken}`,
+        });
+      } catch (e) {
+        console.warn("[AuditLog] Failed to record reset approval:", e);
+      }
+    }
+
+    console.info(`[Staff Audit] Head Officer ${req.principal!.name} approved password reset for ${existing.userCode}: token=${resetToken}`);
+
+    return res.json({
+      success: true,
+      message: `Password reset request approved for ${existing.name}. Share the token with the officer.`,
+      request: updated,
+      resetToken,
+      tokenExpiresAt,
+    });
+  });
+
+  // Head Officer: Reject Password Reset Request
+  api.put("/officers/password-resets/:id/reject", requireApiAuth, requireRole("HEAD_OFFICER"), async (req: AuthenticatedRequest, res) => {
+    const idParam = String(req.params.id);
+    const existing = await findResetRequest(idParam);
+    if (!existing) {
+      return res.status(404).json({ error: "NOT_FOUND", message: "Password reset request not found." });
+    }
+
+    const reason = req.body?.reason || "Rejected by Head Officer after administrative review.";
+    const updated = await updateResetRequest(existing.requestId, {
+      status: "REJECTED",
+      rejectionReason: reason,
+      reviewedByOfficerId: req.principal!.id,
+      reviewedByOfficerName: req.principal!.name,
+      reviewedAt: new Date(),
+    });
+
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.insert(staffAuditLogs).values({
+          performedByOfficerId: req.principal!.id,
+          performedByOfficerName: req.principal!.name,
+          targetOfficerId: existing.userId,
+          targetOfficerName: existing.name,
+          action: "PASSWORD_RESET_REJECTED",
+          details: `Rejected password reset for ${existing.userCode} (${existing.name}). Reason: ${reason}`,
+        });
+      } catch (e) {
+        console.warn("[AuditLog] Failed to record reset rejection:", e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Password reset request rejected.",
+      request: updated,
+    });
+  });
+
 
   // Staff Notifications
   api.get("/officers/notifications", requireApiAuth, requireRole("officer"), async (req: AuthenticatedRequest, res) => {

@@ -411,11 +411,15 @@ function SectionTitle({ eyebrow, title, body, action }: { eyebrow?: string; titl
   );
 }
 
-function AppLogo({ inverse = false }: { inverse?: boolean }) {
+function AppLogo({ inverse = false, className = "" }: { inverse?: boolean; className?: string }) {
   return (
-    <div className={`app-logo ${inverse ? "inverse" : ""}`}>
-      <img src={logoUrl} alt="ProcureFlow abstract paddy and location mark" />
-      <span>Procure<span>Flow</span></span>
+    <div className={`app-logo ${inverse ? "inverse" : ""} ${className} flex items-center`}>
+      <img
+        src="/procureflow-logo.jpeg"
+        alt="ProcureFlow - Smart Procurement Management System"
+        className="brand-logo-img h-9 sm:h-10 md:h-11 w-auto object-contain rounded transition-transform hover:scale-[1.02]"
+        style={{ maxHeight: "44px", width: "auto" }}
+      />
     </div>
   );
 }
@@ -748,7 +752,46 @@ export default function Home() {
   const [officerProfile, setOfficerProfile] = useState<StaffRecord | null>(null);
   const [officerLoginForm, setOfficerLoginForm] = useState({ officerCode: "OFF-NZM-104", password: "Officer@2026" });
   const [staffList, setStaffList] = useState<StaffRecord[]>([]);
-  const [staffTab, setStaffTab] = useState<"pending" | "active" | "disabled" | "audit">("pending");
+  const [staffTab, setStaffTab] = useState<"pending" | "active" | "disabled" | "audit" | "resets">("pending");
+
+  // Officer Forgot Password & Password Reset Requests
+  const [officerForgotStep, setOfficerForgotStep] = useState<"INACTIVE" | "REQUEST" | "COMPLETE" | "SUCCESS">("INACTIVE");
+  const [officerForgotCode, setOfficerForgotCode] = useState("");
+  const [officerForgotContact, setOfficerForgotContact] = useState("");
+  const [officerForgotDepartment, setOfficerForgotDepartment] = useState("");
+  const [officerForgotReason, setOfficerForgotReason] = useState("");
+  const [officerForgotReqId, setOfficerForgotReqId] = useState<number | null>(null);
+  const [officerForgotToken, setOfficerForgotToken] = useState("");
+  const [officerForgotNewPassword, setOfficerForgotNewPassword] = useState("");
+  const [officerForgotConfirmPassword, setOfficerForgotConfirmPassword] = useState("");
+  const [showOfficerForgotNewPassword, setShowOfficerForgotNewPassword] = useState(false);
+  const [showOfficerForgotConfirmPassword, setShowOfficerForgotConfirmPassword] = useState(false);
+  const [officerForgotLoading, setOfficerForgotLoading] = useState(false);
+  const [officerForgotError, setOfficerForgotError] = useState<string | null>(null);
+  const [officerForgotSuccessMsg, setOfficerForgotSuccessMsg] = useState<string | null>(null);
+
+  interface PasswordResetItem {
+    id: number;
+    officerId: number;
+    officerCode: string;
+    officerName: string;
+    department: string;
+    email: string;
+    phone: string;
+    reason?: string | null;
+    status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "COMPLETED";
+    requestedAt: string;
+    approvedAt?: string | null;
+    approvedBy?: string | null;
+    approvalToken?: string | null;
+    expiresAt?: string | null;
+    rejectionReason?: string | null;
+  }
+  const [passwordResetsList, setPasswordResetsList] = useState<PasswordResetItem[]>([]);
+  const [resetApprovingId, setResetApprovingId] = useState<number | null>(null);
+  const [resetRejectingId, setResetRejectingId] = useState<number | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState("");
+  const [activeTokenModal, setActiveTokenModal] = useState<{ id: number; token: string; officerCode: string; officerName: string } | null>(null);
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [addStaffSubmitting, setAddStaffSubmitting] = useState(false);
   const [addStaffForm, setAddStaffForm] = useState({
@@ -1088,9 +1131,13 @@ export default function Home() {
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Forgot Password workflow states (Direct - No OTP)
-  const [forgotStep, setForgotStep] = useState<"INACTIVE" | "RESET" | "SUCCESS">("INACTIVE");
+  // Forgot Password workflow states (Identity Verified Recovery)
+  const [forgotStep, setForgotStep] = useState<"INACTIVE" | "VERIFY" | "RESET" | "SUCCESS">("INACTIVE");
   const [forgotPhone, setForgotPhone] = useState("");
+  const [forgotFactorType, setForgotFactorType] = useState<"aadhaar" | "village" | "code">("aadhaar");
+  const [forgotFactorValue, setForgotFactorValue] = useState("");
+  const [farmerResetToken, setFarmerResetToken] = useState<string | null>(null);
+  const [verifiedFarmerInfo, setVerifiedFarmerInfo] = useState<{ name: string; farmerCode: string } | null>(null);
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -1350,13 +1397,11 @@ export default function Home() {
   const [assistantCategory, setAssistantCategory] = useState<string>("ALL");
   const [isListening, setIsListening] = useState<boolean>(false);
   const [speakingText, setSpeakingText] = useState<string | null>(null);
-  const [isChatbotOpen, setIsChatbotOpen] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [liveInterimTranscript, setLiveInterimTranscript] = useState<string>("");
   const [speechError, setSpeechError] = useState<string | null>(null);
   const activeRecognitionRef = useRef<any>(null);
   const chatFeedRef = useRef<HTMLDivElement>(null);
-  const floatingChatFeedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (chatFeedRef.current) {
@@ -1366,15 +1411,6 @@ export default function Home() {
       });
     }
   }, [chat]);
-
-  useEffect(() => {
-    if (floatingChatFeedRef.current) {
-      floatingChatFeedRef.current.scrollTo({
-        top: floatingChatFeedRef.current.scrollHeight,
-        behavior: "smooth"
-      });
-    }
-  }, [chat, liveInterimTranscript, isChatbotOpen]);
 
   const [officerBookings, setOfficerBookings] = useState<ApiBooking[]>([]);
   const [selectedOfficerBooking, setSelectedOfficerBooking] = useState<ApiBooking | null>(null);
@@ -2154,6 +2190,20 @@ export default function Home() {
     } catch {}
   };
 
+  const loadPasswordResets = async (token?: string) => {
+    const t = token || officerToken;
+    if (!t) return;
+    try {
+      const response = await fetch(apiUrl("/officers/password-resets"), {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPasswordResetsList(data.requests || []);
+      }
+    } catch {}
+  };
+
   const loadStaffList = async (token?: string) => {
     const t = token || officerToken;
     if (!t) return;
@@ -2166,6 +2216,7 @@ export default function Home() {
         setStaffList(data.staff || []);
       }
     } catch {}
+    void loadPasswordResets(t);
   };
 
   const loadStaffAuditLogs = async (token?: string) => {
@@ -2656,12 +2707,71 @@ export default function Home() {
     }
   };
 
-  const handleResetForgotPassword = async () => {
+  // Farmer Password Reset (Identity Verified)
+  const handleVerifyFarmerIdentity = async () => {
     setForgotError(null);
     const cleanPhone = forgotPhone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
       const msg = "Please enter your registered 10-digit mobile number.";
       setForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    const factorVal = forgotFactorValue.trim();
+    if (forgotFactorType === "aadhaar" && factorVal.length !== 4) {
+      const msg = "Please enter the last 4 digits of your registered Aadhaar.";
+      setForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (forgotFactorType === "village" && !factorVal) {
+      const msg = "Please enter your registered village name.";
+      setForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (forgotFactorType === "code" && !factorVal) {
+      const msg = "Please enter your registered Farmer Code (e.g. FARM-2026-9482).";
+      setForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const response = await fetch(apiUrl("/farmers/forgot-password/verify"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          aadhaarLast4: forgotFactorType === "aadhaar" ? factorVal : undefined,
+          village: forgotFactorType === "village" ? factorVal : undefined,
+          farmerCode: forgotFactorType === "code" ? factorVal : undefined,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Identity verification failed.");
+      }
+      setFarmerResetToken(data.resetToken);
+      setVerifiedFarmerInfo({ name: data.farmerName, farmerCode: data.farmerCode });
+      setForgotStep("RESET");
+      toast.success(`Identity verified for ${data.farmerName}! Set your new password.`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Identity verification failed.";
+      setForgotError(msg);
+      toast.error(msg);
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleCompleteFarmerReset = async () => {
+    setForgotError(null);
+    if (!farmerResetToken) {
+      const msg = "Verification session expired. Please verify your identity again.";
+      setForgotError(msg);
+      setForgotStep("VERIFY");
       toast.error(msg);
       return;
     }
@@ -2677,14 +2787,16 @@ export default function Home() {
       toast.error(msg);
       return;
     }
+
     setForgotLoading(true);
     try {
-      const response = await fetch(apiUrl("/auth/forgot-password"), {
+      const response = await fetch(apiUrl("/farmers/forgot-password/reset"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: cleanPhone,
+          resetToken: farmerResetToken,
           newPassword: forgotNewPassword,
+          confirmPassword: forgotConfirmPassword,
         }),
       });
       const data = await response.json();
@@ -2692,7 +2804,7 @@ export default function Home() {
         throw new Error(data.message || data.error || "Password reset failed.");
       }
       setForgotStep("SUCCESS");
-      setFarmerCredentials(prev => ({ ...prev, phone: cleanPhone, password: "" }));
+      setFarmerCredentials(prev => ({ ...prev, phone: forgotPhone.replace(/\D/g, ""), password: "" }));
       toast.success("Password reset successfully! You can now log in.");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to reset password.";
@@ -2700,6 +2812,173 @@ export default function Home() {
       toast.error(msg);
     } finally {
       setForgotLoading(false);
+    }
+  };
+
+  // Officer Password Reset Requests & Authorization
+  const handleRequestOfficerReset = async () => {
+    setOfficerForgotError(null);
+    setOfficerForgotSuccessMsg(null);
+    const code = officerForgotCode.trim();
+    const contact = officerForgotContact.trim();
+    if (!code) {
+      const msg = "Please enter your Officer / Login ID.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (!contact) {
+      const msg = "Please enter your registered Email ID or Mobile number.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setOfficerForgotLoading(true);
+    try {
+      const response = await fetch(apiUrl("/officers/forgot-password/request"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          officerCode: code,
+          contact,
+          department: officerForgotDepartment.trim() || undefined,
+          reason: officerForgotReason.trim() || undefined,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Failed to submit reset request.");
+      }
+      setOfficerForgotReqId(data.requestId);
+      setOfficerForgotSuccessMsg(data.message || "Reset request submitted. Pending Head Officer approval.");
+      toast.success(`Reset request #${data.requestId} submitted for ${code}!`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Submission failed.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+    } finally {
+      setOfficerForgotLoading(false);
+    }
+  };
+
+  const handleCompleteOfficerReset = async () => {
+    setOfficerForgotError(null);
+    setOfficerForgotSuccessMsg(null);
+    const code = officerForgotCode.trim();
+    const token = officerForgotToken.trim();
+    if (!code) {
+      const msg = "Please enter your Officer Code.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (!token) {
+      const msg = "Please enter the 24-hour Approval Token provided by your Head Officer.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (!officerForgotNewPassword || officerForgotNewPassword.length < 8) {
+      const msg = "New password must be at least 8 characters long.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    const hasUpper = /[A-Z]/.test(officerForgotNewPassword);
+    const hasLower = /[a-z]/.test(officerForgotNewPassword);
+    const hasNum = /[0-9]/.test(officerForgotNewPassword);
+    if (!hasUpper || !hasLower || !hasNum) {
+      const msg = "Password must include at least one uppercase letter, one lowercase letter, and one number.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (officerForgotNewPassword !== officerForgotConfirmPassword) {
+      const msg = "Passwords do not match. Please re-enter matching passwords.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setOfficerForgotLoading(true);
+    try {
+      const response = await fetch(apiUrl("/officers/forgot-password/complete"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          officerCode: code,
+          requestId: officerForgotReqId || undefined,
+          approvalToken: token,
+          newPassword: officerForgotNewPassword,
+          confirmPassword: officerForgotConfirmPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Password reset failed.");
+      }
+      setOfficerForgotStep("SUCCESS");
+      setOfficerLoginForm(prev => ({ ...prev, officerCode: code, password: "" }));
+      toast.success("Officer password updated successfully! You can now log in.");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to reset officer password.";
+      setOfficerForgotError(msg);
+      toast.error(msg);
+    } finally {
+      setOfficerForgotLoading(false);
+    }
+  };
+
+  const approvePasswordReset = async (id: number) => {
+    if (!officerToken) return;
+    setResetApprovingId(id);
+    try {
+      const response = await fetch(apiUrl(`/officers/password-resets/${id}/approve`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${officerToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to approve password reset.");
+      }
+      toast.success(`Password reset approved! Token: ${data.approvalToken}`);
+      const req = passwordResetsList.find(r => r.id === id);
+      setActiveTokenModal({
+        id,
+        token: data.approvalToken,
+        officerCode: req?.officerCode || "Officer",
+        officerName: req?.officerName || "Staff Member",
+      });
+      await loadPasswordResets(officerToken);
+      await loadStaffAuditLogs(officerToken);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Approval failed.");
+    } finally {
+      setResetApprovingId(null);
+    }
+  };
+
+  const rejectPasswordReset = async (id: number, reason: string) => {
+    if (!officerToken) return;
+    setResetRejectingId(id);
+    try {
+      const response = await fetch(apiUrl(`/officers/password-resets/${id}/reject`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${officerToken}` },
+        body: JSON.stringify({ reason: reason || "Identity or department mismatch" }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to reject password reset.");
+      }
+      toast.error(`Password reset request #${id} rejected.`);
+      await loadPasswordResets(officerToken);
+      await loadStaffAuditLogs(officerToken);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Rejection failed.");
+    } finally {
+      setResetRejectingId(null);
     }
   };
 
@@ -3664,12 +3943,18 @@ export default function Home() {
           </div>
         </section>
 
-        {/* FORGOT PASSWORD WORKFLOW (DIRECT - NO OTP) */}
+        {/* FORGOT PASSWORD WORKFLOW (IDENTITY-VERIFIED RECOVERY) */}
         {forgotStep !== "INACTIVE" ? (
           <section className="login-card">
-            <p className="eyebrow">PASSWORD RECOVERY</p>
+            <p className="eyebrow">IDENTITY-VERIFIED PASSWORD RECOVERY</p>
             <h1>Reset Password</h1>
-            <p>Enter your registered mobile number and set your new password directly.</p>
+            <p>
+              {forgotStep === "VERIFY"
+                ? "Verify your registered mobile number and identity details to reset your password."
+                : forgotStep === "RESET"
+                ? "Set your new account password below."
+                : "Your password has been successfully updated."}
+            </p>
 
             {forgotError && (
               <div className="auth-error-banner">
@@ -3678,9 +3963,9 @@ export default function Home() {
               </div>
             )}
 
-            {/* Direct Password Reset Form */}
-            {forgotStep === "RESET" && (
-              <form onSubmit={e => { e.preventDefault(); void handleResetForgotPassword(); }}>
+            {/* Step 1: Identity Verification */}
+            {forgotStep === "VERIFY" && (
+              <form onSubmit={e => { e.preventDefault(); void handleVerifyFarmerIdentity(); }}>
                 <label>
                   Registered mobile number
                   <Input
@@ -3692,6 +3977,106 @@ export default function Home() {
                     required
                   />
                 </label>
+
+                <div className="mt-2 mb-1">
+                  <span className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                    Select Verification Factor:
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => { setForgotFactorType("aadhaar"); setForgotFactorValue(""); }}
+                      className={`py-1.5 px-2 text-[11px] font-bold rounded-lg border transition-all ${
+                        forgotFactorType === "aadhaar"
+                          ? "bg-emerald-800 text-white border-emerald-900"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      Aadhaar (Last 4)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setForgotFactorType("village"); setForgotFactorValue(""); }}
+                      className={`py-1.5 px-2 text-[11px] font-bold rounded-lg border transition-all ${
+                        forgotFactorType === "village"
+                          ? "bg-emerald-800 text-white border-emerald-900"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      Village Name
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setForgotFactorType("code"); setForgotFactorValue(""); }}
+                      className={`py-1.5 px-2 text-[11px] font-bold rounded-lg border transition-all ${
+                        forgotFactorType === "code"
+                          ? "bg-emerald-800 text-white border-emerald-900"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      Farmer Code
+                    </button>
+                  </div>
+
+                  <label className="mt-1">
+                    {forgotFactorType === "aadhaar" && "Aadhaar number (last 4 digits)"}
+                    {forgotFactorType === "village" && "Registered village name"}
+                    {forgotFactorType === "code" && "Farmer Code (e.g. FARM-2026-9482)"}
+                    <Input
+                      placeholder={
+                        forgotFactorType === "aadhaar"
+                          ? "e.g. 5432"
+                          : forgotFactorType === "village"
+                          ? "e.g. Ditchpally"
+                          : "e.g. FARM-2026-9482"
+                      }
+                      maxLength={forgotFactorType === "aadhaar" ? 4 : 50}
+                      inputMode={forgotFactorType === "aadhaar" ? "numeric" : "text"}
+                      value={forgotFactorValue}
+                      onChange={e => setForgotFactorValue(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <Button
+                  disabled={forgotLoading || forgotPhone.replace(/\D/g, "").length !== 10 || !forgotFactorValue.trim()}
+                  type="submit"
+                  className="action-button w-full mt-3"
+                >
+                  {forgotLoading ? (
+                    <>
+                      <LoaderCircle size={17} className="animate-spin mr-2" /> Verifying identity…
+                    </>
+                  ) : (
+                    <>
+                      Verify Identity & Proceed <ArrowRight size={17} />
+                    </>
+                  )}
+                </Button>
+
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground text-center w-full block mt-3"
+                  onClick={() => { setForgotStep("INACTIVE"); setForgotError(null); }}
+                >
+                  Cancel & return to login
+                </button>
+              </form>
+            )}
+
+            {/* Step 2: Set New Password */}
+            {forgotStep === "RESET" && (
+              <form onSubmit={e => { e.preventDefault(); void handleCompleteFarmerReset(); }}>
+                {verifiedFarmerInfo && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl mb-3 flex items-center gap-2">
+                    <CheckCircle2 size={18} className="text-emerald-700 shrink-0" />
+                    <div className="text-xs text-emerald-950">
+                      <span className="font-bold">{verifiedFarmerInfo.name}</span>
+                      <span className="text-emerald-700 ml-1">({verifiedFarmerInfo.farmerCode})</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="field-row">
                   <label>
@@ -3763,14 +4148,14 @@ export default function Home() {
                 <button
                   type="button"
                   className="text-xs text-muted-foreground hover:text-foreground text-center w-full block mt-3"
-                  onClick={() => { setForgotStep("INACTIVE"); setForgotError(null); }}
+                  onClick={() => { setForgotStep("VERIFY"); setForgotError(null); }}
                 >
-                  Cancel & return to login
+                  ← Back to verification
                 </button>
               </form>
             )}
 
-            {/* Success confirmation */}
+            {/* Step 3: Success confirmation */}
             {forgotStep === "SUCCESS" && (
               <div className="text-center py-4">
                 <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -3786,6 +4171,9 @@ export default function Home() {
                   onClick={() => {
                     setForgotStep("INACTIVE");
                     setForgotPhone("");
+                    setForgotFactorValue("");
+                    setFarmerResetToken(null);
+                    setVerifiedFarmerInfo(null);
                     setForgotNewPassword("");
                     setForgotConfirmPassword("");
                   }}
@@ -3824,8 +4212,9 @@ export default function Home() {
                     type="button"
                     className="text-xs text-emerald-800 dark:text-emerald-400 font-bold hover:underline cursor-pointer bg-transparent border-0 p-0 focus:outline-hidden"
                     onClick={() => {
-                      setForgotStep("RESET");
+                      setForgotStep("VERIFY");
                       setForgotPhone(farmerCredentials.phone);
+                      setForgotFactorValue("");
                       setForgotError(null);
                     }}
                   >
@@ -6053,7 +6442,7 @@ export default function Home() {
                         </span>
                         <div className="flex items-center gap-2">
                           <span className={`ai-source-badge ${message.source === "fallback" ? "fallback" : "gemini"}`}>
-                            {message.source === "fallback" ? "🌾 Offline Advisory" : "✨ Powered by Gemini"}
+                            {message.source === "fallback" ? "🌾 Offline Advisory" : "✨ ProcureFlow Krishi AI"}
                           </span>
                           <button
                             onClick={() => speak(message.text)}
@@ -6419,6 +6808,297 @@ export default function Home() {
             <span><Clock3/> <b>{officerAnalytics?.activeBookings ?? 3}</b> active bookings</span>
           </div>
         </section>
+
+        {officerForgotStep !== "INACTIVE" ? (
+          <section className="login-card w-full max-w-lg bg-white p-6 rounded-2xl border border-slate-200 shadow-md">
+            <p className="eyebrow text-emerald-800 font-extrabold text-[11px] uppercase tracking-wider mb-1">OFFICER PASSWORD GOVERNANCE</p>
+            <h2 className="text-xl font-black text-slate-900 mb-2">Officer Password Recovery</h2>
+            <p className="text-xs text-slate-600 mb-4">
+              Authorized Head Officer review is strictly enforced for department staff password modifications.
+            </p>
+
+            {officerForgotError && (
+              <div className="auth-error-banner flex items-center gap-2 p-3 bg-red-50 text-red-800 border border-red-200 rounded-xl text-xs mb-4">
+                <AlertCircle size={16} className="shrink-0 text-red-600" />
+                <span>{officerForgotError}</span>
+              </div>
+            )}
+
+            {officerForgotSuccessMsg && (
+              <div className="p-3 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl text-xs mb-4">
+                <div className="flex items-center gap-2 font-bold mb-1">
+                  <CheckCircle2 size={16} className="text-emerald-700" /> Reset Request Logged
+                </div>
+                <p className="leading-relaxed mb-2">{officerForgotSuccessMsg}</p>
+                <div className="p-2.5 bg-white rounded-lg border border-emerald-100 text-[11px] text-emerald-800 font-medium">
+                  Next Step: Contact your Head Officer to approve request #{officerForgotReqId} in <b>Staff Management → Password Reset Requests</b>. Once approved, the Head Officer will provide you a 24-hour Approval Token.
+                </div>
+              </div>
+            )}
+
+            {/* Workflow Navigation Pills */}
+            {officerForgotStep !== "SUCCESS" && (
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => { setOfficerForgotStep("REQUEST"); setOfficerForgotError(null); }}
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
+                    officerForgotStep === "REQUEST"
+                      ? "bg-[#165339] text-white border-[#165339] shadow-xs"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  1. Request Approval
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setOfficerForgotStep("COMPLETE"); setOfficerForgotError(null); }}
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
+                    officerForgotStep === "COMPLETE"
+                      ? "bg-[#165339] text-white border-[#165339] shadow-xs"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  2. Enter Token & Reset
+                </button>
+              </div>
+            )}
+
+            {/* Step 1: Submit Reset Request */}
+            {officerForgotStep === "REQUEST" && (
+              <form onSubmit={e => { e.preventDefault(); void handleRequestOfficerReset(); }} className="flex flex-col gap-3">
+                <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                  Officer / Login ID
+                  <Input
+                    value={officerForgotCode}
+                    onChange={e => setOfficerForgotCode(e.target.value)}
+                    placeholder="e.g. QC-2026-4892 or OFF-NZM-104"
+                    required
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                  Registered Email or Phone
+                  <Input
+                    value={officerForgotContact}
+                    onChange={e => setOfficerForgotContact(e.target.value)}
+                    placeholder="e.g. qc.madhavan@smartprocure.gov.in"
+                    required
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                    Department (Optional)
+                    <Input
+                      value={officerForgotDepartment}
+                      onChange={e => setOfficerForgotDepartment(e.target.value)}
+                      placeholder="e.g. QUALITY_CONTROL"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                    Reason (Optional)
+                    <Input
+                      value={officerForgotReason}
+                      onChange={e => setOfficerForgotReason(e.target.value)}
+                      placeholder="e.g. Forgot login password"
+                    />
+                  </label>
+                </div>
+
+                <Button
+                  disabled={officerForgotLoading || !officerForgotCode.trim() || !officerForgotContact.trim()}
+                  type="submit"
+                  className="action-button w-full mt-2"
+                >
+                  {officerForgotLoading ? (
+                    <>
+                      <LoaderCircle size={16} className="animate-spin mr-2" /> Submitting request…
+                    </>
+                  ) : (
+                    <>
+                      Submit Request for Head Officer Approval <ArrowRight size={16} />
+                    </>
+                  )}
+                </Button>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => { setOfficerForgotStep("COMPLETE"); setOfficerForgotError(null); }}
+                    className="text-emerald-800 font-bold hover:underline"
+                  >
+                    Already have approval token? Enter token →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setOfficerForgotStep("INACTIVE"); setOfficerForgotError(null); setOfficerForgotSuccessMsg(null); }}
+                    className="text-slate-500 hover:text-slate-700"
+                  >
+                    Return to Login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 2: Complete Reset with Token */}
+            {officerForgotStep === "COMPLETE" && (
+              <form onSubmit={e => { e.preventDefault(); void handleCompleteOfficerReset(); }} className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                    Officer / Login ID
+                    <Input
+                      value={officerForgotCode}
+                      onChange={e => setOfficerForgotCode(e.target.value)}
+                      placeholder="e.g. QC-2026-4892"
+                      required
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                    Request ID (Optional)
+                    <Input
+                      type="number"
+                      value={officerForgotReqId || ""}
+                      onChange={e => setOfficerForgotReqId(e.target.value ? Number(e.target.value) : null)}
+                      placeholder="e.g. 1"
+                    />
+                  </label>
+                </div>
+
+                <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                  24-Hour Approval Token (Issued by Head Officer)
+                  <Input
+                    value={officerForgotToken}
+                    onChange={e => setOfficerForgotToken(e.target.value.trim())}
+                    placeholder="Enter approval token (e.g. 32-character hexadecimal string)"
+                    className="font-mono text-xs tracking-wider"
+                    required
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                    New Password
+                    <div className="relative">
+                      <Input
+                        type={showOfficerForgotNewPassword ? "text" : "password"}
+                        value={officerForgotNewPassword}
+                        onChange={e => setOfficerForgotNewPassword(e.target.value)}
+                        placeholder="Min 8 chars, mixed case, number"
+                        required
+                        className="pr-8"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOfficerForgotNewPassword(p => !p)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 bg-transparent border-0 p-0"
+                      >
+                        {showOfficerForgotNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
+                    Confirm Password
+                    <div className="relative">
+                      <Input
+                        type={showOfficerForgotConfirmPassword ? "text" : "password"}
+                        value={officerForgotConfirmPassword}
+                        onChange={e => setOfficerForgotConfirmPassword(e.target.value)}
+                        placeholder="Re-enter password"
+                        required
+                        className="pr-8"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOfficerForgotConfirmPassword(p => !p)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 bg-transparent border-0 p-0"
+                      >
+                        {showOfficerForgotConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Password requirements indicators */}
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] flex flex-col gap-1">
+                  <span className="font-bold text-slate-700">Password Policy Requirements:</span>
+                  <div className="grid grid-cols-2 gap-1 text-[11px]">
+                    <span className={`flex items-center gap-1 ${officerForgotNewPassword.length >= 8 ? "text-emerald-700 font-bold" : "text-slate-500"}`}>
+                      {officerForgotNewPassword.length >= 8 ? "✓" : "○"} At least 8 characters
+                    </span>
+                    <span className={`flex items-center gap-1 ${/[A-Z]/.test(officerForgotNewPassword) ? "text-emerald-700 font-bold" : "text-slate-500"}`}>
+                      {/[A-Z]/.test(officerForgotNewPassword) ? "✓" : "○"} Uppercase letter
+                    </span>
+                    <span className={`flex items-center gap-1 ${/[a-z]/.test(officerForgotNewPassword) ? "text-emerald-700 font-bold" : "text-slate-500"}`}>
+                      {/[a-z]/.test(officerForgotNewPassword) ? "✓" : "○"} Lowercase letter
+                    </span>
+                    <span className={`flex items-center gap-1 ${/[0-9]/.test(officerForgotNewPassword) ? "text-emerald-700 font-bold" : "text-slate-500"}`}>
+                      {/[0-9]/.test(officerForgotNewPassword) ? "✓" : "○"} Number (0-9)
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  disabled={officerForgotLoading || !officerForgotCode.trim() || !officerForgotToken.trim() || officerForgotNewPassword.length < 8 || officerForgotNewPassword !== officerForgotConfirmPassword}
+                  type="submit"
+                  className="action-button w-full mt-1"
+                >
+                  {officerForgotLoading ? (
+                    <>
+                      <LoaderCircle size={16} className="animate-spin mr-2" /> Updating password…
+                    </>
+                  ) : (
+                    <>
+                      Verify Token & Update Password <Check size={16} />
+                    </>
+                  )}
+                </Button>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => { setOfficerForgotStep("REQUEST"); setOfficerForgotError(null); }}
+                    className="text-emerald-800 font-bold hover:underline"
+                  >
+                    ← Need to request approval first?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setOfficerForgotStep("INACTIVE"); setOfficerForgotError(null); }}
+                    className="text-slate-500 hover:text-slate-700"
+                  >
+                    Return to Login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 3: Success Confirmation */}
+            {officerForgotStep === "SUCCESS" && (
+              <div className="text-center py-4 flex flex-col items-center">
+                <div className="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mb-3">
+                  <CheckCircle2 size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-emerald-950 mb-1">Officer Password Updated!</h3>
+                <p className="text-xs text-slate-600 max-w-sm mb-4">
+                  Your officer account password has been updated and an audit event has been recorded. You can now login with your new credentials.
+                </p>
+                <Button
+                  type="button"
+                  className="action-button w-full"
+                  onClick={() => {
+                    setOfficerForgotStep("INACTIVE");
+                    setOfficerForgotCode("");
+                    setOfficerForgotContact("");
+                    setOfficerForgotToken("");
+                    setOfficerForgotNewPassword("");
+                    setOfficerForgotConfirmPassword("");
+                  }}
+                >
+                  Return to Officer Login <ArrowRight size={16} />
+                </Button>
+              </div>
+            )}
+          </section>
+        ) : (
         <form onSubmit={e => { e.preventDefault(); void loginOfficer(); }}>
           <p className="eyebrow">OFFICER & STAFF LOGIN</p>
           <h2>Enter your verified credentials.</h2>
@@ -6430,17 +7110,34 @@ export default function Home() {
               placeholder="e.g. OFF-NZM-104 or QC-2026-4892"
             />
           </label>
-          <label>
-            Password
+          <div>
+            <div className="flex items-center justify-between mb-1 mt-1">
+              <span className="text-xs font-semibold text-slate-700">Password</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setOfficerForgotStep("REQUEST");
+                  setOfficerForgotCode(officerLoginForm.officerCode);
+                  setOfficerForgotContact("");
+                  setOfficerForgotDepartment("");
+                  setOfficerForgotReason("");
+                  setOfficerForgotError(null);
+                  setOfficerForgotSuccessMsg(null);
+                }}
+                className="text-xs font-bold text-emerald-800 hover:text-emerald-900 hover:underline cursor-pointer bg-transparent border-0 p-0"
+              >
+                Forgot Officer Password?
+              </button>
+            </div>
             <Input
               type="password"
               value={officerLoginForm.password}
               onChange={e => setOfficerLoginForm(f => ({ ...f, password: e.target.value }))}
               placeholder="Enter password"
             />
-          </label>
+          </div>
 
-          <Button type="submit" className="action-button">Enter officer console <ArrowRight size={17}/></Button>
+          <Button type="submit" className="action-button mt-2">Enter officer console <ArrowRight size={17}/></Button>
 
           {/* Quick Demo Login Preset Pills */}
           <div className="flex flex-col gap-2 pt-2 border-t border-slate-200">
@@ -6517,6 +7214,7 @@ export default function Home() {
 
           <p className="form-note"><ShieldCheck size={16}/> Authenticated officer session with role authorization.</p>
         </form>
+        )}
       </main>
     </div>
   );
@@ -9797,6 +10495,7 @@ export default function Home() {
             {[
               { key: "pending", label: "Pending Verification", count: staffList.filter(s => s.status === "PENDING_VERIFICATION").length, badgeTone: "bg-amber-100 text-amber-800" },
               { key: "active", label: "Active Staff Network", count: staffList.filter(s => s.status === "ACTIVE").length, badgeTone: "bg-emerald-100 text-emerald-800" },
+              { key: "resets", label: "Password Reset Requests", count: passwordResetsList.filter(r => r.status === "PENDING_APPROVAL").length, badgeTone: "bg-rose-100 text-rose-800" },
               { key: "disabled", label: "Disabled / Inactive", count: staffList.filter(s => s.status === "DISABLED").length, badgeTone: "bg-slate-100 text-slate-700" },
               { key: "audit", label: "Audit Trail & Logs", count: staffAuditLogsList.length, badgeTone: "bg-blue-100 text-blue-800" },
             ].map(tab => (
@@ -10076,6 +10775,182 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Tab: Password Reset Requests */}
+        {staffTab === "resets" && (
+          <div className="flex flex-col gap-4">
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex items-start gap-2.5">
+              <Key size={18} className="text-emerald-700 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-emerald-900 mb-0.5">Officer Password Reset Governance</span>
+                <span>
+                  Head Officers review and authorize password reset requests submitted by department staff. Approving a request generates a cryptographically secure 24-hour single-use token that the officer must enter to complete their password change.
+                </span>
+              </div>
+            </div>
+
+            {passwordResetsList.length === 0 ? (
+              <div className="p-12 text-center flex flex-col items-center justify-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                <span className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
+                  <ShieldCheck size={24} />
+                </span>
+                <h3 className="text-base font-bold text-slate-800 mb-1">No Password Reset Requests</h3>
+                <p className="text-xs text-slate-500 max-w-md">There are no pending or past password reset requests. All department officer credentials remain secure and active.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {passwordResetsList.map(req => (
+                  <article
+                    key={req.id}
+                    className={`p-5 rounded-2xl border transition-all ${
+                      req.status === "PENDING_APPROVAL"
+                        ? "border-amber-300 bg-amber-50/40 shadow-xs"
+                        : req.status === "APPROVED"
+                        ? "border-emerald-200 bg-emerald-50/20"
+                        : req.status === "REJECTED"
+                        ? "border-rose-200 bg-rose-50/20"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold ${
+                          req.status === "PENDING_APPROVAL"
+                            ? "bg-amber-100 text-amber-800"
+                            : req.status === "APPROVED"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : req.status === "REJECTED"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-slate-100 text-slate-700"
+                        }`}>
+                          <Key size={18} />
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <strong className="text-sm font-extrabold text-slate-900">{req.officerName}</strong>
+                            <span className="font-mono text-xs font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+                              {req.officerCode}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-extrabold px-2 py-0.5 ${
+                                req.status === "PENDING_APPROVAL"
+                                  ? "bg-amber-100 text-amber-900 border-amber-300"
+                                  : req.status === "APPROVED"
+                                  ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                                  : req.status === "REJECTED"
+                                  ? "bg-rose-100 text-rose-900 border-rose-300"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                              }`}
+                            >
+                              {req.status === "PENDING_APPROVAL" ? "PENDING REVIEW" : req.status}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                            <span>Department: <b>{req.department || "General"}</b></span>
+                            <span>•</span>
+                            <span>Email: <b>{req.email}</b></span>
+                            <span>•</span>
+                            <span>Phone: <b>{req.phone}</b></span>
+                          </div>
+                          {req.reason && (
+                            <p className="text-xs text-slate-600 bg-white/70 p-2 rounded-lg border border-slate-200/60 mt-2 mb-0">
+                              Reason: <span className="italic">"{req.reason}"</span>
+                            </p>
+                          )}
+                          <div className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-2">
+                            <Clock3 size={12} />
+                            Requested: {new Date(req.requestedAt).toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action & Status Controls */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                        {req.status === "PENDING_APPROVAL" && (
+                          <>
+                            <Button
+                              size="sm"
+                              disabled={resetApprovingId === req.id || resetRejectingId === req.id}
+                              onClick={() => void approvePasswordReset(req.id)}
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold h-9 px-4 rounded-xl flex items-center gap-1.5 shadow-xs"
+                            >
+                              {resetApprovingId === req.id ? (
+                                <LoaderCircle size={14} className="animate-spin" />
+                              ) : (
+                                <CheckCircle2 size={15} />
+                              )}
+                              Approve & Generate Token
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={resetApprovingId === req.id || resetRejectingId === req.id}
+                              onClick={() => {
+                                const reason = prompt("Enter rejection reason for this officer reset request:", "Identity or department mismatch");
+                                if (reason !== null) {
+                                  void rejectPasswordReset(req.id, reason);
+                                }
+                              }}
+                              className="border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-bold h-9 px-3 rounded-xl flex items-center gap-1.5"
+                            >
+                              <X size={15} />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+
+                        {req.status === "APPROVED" && (
+                          <div className="p-2.5 bg-white border border-emerald-200 rounded-xl flex flex-col gap-1 text-xs">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Approval Token (24h):</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (req.approvalToken) {
+                                    navigator.clipboard?.writeText(req.approvalToken);
+                                    toast.success("Approval token copied to clipboard!");
+                                  }
+                                }}
+                                className="text-[11px] text-emerald-800 hover:text-emerald-950 font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0"
+                              >
+                                <Copy size={12} /> Copy Token
+                              </button>
+                            </div>
+                            <span className="font-mono text-xs font-bold text-emerald-900 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 select-all tracking-wider">
+                              {req.approvalToken || "Token Active"}
+                            </span>
+                            {req.expiresAt && (
+                              <span className="text-[10px] text-slate-400">
+                                Valid until: {new Date(req.expiresAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {req.status === "REJECTED" && (
+                          <div className="text-right text-xs">
+                            <span className="text-rose-700 font-bold block">Rejected by Head Officer</span>
+                            <span className="text-[11px] text-slate-500 italic">"{req.rejectionReason || "Identity mismatch"}"</span>
+                          </div>
+                        )}
+
+                        {req.status === "COMPLETED" && (
+                          <div className="text-right text-xs text-slate-500">
+                            <span className="text-emerald-700 font-bold flex items-center gap-1 justify-end">
+                              <Check size={14} /> Password Reset Complete
+                            </span>
+                            <span className="text-[10px] text-slate-400">Used & deactivated</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Add Staff Modal */}
@@ -10316,6 +11191,52 @@ export default function Home() {
         </div>
       )}
 
+      {/* Active Token Modal for Approved Reset */}
+      {activeTokenModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle2 size={28} />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-extrabold text-slate-900 mb-1">Password Reset Authorized!</h3>
+              <p className="text-xs text-slate-600">
+                Provide this 24-hour Approval Token to <b>{activeTokenModal.officerName}</b> ({activeTokenModal.officerCode}).
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-col gap-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Single-Use Approval Token:</span>
+              <div className="flex items-center justify-between gap-2 bg-white p-2.5 rounded-lg border border-slate-200">
+                <span className="font-mono text-xs font-bold text-emerald-900 tracking-wider select-all break-all">
+                  {activeTokenModal.token}
+                </span>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(activeTokenModal.token);
+                    toast.success("Token copied to clipboard!");
+                  }}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs h-8 px-3 shrink-0 rounded-lg flex items-center gap-1"
+                >
+                  <Copy size={13} /> Copy
+                </Button>
+              </div>
+              <span className="text-[10px] text-slate-500">
+                ⚠️ The officer must enter this token and set their new password on the Officer Login page within 24 hours.
+              </span>
+            </div>
+
+            <Button
+              onClick={() => setActiveTokenModal(null)}
+              className="action-button w-full text-xs font-bold"
+            >
+              Done & Close
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* View Staff Details Drawer/Modal */}
       {viewingStaffDetails && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -10386,7 +11307,7 @@ export default function Home() {
                 <b className="text-sm font-extrabold text-[#143d2c]">ProcureFlow Officer Copilot</b>
                 <small className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                   <i className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                  Official Mandi Operations · Powered by Google Gemini AI
+                  Official Mandi Operations · ProcureFlow AI Copilot
                 </small>
               </div>
             </div>
@@ -10438,7 +11359,7 @@ export default function Home() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className={`ai-source-badge ${msg.source === "fallback" ? "fallback" : "gemini"}`}>
-                          {msg.source === "fallback" ? "🌾 Offline Advisory" : "✨ Powered by Gemini"}
+                          {msg.source === "fallback" ? "🌾 Offline Advisory" : "✨ ProcureFlow Copilot"}
                         </span>
                         <button
                           onClick={() => speak(msg.text)}
@@ -10582,318 +11503,6 @@ export default function Home() {
   return (
     <>
       {renderCurrentScreen()}
-
-      {/* Floating ProcureFlow AI Chatbot (available across farmer views) */}
-      {!screen.startsWith("officer") && screen !== "registrations" && screen !== "approved" && screen !== "bookings" && screen !== "quality" && screen !== "farmerDetail" && screen !== "staffManagement" && (
-        <>
-          {/* Floating Trigger Button */}
-          {!isChatbotOpen && (
-            <button
-              type="button"
-              onClick={() => setIsChatbotOpen(true)}
-              className="procureflow-floating-trigger"
-              aria-label="Open ProcureFlow AI Assistant"
-            >
-              <div className="relative flex items-center justify-center">
-                <Bot size={20} />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-emerald-900 rounded-full animate-ping" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-emerald-900 rounded-full" />
-              </div>
-              <span>ProcureFlow AI</span>
-            </button>
-          )}
-
-          {/* Floating Chatbot Panel */}
-          {isChatbotOpen && (
-            <div className="procureflow-floating-panel">
-              {/* Header */}
-              <div className="floating-bot-header">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-800/80 border border-emerald-500/30 flex items-center justify-center text-white shadow-xs">
-                    <Bot size={18} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-sm tracking-tight text-white">ProcureFlow AI</span>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Online
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-emerald-100/80 m-0 font-medium">Official Agri Assistant</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {/* Language Selector Dropdown */}
-                  <select
-                    value={language}
-                    onChange={(e) => changeLanguage(e.target.value as any)}
-                    className="bg-emerald-800/90 hover:bg-emerald-700/90 text-white text-xs font-bold px-2 py-1 rounded-md border border-emerald-600/40 focus:outline-none cursor-pointer"
-                    title="Change Assistant Language"
-                  >
-                    <option value="EN" className="bg-slate-900 text-white">English (EN)</option>
-                    <option value="TE" className="bg-slate-900 text-white">తెలుగు (TE)</option>
-                    <option value="HI" className="bg-slate-900 text-white">हिन्दी (HI)</option>
-                  </select>
-
-                  {/* Speaker TTS Audio Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMuted(!isMuted);
-                      if (!isMuted && window.speechSynthesis) window.speechSynthesis.cancel();
-                      toast.message(isMuted ? "Voice speech response enabled." : "Voice speech response muted.");
-                    }}
-                    className="w-7 h-7 rounded-md bg-emerald-800/90 hover:bg-emerald-700/90 text-emerald-100 flex items-center justify-center border border-emerald-600/30"
-                    title={isMuted ? "Unmute voice response" : "Mute voice response"}
-                  >
-                    {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
-                  </button>
-
-                  {/* Clear Chat Button */}
-                  <button
-                    type="button"
-                    onClick={clearChat}
-                    className="w-7 h-7 rounded-md bg-emerald-800/90 hover:bg-emerald-700/90 text-emerald-100 flex items-center justify-center border border-emerald-600/30"
-                    title="Clear Conversation"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-
-                  {/* Close Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      stopListening();
-                      setIsChatbotOpen(false);
-                    }}
-                    className="w-7 h-7 rounded-md bg-emerald-800/90 hover:bg-emerald-700/90 text-emerald-100 flex items-center justify-center border border-emerald-600/30 ml-0.5"
-                    title="Close Assistant"
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Chat Messages Stream */}
-              <div ref={floatingChatFeedRef} className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50">
-                {/* Assistant Welcome Message */}
-                <div className="flex items-start gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
-                    <Bot size={15} />
-                  </div>
-                  <div className="max-w-[85%] bg-white border border-emerald-100/80 rounded-2xl rounded-tl-none p-3.5 shadow-xs text-slate-800 text-xs leading-relaxed">
-                    <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-100">
-                      <span className="font-extrabold text-[11px] text-emerald-800">ProcureFlow AI</span>
-                      <button
-                        type="button"
-                        onClick={() => speak(
-                          language === "TE"
-                            ? "నమస్కారం! నేను ProcureFlow AI అసిస్టెంట్‌ని. మీ లైవ్ టోకెన్, క్యూ పొజిషన్, MSP ధరలు, లేదా DBT చెల్లింపులపై ఏదైనా సందేహం ఉంటే అడగండి."
-                            : language === "HI"
-                            ? "नमस्ते! मैं ProcureFlow AI सहायक हूँ। अपने टोकन नंबर, मंडी कतार, MSP दरों, या DBT भुगतान से संबंधित कोई भी प्रश्न पूछें।"
-                            : "Namaste! I am your ProcureFlow AI Assistant. Ask me anything regarding your live procurement token, queue position, crop MSP rates, nearest mandi centres, or DBT payment status."
-                        )}
-                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
-                      >
-                        <Volume2 size={12} /> {tUi("Listen", language)}
-                      </button>
-                    </div>
-                    <p className="m-0 text-slate-700">
-                      {language === "TE"
-                        ? "నమస్కారం! నేను ProcureFlow AI అసిస్టెంట్‌ని. మీ లైవ్ టోకెన్, క్యూ పొజిషన్, MSP ధరలు, ధాన్యం సేకరణ కేంద్రాలు లేదా DBT చెల్లింపులపై ఏదైనా సందేహం ఉంటే అడగండి."
-                        : language === "HI"
-                        ? "नमस्ते! मैं ProcureFlow AI सहायक हूँ। अपने टोकन नंबर, मंडी कतार, धान न्यूनतम समर्थन मूल्य (MSP), खरीद केंद्र या DBT भुगतान से संबंधित कोई भी प्रश्न पूछें।"
-                        : "Namaste! I am your ProcureFlow AI Assistant. Ask me anything regarding your live procurement token, queue position, crop MSP rates, nearest mandi centres, or DBT payment status."}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 4 Quick Voice Prompt Cards with Icons */}
-                <div className="pt-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 px-1">
-                    💡 {tUi("Quick Questions", language)}
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { icon: Ticket, text: "What is my token number?", desc: tUi("Token & live queue position", language) },
-                      { icon: Wheat, text: "Check Paddy MSP Price", desc: tUi("Official MSP & bonus rates", language) },
-                      { icon: MapPin, text: "Find nearest centre", desc: tUi("AP Mandi locations & timings", language) },
-                      { icon: WalletCards, text: "Check payment status", desc: tUi("Direct DBT bank settlement", language) },
-                    ].map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.text}
-                          type="button"
-                          onClick={() => void assistantReply(item.text)}
-                          className="p-2.5 bg-white hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 rounded-xl text-left transition-all group flex flex-col justify-between shadow-2xs"
-                        >
-                          <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs mb-1">
-                            <Icon size={14} className="group-hover:scale-110 transition-transform flex-shrink-0" />
-                            <span className="line-clamp-1">{item.text}</span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Live Conversation Stream */}
-                {chat.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-start gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    {msg.role === "assistant" && (
-                      <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
-                        <Bot size={15} />
-                      </div>
-                    )}
-                    <div
-                      className={`max-w-[85%] text-xs leading-relaxed p-3.5 rounded-2xl shadow-xs ${
-                        msg.role === "user"
-                          ? "bg-emerald-700 text-white rounded-tr-none font-medium"
-                          : "bg-white border border-emerald-100/80 text-slate-800 rounded-tl-none"
-                      }`}
-                    >
-                      {msg.role === "assistant" && (
-                        <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-100">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-[11px] text-emerald-800">ProcureFlow AI</span>
-                            <span className={`ai-source-badge ${msg.source === "fallback" ? "fallback" : "gemini"}`}>
-                              {msg.source === "fallback" ? "Offline" : "✨ Gemini"}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => speak(msg.text)}
-                            className={`text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 ${
-                              speakingText === msg.text ? "animate-pulse font-extrabold" : ""
-                            }`}
-                          >
-                            <Volume2 size={12} /> {tUi("Listen", language)}
-                          </button>
-                        </div>
-                      )}
-                      {msg.warning && (
-                        <p className="text-[10px] text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-200 mb-1">
-                          ⚠️ {msg.warning}
-                        </p>
-                      )}
-                      <p className="m-0 whitespace-pre-wrap">{msg.text}</p>
-                    </div>
-                    {msg.role === "user" && (
-                      <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">
-                        {profileRecord?.name ? profileRecord.name.slice(0, 1).toUpperCase() : "F"}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {chatLoading && (
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
-                      <Bot size={15} className="animate-pulse" />
-                    </div>
-                    <div className="ai-typing-indicator">
-                      <span>ProcureFlow Krishi AI is thinking...</span>
-                      <div className="flex items-center gap-1 ml-1">
-                        <span className="ai-typing-dot" />
-                        <span className="ai-typing-dot" />
-                        <span className="ai-typing-dot" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Listening Banner with Animated Waveform */}
-              {isListening && (
-                <div className="px-4 py-2 bg-red-50 border-t border-red-200 flex items-center justify-between text-xs text-red-700 font-bold animate-in fade-in">
-                  <div className="flex items-center gap-2">
-                    <div className="audio-wave-bars">
-                      <span className="audio-wave-bar" />
-                      <span className="audio-wave-bar" />
-                      <span className="audio-wave-bar" />
-                      <span className="audio-wave-bar" />
-                      <span className="audio-wave-bar" />
-                    </div>
-                    <span>{tUi("Listening...", language)}</span>
-                    {liveInterimTranscript && (
-                      <span className="text-red-900 font-normal italic truncate max-w-[170px]">
-                        "{liveInterimTranscript}"
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={stopListening}
-                    className="text-[10px] px-2 py-0.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-bold"
-                  >
-                    Done
-                  </button>
-                </div>
-              )}
-
-              {/* Speech Error Banner */}
-              {speechError && (
-                <div className="px-4 py-1.5 bg-amber-50 border-t border-amber-200 text-[11px] text-amber-800 flex items-center justify-between">
-                  <span>{speechError}</span>
-                  <button type="button" onClick={() => setSpeechError(null)} className="text-amber-900 font-bold ml-2">✕</button>
-                </div>
-              )}
-
-              {/* Composer Input Area */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (chatInput.trim()) {
-                    void assistantReply(chatInput.trim());
-                    setChatInput("");
-                  }
-                }}
-                className="p-3 bg-white border-t border-slate-200 flex items-center gap-2"
-              >
-                <button
-                  type="button"
-                  onClick={listen}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${
-                    isListening
-                      ? "bg-red-600 text-white animate-pulse ring-4 ring-red-200 shadow-md"
-                      : "bg-emerald-100 hover:bg-emerald-200 text-emerald-800"
-                  }`}
-                  title={isListening ? "Stop listening" : "Click to speak"}
-                >
-                  <Mic size={20} />
-                </button>
-
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={
-                    isListening
-                      ? tUi("Listening... speak now", language)
-                      : tUi("Type or tap mic to speak...", language)
-                  }
-                  className="flex-1 h-10 px-3.5 bg-slate-100 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 placeholder:text-slate-400"
-                />
-
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim()}
-                  className="w-10 h-10 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white flex items-center justify-center transition-all flex-shrink-0"
-                  title="Send message"
-                >
-                  <ArrowRight size={18} />
-                </button>
-              </form>
-            </div>
-          )}
-        </>
-      )}
 
       {/* Global Slot Booking Cancellation Confirmation Modal */}
       {showCancelBookingModal && bookingRecord && (

@@ -178,20 +178,20 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
         {/* 4 Dimension Operational Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* 1. Precipitation & Rain Impact */}
-          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 flex flex-col justify-between">
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/95 flex flex-col justify-between shadow-2xs">
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                <CloudRain size={16} className="text-sky-600" />
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white mb-1.5">
+                <CloudRain size={16} className="text-sky-600 dark:text-sky-400" />
                 <span>Precipitation Risk</span>
               </div>
-              <div className="text-lg font-black text-slate-900 dark:text-slate-100">
-                {actualRainProb}% <span className="text-xs font-normal text-muted-foreground">probability</span>
+              <div className="text-lg font-black text-slate-950 dark:text-white">
+                {actualRainProb}% <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">probability</span>
               </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                Forecasted Rain: <b>{actualRainMm.toFixed(1)} mm</b>
+              <div className="text-xs text-slate-700 dark:text-slate-200 mt-1 font-semibold">
+                Forecasted Rain: <b className="text-slate-900 dark:text-white">{actualRainMm.toFixed(1)} mm</b>
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium leading-relaxed">
               {actualRainProb >= 50
                 ? "Active rain likely. Delay field threshing."
                 : actualRainProb >= 25
@@ -201,13 +201,13 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
           </div>
 
           {/* 2. Transportation Conditions */}
-          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 flex flex-col justify-between">
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/95 flex flex-col justify-between shadow-2xs">
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                <Truck size={16} className="text-emerald-600" />
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white mb-1.5">
+                <Truck size={16} className="text-emerald-600 dark:text-emerald-400" />
                 <span>Transit Feasibility</span>
               </div>
-              <div className="text-xs font-bold text-foreground">
+              <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                 {actualAdvisory?.transportAdvice ||
                   (actualRainProb >= 50
                     ? "Delay dispatch until active rain passes"
@@ -216,17 +216,17 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                     : "Normal transit permitted")}
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              Wind Velocity: <b>{actualWind} km/h</b> · Smooth transit corridor.
+            <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium">
+              Wind Velocity: <b className="text-slate-900 dark:text-white">{actualWind} km/h</b> · Smooth transit corridor.
             </p>
           </div>
 
           {/* 3. Storage & Moisture Risk */}
-          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 flex flex-col justify-between">
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/95 flex flex-col justify-between shadow-2xs">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <Warehouse size={16} className="text-amber-600" />
+                <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                  <Warehouse size={16} className="text-amber-600 dark:text-amber-400" />
                   <span>Storage Guard</span>
                 </div>
                 {/* Storage Toggle */}
@@ -234,10 +234,10 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                   <button
                     type="button"
                     onClick={() => setStorageType("COVERED")}
-                    className={`px-1.5 py-0.5 rounded ${
+                    className={`px-1.5 py-0.5 rounded font-extrabold ${
                       storageType === "COVERED"
-                        ? "bg-emerald-700 text-white font-bold"
-                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                        ? "bg-emerald-700 text-white"
+                        : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
                     Covered
@@ -245,33 +245,33 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                   <button
                     type="button"
                     onClick={() => setStorageType("OPEN_FIELD")}
-                    className={`px-1.5 py-0.5 rounded ${
+                    className={`px-1.5 py-0.5 rounded font-extrabold ${
                       storageType === "OPEN_FIELD"
-                        ? "bg-amber-700 text-white font-bold"
-                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                        ? "bg-amber-700 text-white"
+                        : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
                     Open Field
                   </button>
                 </div>
               </div>
-              <div className="text-xs font-bold text-foreground">
+              <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                 {storageType === "OPEN_FIELD"
                   ? "Elevate bags on wooden pallets; double-tarp immediately."
                   : actualAdvisory?.storageAdvice || "Standard covered warehouse storage recommended."}
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              Ambient Humidity: <b>{actualHumidity}%</b> (Govt MSP Limit: &lt;17%).
+            <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium">
+              Ambient Humidity: <b className="text-slate-900 dark:text-white">{actualHumidity}%</b> (Govt MSP Limit: &lt;17%).
             </p>
           </div>
 
           {/* 4. Crop Readiness & Stage */}
-          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 flex flex-col justify-between">
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/95 flex flex-col justify-between shadow-2xs">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <CheckCircle2 size={16} className="text-teal-600" />
+                <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                  <CheckCircle2 size={16} className="text-teal-600 dark:text-teal-400" />
                   <span>Harvest Stage</span>
                 </div>
                 {/* Crop Stage Toggle */}
@@ -279,10 +279,10 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                   <button
                     type="button"
                     onClick={() => setCropStage("HARVESTED")}
-                    className={`px-1.5 py-0.5 rounded ${
+                    className={`px-1.5 py-0.5 rounded font-extrabold ${
                       cropStage === "HARVESTED"
-                        ? "bg-emerald-700 text-white font-bold"
-                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                        ? "bg-emerald-700 text-white"
+                        : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
                     Harvested
@@ -290,24 +290,24 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                   <button
                     type="button"
                     onClick={() => setCropStage("STANDING")}
-                    className={`px-1.5 py-0.5 rounded ${
+                    className={`px-1.5 py-0.5 rounded font-extrabold ${
                       cropStage === "STANDING"
-                        ? "bg-teal-700 text-white font-bold"
-                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                        ? "bg-teal-700 text-white"
+                        : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
                     Standing
                   </button>
                 </div>
               </div>
-              <div className="text-xs font-bold text-foreground">
+              <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                 {cropStage === "HARVESTED"
                   ? "Sun-dry grain during peak noon hours to meet 17% moisture limit."
                   : "Safe for combine harvester operations during dry daylight hours."}
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              Target Crop: <b>{selectedCrop}</b>
+            <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium">
+              Target Crop: <b className="text-slate-900 dark:text-white">{selectedCrop}</b>
             </p>
           </div>
         </div>

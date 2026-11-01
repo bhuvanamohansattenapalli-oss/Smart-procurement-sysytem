@@ -43,7 +43,7 @@ var require_main = __commonJS({
     var fs5 = __require("fs");
     var path4 = __require("path");
     var os = __require("os");
-    var crypto3 = __require("crypto");
+    var crypto4 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -287,7 +287,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto3.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto4.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error61) {
@@ -20448,14 +20448,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto3 = __require("crypto");
+    var crypto4 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash2 = crypto3.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash2 = crypto4.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash2 + '"';
     }
@@ -23348,11 +23348,11 @@ var require_request = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports) {
-    var crypto3 = __require("crypto");
+    var crypto4 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto3.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto4.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -23361,7 +23361,7 @@ var require_cookie_signature = __commonJS({
       return sha1(mac3) == sha1(val) ? str : false;
     };
     function sha1(str) {
-      return crypto3.createHash("sha1").update(str).digest("hex");
+      return crypto4.createHash("sha1").update(str).digest("hex");
     }
   }
 });
@@ -33176,7 +33176,7 @@ var init_pg_core = __esm({
 });
 
 // drizzle/schema.ts
-var users, farmers, registrations, officers, staffAuditLogs, staffNotifications, procurementCentres, slots, bookings, queueEntries, procurements, payments, notifications, cropPrices, transportBookings, chatMessages;
+var users, farmers, registrations, officers, staffAuditLogs, staffNotifications, procurementCentres, slots, bookings, queueEntries, procurements, payments, notifications, cropPrices, transportBookings, chatMessages, passwordResetRequests;
 var init_schema2 = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -33390,6 +33390,29 @@ var init_schema2 = __esm({
       language: varchar("language", { length: 8 }).default("EN").notNull(),
       source: varchar("source", { length: 32 }).default("gemini").notNull(),
       createdAt: timestamp("createdAt").defaultNow().notNull()
+    });
+    passwordResetRequests = pgTable("passwordResetRequests", {
+      id: serial("id").primaryKey(),
+      requestId: varchar("requestId", { length: 48 }).notNull().unique(),
+      userType: varchar("userType", { length: 20 }).notNull(),
+      // 'OFFICER' | 'FARMER'
+      userId: integer("userId").notNull(),
+      userCode: varchar("userCode", { length: 64 }).notNull(),
+      name: varchar("name", { length: 160 }).notNull(),
+      contact: varchar("contact", { length: 320 }).notNull(),
+      role: varchar("role", { length: 64 }),
+      centreName: varchar("centreName", { length: 160 }),
+      status: varchar("status", { length: 32 }).notNull().default("PENDING_APPROVAL"),
+      // 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
+      resetToken: varchar("resetToken", { length: 64 }),
+      tokenExpiresAt: timestamp("tokenExpiresAt"),
+      rejectionReason: text("rejectionReason"),
+      reviewedByOfficerId: integer("reviewedByOfficerId"),
+      reviewedByOfficerName: varchar("reviewedByOfficerName", { length: 160 }),
+      reviewedAt: timestamp("reviewedAt"),
+      completedAt: timestamp("completedAt"),
+      createdAt: timestamp("createdAt").notNull().defaultNow(),
+      updatedAt: timestamp("updatedAt").notNull().defaultNow()
     });
   }
 });
@@ -34711,7 +34734,7 @@ var require_cert_signatures = __commonJS({
 var require_sasl = __commonJS({
   "node_modules/pg/lib/crypto/sasl.js"(exports, module) {
     "use strict";
-    var crypto3 = require_utils4();
+    var crypto4 = require_utils4();
     var { signatureAlgorithmHashFromCertificate } = require_cert_signatures();
     function saslprep(password) {
       const nonAsciiSpace = /[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g;
@@ -34729,7 +34752,7 @@ var require_sasl = __commonJS({
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
       }
-      const clientNonce = crypto3.randomBytes(18).toString("base64");
+      const clientNonce = crypto4.randomBytes(18).toString("base64");
       const gs2Header = mechanism === "SCRAM-SHA-256-PLUS" ? "p=tls-server-end-point" : stream ? "y" : "n";
       return {
         mechanism,
@@ -34771,20 +34794,20 @@ var require_sasl = __commonJS({
         const peerCert = stream.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
-        const certHash = await crypto3.hashByName(hashName, peerCert);
+        const certHash = await crypto4.hashByName(hashName, peerCert);
         const bindingData = Buffer.concat([Buffer.from("p=tls-server-end-point,,"), Buffer.from(certHash)]);
         channelBinding = bindingData.toString("base64");
       }
       const clientFinalMessageWithoutProof = "c=" + channelBinding + ",r=" + sv.nonce;
       const authMessage = clientFirstMessageBare + "," + serverFirstMessage + "," + clientFinalMessageWithoutProof;
       const saltBytes = Buffer.from(sv.salt, "base64");
-      const saltedPassword = await crypto3.deriveKey(saslprep(password), saltBytes, sv.iteration);
-      const clientKey = await crypto3.hmacSha256(saltedPassword, "Client Key");
-      const storedKey = await crypto3.sha256(clientKey);
-      const clientSignature = await crypto3.hmacSha256(storedKey, authMessage);
+      const saltedPassword = await crypto4.deriveKey(saslprep(password), saltBytes, sv.iteration);
+      const clientKey = await crypto4.hmacSha256(saltedPassword, "Client Key");
+      const storedKey = await crypto4.sha256(clientKey);
+      const clientSignature = await crypto4.hmacSha256(storedKey, authMessage);
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
-      const serverKey = await crypto3.hmacSha256(saltedPassword, "Server Key");
-      const serverSignatureBytes = await crypto3.hmacSha256(serverKey, authMessage);
+      const serverKey = await crypto4.hmacSha256(saltedPassword, "Server Key");
+      const serverSignatureBytes = await crypto4.hmacSha256(serverKey, authMessage);
       session.message = "SASLResponse";
       session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
       session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
@@ -37018,7 +37041,7 @@ var require_client = __commonJS({
     var Query2 = require_query2();
     var defaults2 = require_defaults();
     var Connection2 = require_connection();
-    var crypto3 = require_utils4();
+    var crypto4 = require_utils4();
     var activeQueryDeprecationNotice = nodeUtils.deprecate(
       () => {
       },
@@ -37273,7 +37296,7 @@ var require_client = __commonJS({
       _handleAuthMD5Password(msg) {
         this._getPassword(async () => {
           try {
-            const hashedPassword = await crypto3.postgresMd5PasswordHash(this.user, this.password, msg.salt);
+            const hashedPassword = await crypto4.postgresMd5PasswordHash(this.user, this.password, msg.salt);
             this.connection.password(hashedPassword);
           } catch (e2) {
             this.emit("error", e2);
@@ -39054,11 +39077,16 @@ function withTimeout(promise2, ms, errorMsg) {
 async function ensurePostgresSchema(pool) {
   try {
     const checkRes = await withTimeout(
-      pool.query("SELECT to_regclass('public.farmers') as f, to_regclass('public.users') as u"),
+      pool.query(`
+        SELECT 
+          to_regclass('public.farmers') as f, 
+          to_regclass('public.users') as u,
+          to_regclass('public."passwordResetRequests"') as p
+      `),
       3e3,
       "Table existence probe timed out"
     );
-    if (checkRes.rows[0]?.f && checkRes.rows[0]?.u) {
+    if (checkRes.rows[0]?.f && checkRes.rows[0]?.u && checkRes.rows[0]?.p) {
       console.log("[Database Migration] PostgreSQL tables verified. Skipping redundant DDL initialization.");
       return;
     }
@@ -39146,7 +39174,8 @@ var init_migratePostgres = __esm({
       "notifications",
       "cropPrices",
       "transportBookings",
-      "chatMessages"
+      "chatMessages",
+      "passwordResetRequests"
     ];
     EMBEDDED_POSTGRES_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS "users" (
@@ -39373,6 +39402,32 @@ CREATE TABLE IF NOT EXISTS "chatMessages" (
   "source" VARCHAR(32) NOT NULL DEFAULT 'gemini',
   "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS "passwordResetRequests" (
+  "id" SERIAL PRIMARY KEY,
+  "requestId" VARCHAR(48) NOT NULL UNIQUE,
+  "userType" VARCHAR(20) NOT NULL,
+  "userId" INTEGER NOT NULL,
+  "userCode" VARCHAR(64) NOT NULL,
+  "name" VARCHAR(160) NOT NULL,
+  "contact" VARCHAR(320) NOT NULL,
+  "role" VARCHAR(64),
+  "centreName" VARCHAR(160),
+  "status" VARCHAR(32) NOT NULL DEFAULT 'PENDING_APPROVAL',
+  "resetToken" VARCHAR(64),
+  "tokenExpiresAt" TIMESTAMP,
+  "rejectionReason" TEXT,
+  "reviewedByOfficerId" INTEGER,
+  "reviewedByOfficerName" VARCHAR(160),
+  "reviewedAt" TIMESTAMP,
+  "completedAt" TIMESTAMP,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS "idx_pwd_reset_code" ON "passwordResetRequests" ("userCode");
+CREATE INDEX IF NOT EXISTS "idx_pwd_reset_status" ON "passwordResetRequests" ("status");
+
 
 CREATE INDEX IF NOT EXISTS "idx_chat_session" ON "chatMessages" ("sessionId");
 CREATE INDEX IF NOT EXISTS "idx_farmers_phone" ON "farmers" ("phone");
@@ -51526,22 +51581,22 @@ var require_crypto2 = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NodeCrypto = void 0;
-    var crypto3 = __require("crypto");
+    var crypto4 = __require("crypto");
     var NodeCrypto = class {
       async sha256DigestBase64(str) {
-        return crypto3.createHash("sha256").update(str).digest("base64");
+        return crypto4.createHash("sha256").update(str).digest("base64");
       }
       randomBytesBase64(count) {
-        return crypto3.randomBytes(count).toString("base64");
+        return crypto4.randomBytes(count).toString("base64");
       }
       async verify(pubkey, data, signature) {
-        const verifier = crypto3.createVerify("RSA-SHA256");
+        const verifier = crypto4.createVerify("RSA-SHA256");
         verifier.update(data);
         verifier.end();
         return verifier.verify(pubkey, signature, "base64");
       }
       async sign(privateKey, data) {
-        const signer = crypto3.createSign("RSA-SHA256");
+        const signer = crypto4.createSign("RSA-SHA256");
         signer.update(data);
         signer.end();
         return signer.sign(privateKey, "base64");
@@ -51559,7 +51614,7 @@ var require_crypto2 = __commonJS({
        *   string in hexadecimal encoding.
        */
       async sha256DigestHex(str) {
-        return crypto3.createHash("sha256").update(str).digest("hex");
+        return crypto4.createHash("sha256").update(str).digest("hex");
       }
       /**
        * Computes the HMAC hash of a message using the provided crypto key and the
@@ -51571,7 +51626,7 @@ var require_crypto2 = __commonJS({
        */
       async signWithHmacSha256(key, msg) {
         const cryptoKey = typeof key === "string" ? key : toBuffer(key);
-        return toArrayBuffer(crypto3.createHmac("sha256", cryptoKey).update(msg).digest());
+        return toArrayBuffer(crypto4.createHmac("sha256", cryptoKey).update(msg).digest());
       }
     };
     exports.NodeCrypto = NodeCrypto;
@@ -52426,10 +52481,10 @@ var require_oauth2client = __commonJS({
        * https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js
        */
       async generateCodeVerifierAsync() {
-        const crypto3 = (0, crypto_1.createCrypto)();
-        const randomString2 = crypto3.randomBytesBase64(96);
+        const crypto4 = (0, crypto_1.createCrypto)();
+        const randomString2 = crypto4.randomBytesBase64(96);
         const codeVerifier = randomString2.replace(/\+/g, "~").replace(/=/g, "_").replace(/\//g, "-");
-        const unencodedCodeChallenge = await crypto3.sha256DigestBase64(codeVerifier);
+        const unencodedCodeChallenge = await crypto4.sha256DigestBase64(codeVerifier);
         const codeChallenge = unencodedCodeChallenge.split("=")[0].replace(/\+/g, "-").replace(/\//g, "_");
         return { codeVerifier, codeChallenge };
       }
@@ -52870,7 +52925,7 @@ var require_oauth2client = __commonJS({
        * @return Returns a promise resolving to LoginTicket on verification.
        */
       async verifySignedJwtWithCertsAsync(jwt2, certs, requiredAudience, issuers, maxExpiry) {
-        const crypto3 = (0, crypto_1.createCrypto)();
+        const crypto4 = (0, crypto_1.createCrypto)();
         if (!maxExpiry) {
           maxExpiry = _OAuth2Client.DEFAULT_MAX_TOKEN_LIFETIME_SECS_;
         }
@@ -52883,7 +52938,7 @@ var require_oauth2client = __commonJS({
         let envelope;
         let payload;
         try {
-          envelope = JSON.parse(crypto3.decodeBase64StringUtf8(segments[0]));
+          envelope = JSON.parse(crypto4.decodeBase64StringUtf8(segments[0]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token envelope: ${segments[0]}': ${err.message}`;
@@ -52894,7 +52949,7 @@ var require_oauth2client = __commonJS({
           throw new Error("Can't parse token envelope: " + segments[0]);
         }
         try {
-          payload = JSON.parse(crypto3.decodeBase64StringUtf8(segments[1]));
+          payload = JSON.parse(crypto4.decodeBase64StringUtf8(segments[1]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token payload '${segments[0]}`;
@@ -52911,7 +52966,7 @@ var require_oauth2client = __commonJS({
         if (envelope.alg === "ES256") {
           signature = formatEcdsa.joseToDer(signature, "ES256").toString("base64");
         }
-        const verified = await crypto3.verify(cert, signed, signature);
+        const verified = await crypto4.verify(cert, signed, signature);
         if (!verified) {
           throw new Error("Invalid token signature: " + jwt2);
         }
@@ -53286,14 +53341,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports, module) {
     var Buffer4 = require_safe_buffer().Buffer;
-    var crypto3 = __require("crypto");
+    var crypto4 = __require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util = __require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto3.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto4.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -53383,17 +53438,17 @@ var require_jwa = __commonJS({
       return function sign(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto3.createHmac("sha" + bits, secret);
+        var hmac = crypto4.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase64(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual2 = "timingSafeEqual" in crypto3 ? function timingSafeEqual3(a, b) {
+    var timingSafeEqual2 = "timingSafeEqual" in crypto4 ? function timingSafeEqual3(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
-      return crypto3.timingSafeEqual(a, b);
+      return crypto4.timingSafeEqual(a, b);
     } : function timingSafeEqual3(a, b) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -53410,7 +53465,7 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto3.createSign("RSA-SHA" + bits);
+        var signer = crypto4.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig);
       };
@@ -53420,7 +53475,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto3.createVerify("RSA-SHA" + bits);
+        var verifier = crypto4.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -53429,11 +53484,11 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto3.createSign("RSA-SHA" + bits);
+        var signer = crypto4.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto3.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto3.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto4.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto4.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig);
       };
@@ -53443,12 +53498,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto3.createVerify("RSA-SHA" + bits);
+        var verifier = crypto4.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto3.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto3.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto4.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto4.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -56024,14 +56079,14 @@ var require_awsrequestsigner = __commonJS({
       }
     };
     exports.AwsRequestSigner = AwsRequestSigner;
-    async function sign(crypto3, key, msg) {
-      return await crypto3.signWithHmacSha256(key, msg);
+    async function sign(crypto4, key, msg) {
+      return await crypto4.signWithHmacSha256(key, msg);
     }
-    async function getSigningKey(crypto3, key, dateStamp, region, serviceName) {
-      const kDate = await sign(crypto3, `AWS4${key}`, dateStamp);
-      const kRegion = await sign(crypto3, kDate, region);
-      const kService = await sign(crypto3, kRegion, serviceName);
-      const kSigning = await sign(crypto3, kService, "aws4_request");
+    async function getSigningKey(crypto4, key, dateStamp, region, serviceName) {
+      const kDate = await sign(crypto4, `AWS4${key}`, dateStamp);
+      const kRegion = await sign(crypto4, kDate, region);
+      const kService = await sign(crypto4, kRegion, serviceName);
+      const kSigning = await sign(crypto4, kService, "aws4_request");
       return kSigning;
     }
     async function generateAuthenticationHeaderMap(options) {
@@ -56997,7 +57052,7 @@ var require_gdchclient = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GdchClient = exports.GDCH_SERVICE_ACCOUNT_TYPE = void 0;
-    var crypto3 = __require("crypto");
+    var crypto4 = __require("crypto");
     var fs5 = __require("fs");
     var https2 = __require("https");
     var oauth2client_1 = require_oauth2client();
@@ -57188,7 +57243,7 @@ var require_gdchclient = __commonJS({
         const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
         const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
         const signingInput = `${encodedHeader}.${encodedPayload}`;
-        const signature = crypto3.sign("sha256", Buffer.from(signingInput), {
+        const signature = crypto4.sign("sha256", Buffer.from(signingInput), {
           key: this.privateKey,
           dsaEncoding: "ieee-p1363"
         });
@@ -58051,24 +58106,24 @@ var require_googleauth = __commonJS({
           const signed = await client.sign(data);
           return signed.signedBlob;
         }
-        const crypto3 = (0, crypto_1.createCrypto)();
+        const crypto4 = (0, crypto_1.createCrypto)();
         if (client instanceof jwtclient_1.JWT && client.key) {
-          const sign = await crypto3.sign(client.key, data);
+          const sign = await crypto4.sign(client.key, data);
           return sign;
         }
         const creds = await this.getCredentials();
         if (!creds.client_email) {
           throw new Error("Cannot sign data without `client_email`.");
         }
-        return this.signBlob(crypto3, creds.client_email, data, endpoint);
+        return this.signBlob(crypto4, creds.client_email, data, endpoint);
       }
-      async signBlob(crypto3, emailOrUniqueId, data, endpoint) {
+      async signBlob(crypto4, emailOrUniqueId, data, endpoint) {
         const url2 = new URL(endpoint + `${emailOrUniqueId}:signBlob`);
         const res = await this.request({
           method: "POST",
           url: url2.href,
           data: {
-            payload: crypto3.encodeBase64StringUtf8(data)
+            payload: crypto4.encodeBase64StringUtf8(data)
           },
           retry: true,
           retryConfig: {
@@ -82388,6 +82443,7 @@ function date5(params) {
 // server/routes/procurementApi.ts
 init_schema2();
 init_db2();
+import crypto3 from "crypto";
 
 // node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
@@ -111244,6 +111300,27 @@ var forgotPasswordSchema = external_exports.object({
   phone: phoneSchema,
   newPassword: passwordSchema
 });
+var officerForgotPasswordRequestSchema = external_exports.object({
+  officerCode: external_exports.string().trim().min(3).max(64),
+  contact: external_exports.string().trim().min(3).max(320)
+});
+var officerForgotPasswordCompleteSchema = external_exports.object({
+  officerCode: external_exports.string().trim().min(3).max(64),
+  requestId: external_exports.string().trim().min(3).max(48),
+  resetToken: external_exports.string().trim().min(4).max(64),
+  newPassword: external_exports.string().min(8, "Password must be at least 8 characters.")
+});
+var farmerForgotPasswordVerifySchema = external_exports.object({
+  phone: phoneSchema,
+  farmerCode: external_exports.string().trim().optional(),
+  village: external_exports.string().trim().optional(),
+  aadhaarLast4: external_exports.string().trim().optional()
+});
+var farmerForgotPasswordResetSchema = external_exports.object({
+  phone: phoneSchema,
+  resetToken: external_exports.string().trim().min(4).max(64),
+  newPassword: external_exports.string().min(4, "Password or PIN must be at least 4 characters.")
+});
 var loginSchema = external_exports.object({ phone: phoneSchema, password: passwordSchema });
 var officerLoginSchema = external_exports.object({ officerCode: external_exports.string().trim().min(3).max(64), password: passwordSchema });
 var staffRegistrationSchema = external_exports.object({
@@ -111793,6 +111870,414 @@ function createProcurementApi() {
       });
     }
   });
+  const memoryPasswordResetRequests = /* @__PURE__ */ new Map();
+  let nextResetAutoId = 1;
+  function ensureDemoResetRequests() {
+    if (memoryPasswordResetRequests.size === 0) {
+      const demoReq = {
+        id: nextResetAutoId++,
+        requestId: "REQ-OFF-DEMO1",
+        userType: "OFFICER",
+        userId: 2,
+        userCode: "QC-2026-4892",
+        name: "Suresh Kumar",
+        contact: "suresh.kumar@ap.gov.in",
+        role: "QUALITY_CONTROL_INSPECTOR",
+        centreName: "Guntur Mandi Hub",
+        status: "PENDING_APPROVAL",
+        createdAt: new Date(Date.now() - 35 * 60 * 1e3),
+        updatedAt: new Date(Date.now() - 35 * 60 * 1e3)
+      };
+      memoryPasswordResetRequests.set(demoReq.requestId, demoReq);
+    }
+  }
+  ensureDemoResetRequests();
+  const resetAttemptRateLimits = /* @__PURE__ */ new Map();
+  function checkResetRateLimit(key, maxAttempts = 5, windowMinutes = 15) {
+    const now = Date.now();
+    const entry = resetAttemptRateLimits.get(key);
+    if (!entry || now > entry.resetAt) {
+      resetAttemptRateLimits.set(key, { count: 1, resetAt: now + windowMinutes * 60 * 1e3 });
+      return true;
+    }
+    if (entry.count >= maxAttempts) return false;
+    entry.count++;
+    return true;
+  }
+  function isStrongOfficerPassword(pw) {
+    if (pw.length < 8) {
+      return { valid: false, reason: "Password must be at least 8 characters long." };
+    }
+    if (!/[A-Z]/.test(pw)) {
+      return { valid: false, reason: "Password must contain at least one uppercase letter (A-Z)." };
+    }
+    if (!/[a-z]/.test(pw)) {
+      return { valid: false, reason: "Password must contain at least one lowercase letter (a-z)." };
+    }
+    if (!/[0-9]/.test(pw)) {
+      return { valid: false, reason: "Password must contain at least one numerical digit (0-9)." };
+    }
+    return { valid: true };
+  }
+  async function saveResetRequest(item) {
+    const fullItem = {
+      ...item,
+      id: nextResetAutoId++,
+      createdAt: /* @__PURE__ */ new Date(),
+      updatedAt: /* @__PURE__ */ new Date()
+    };
+    memoryPasswordResetRequests.set(fullItem.requestId, fullItem);
+    try {
+      const db = await getDb();
+      if (db) {
+        await db.insert(passwordResetRequests).values({
+          requestId: fullItem.requestId,
+          userType: fullItem.userType,
+          userId: fullItem.userId,
+          userCode: fullItem.userCode,
+          name: fullItem.name,
+          contact: fullItem.contact,
+          role: fullItem.role,
+          centreName: fullItem.centreName,
+          status: fullItem.status,
+          resetToken: fullItem.resetToken,
+          tokenExpiresAt: fullItem.tokenExpiresAt,
+          rejectionReason: fullItem.rejectionReason,
+          reviewedByOfficerId: fullItem.reviewedByOfficerId,
+          reviewedByOfficerName: fullItem.reviewedByOfficerName,
+          reviewedAt: fullItem.reviewedAt,
+          completedAt: fullItem.completedAt,
+          createdAt: fullItem.createdAt,
+          updatedAt: fullItem.updatedAt
+        });
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres insert error (using memory store):", err?.message);
+    }
+    return fullItem;
+  }
+  async function getResetRequests() {
+    try {
+      const db = await getDb();
+      if (db) {
+        const rows = await db.select().from(passwordResetRequests).orderBy(desc(passwordResetRequests.createdAt));
+        if (rows && rows.length > 0) {
+          return rows;
+        }
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres select error (falling back to memory):", err?.message);
+    }
+    return Array.from(memoryPasswordResetRequests.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async function findResetRequest(requestIdOrUserCode) {
+    const memoryItems = Array.from(memoryPasswordResetRequests.values());
+    for (let i2 = 0; i2 < memoryItems.length; i2++) {
+      const item = memoryItems[i2];
+      if (item.requestId === requestIdOrUserCode || item.userCode === requestIdOrUserCode) {
+        return item;
+      }
+    }
+    try {
+      const db = await getDb();
+      if (db) {
+        const rows = await db.select().from(passwordResetRequests).where(
+          or(eq(passwordResetRequests.requestId, requestIdOrUserCode), eq(passwordResetRequests.userCode, requestIdOrUserCode))
+        ).limit(1);
+        if (rows[0]) return rows[0];
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres find error:", err?.message);
+    }
+    return void 0;
+  }
+  async function updateResetRequest(requestId, updates) {
+    const memoryItem = memoryPasswordResetRequests.get(requestId);
+    if (memoryItem) {
+      Object.assign(memoryItem, updates, { updatedAt: /* @__PURE__ */ new Date() });
+    }
+    try {
+      const db = await getDb();
+      if (db) {
+        await db.update(passwordResetRequests).set({
+          ...updates,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq(passwordResetRequests.requestId, requestId));
+      }
+    } catch (err) {
+      console.warn("[PasswordReset] Postgres update error:", err?.message);
+    }
+    return memoryItem;
+  }
+  api.post("/officers/forgot-password/request", async (req, res) => {
+    const input2 = respondValidation(res, officerForgotPasswordRequestSchema, req.body);
+    if (!input2) return;
+    if (!checkResetRateLimit(`officer_req_${input2.officerCode}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many password reset requests. Please wait a few minutes before trying again."
+      });
+    }
+    const db = await getDb();
+    if (!db) {
+      return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+    }
+    try {
+      const officer = (await db.select().from(officers).where(
+        or(eq(officers.officerCode, input2.officerCode), eq(officers.employeeId, input2.officerCode))
+      ).limit(1))[0];
+      if (!officer) {
+        return res.status(404).json({
+          error: "OFFICER_NOT_FOUND",
+          message: "No staff account found matching Officer ID / Login ID: " + input2.officerCode
+        });
+      }
+      const cleanContact = input2.contact.trim().toLowerCase();
+      const officerEmail = (officer.email || "").trim().toLowerCase();
+      const officerPhone = normalizePhone(officer.phone);
+      const inputPhone = normalizePhone(input2.contact);
+      const contactMatches = officerEmail && cleanContact === officerEmail || officerPhone && (inputPhone === officerPhone || cleanContact.includes(officerPhone));
+      if (!contactMatches) {
+        return res.status(400).json({
+          error: "CONTACT_MISMATCH",
+          message: "The provided email or phone does not match our registered records for this Officer ID."
+        });
+      }
+      const requestId = `REQ-OFF-${crypto3.randomBytes(3).toString("hex").toUpperCase()}`;
+      await saveResetRequest({
+        requestId,
+        userType: "OFFICER",
+        userId: officer.id,
+        userCode: officer.officerCode,
+        name: officer.name,
+        contact: input2.contact,
+        role: officer.role,
+        centreName: officer.centreName || officer.branch || "Headquarters",
+        status: "PENDING_APPROVAL"
+      });
+      console.info(`[Auth Audit] Officer password reset requested: code=${officer.officerCode} requestId=${requestId}`);
+      return res.json({
+        success: true,
+        requestId,
+        officerCode: officer.officerCode,
+        officerName: officer.name,
+        message: `Password reset request submitted. Please contact your Head Officer for approval. Request ID: ${requestId}`
+      });
+    } catch (err) {
+      console.error("[Officer Forgot Password Request Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to generate password reset request. Please try again."
+      });
+    }
+  });
+  api.post("/officers/forgot-password/complete", async (req, res) => {
+    const input2 = respondValidation(res, officerForgotPasswordCompleteSchema, req.body);
+    if (!input2) return;
+    const pwCheck = isStrongOfficerPassword(input2.newPassword);
+    if (!pwCheck.valid) {
+      return res.status(400).json({
+        error: "WEAK_PASSWORD",
+        message: pwCheck.reason
+      });
+    }
+    if (!checkResetRateLimit(`officer_comp_${input2.officerCode}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many attempts. Please try again later."
+      });
+    }
+    try {
+      const resetReq = await findResetRequest(input2.requestId);
+      if (!resetReq || resetReq.userCode !== input2.officerCode) {
+        return res.status(404).json({
+          error: "REQUEST_NOT_FOUND",
+          message: "No matching password reset request found for this Officer Code and Request ID."
+        });
+      }
+      if (resetReq.status === "PENDING_APPROVAL") {
+        return res.status(403).json({
+          error: "PENDING_APPROVAL",
+          message: "Your reset request has not been approved yet. Please ask your Head Officer to approve Request ID: " + resetReq.requestId
+        });
+      }
+      if (resetReq.status === "REJECTED") {
+        return res.status(403).json({
+          error: "REQUEST_REJECTED",
+          message: `This password reset request was rejected by the Head Officer: ${resetReq.rejectionReason || "Contact administrator."}`
+        });
+      }
+      if (resetReq.status === "COMPLETED") {
+        return res.status(400).json({
+          error: "ALREADY_COMPLETED",
+          message: "This password reset token has already been used. Please log in or request a new reset."
+        });
+      }
+      if (resetReq.tokenExpiresAt && /* @__PURE__ */ new Date() > new Date(resetReq.tokenExpiresAt)) {
+        return res.status(400).json({
+          error: "TOKEN_EXPIRED",
+          message: "This reset token has expired (validity: 24 hours). Please request a new approval from your Head Officer."
+        });
+      }
+      if (!resetReq.resetToken || resetReq.resetToken.trim().toUpperCase() !== input2.resetToken.trim().toUpperCase()) {
+        return res.status(401).json({
+          error: "INVALID_TOKEN",
+          message: "The approval token provided does not match. Please verify the exact token given by your Head Officer."
+        });
+      }
+      const db = await getDb();
+      if (!db) {
+        return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+      }
+      const newHash = hashPassword(input2.newPassword);
+      await db.update(officers).set({
+        passwordHash: newHash,
+        mustChangePassword: 0,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq(officers.officerCode, input2.officerCode));
+      await updateResetRequest(resetReq.requestId, {
+        status: "COMPLETED",
+        completedAt: /* @__PURE__ */ new Date()
+      });
+      console.info(`[Auth Audit] Officer password reset completed successfully: code=${input2.officerCode}`);
+      return res.json({
+        success: true,
+        message: "Password updated successfully. You can now log in with your new credentials."
+      });
+    } catch (err) {
+      console.error("[Officer Forgot Password Complete Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to reset officer password. Please try again."
+      });
+    }
+  });
+  api.post("/farmers/forgot-password/verify", async (req, res) => {
+    const input2 = respondValidation(res, farmerForgotPasswordVerifySchema, req.body);
+    if (!input2) return;
+    const cleanPhone = normalizePhone(input2.phone);
+    if (!checkResetRateLimit(`farmer_verify_${cleanPhone}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many attempts. Please wait 15 minutes before retrying."
+      });
+    }
+    const db = await getDb();
+    if (!db) {
+      return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+    }
+    try {
+      const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
+      if (!farmer) {
+        return res.status(404).json({
+          error: "FARMER_NOT_FOUND",
+          message: "No registered farmer found with mobile number " + cleanPhone
+        });
+      }
+      let verified = false;
+      let matchedFactor = "";
+      if (input2.village && farmer.village && farmer.village.trim().toLowerCase() === input2.village.trim().toLowerCase()) {
+        verified = true;
+        matchedFactor = "village name";
+      } else if (input2.farmerCode && farmer.farmerCode && farmer.farmerCode.trim().toLowerCase() === input2.farmerCode.trim().toLowerCase()) {
+        verified = true;
+        matchedFactor = "Farmer ID";
+      } else if (input2.aadhaarLast4) {
+        const reg = (await db.select().from(registrations).where(eq(registrations.farmerId, farmer.id)).limit(1))[0];
+        if (reg?.aadhaarMasked && reg.aadhaarMasked.replace(/\s/g, "").endsWith(input2.aadhaarLast4.trim())) {
+          verified = true;
+          matchedFactor = "Aadhaar digits";
+        }
+      }
+      if (!verified) {
+        return res.status(400).json({
+          error: "IDENTITY_VERIFICATION_FAILED",
+          message: "Identity verification failed. Please enter the correct Village Name, Farmer ID, or last 4 digits of Aadhaar registered with your account."
+        });
+      }
+      const resetToken = `FMR-${crypto3.randomBytes(3).toString("hex").toUpperCase()}`;
+      const requestId = `REQ-FMR-${crypto3.randomBytes(3).toString("hex").toUpperCase()}`;
+      await saveResetRequest({
+        requestId,
+        userType: "FARMER",
+        userId: farmer.id,
+        userCode: cleanPhone,
+        name: farmer.name,
+        contact: cleanPhone,
+        role: "FARMER",
+        centreName: farmer.village + " Centroid",
+        status: "APPROVED",
+        resetToken,
+        tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1e3)
+        // 1 hour
+      });
+      console.info(`[Auth Audit] Farmer identity verified for password reset: phone=${cleanPhone} factor=${matchedFactor}`);
+      return res.json({
+        success: true,
+        verified: true,
+        resetToken,
+        farmerName: farmer.name,
+        village: farmer.village,
+        message: `Identity verified (${matchedFactor}). Please set your new password or PIN.`
+      });
+    } catch (err) {
+      console.error("[Farmer Forgot Password Verify Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to verify farmer identity. Please try again."
+      });
+    }
+  });
+  api.post("/farmers/forgot-password/reset", async (req, res) => {
+    const input2 = respondValidation(res, farmerForgotPasswordResetSchema, req.body);
+    if (!input2) return;
+    const cleanPhone = normalizePhone(input2.phone);
+    if (!checkResetRateLimit(`farmer_reset_${cleanPhone}`)) {
+      return res.status(429).json({
+        error: "RATE_LIMITED",
+        message: "Too many attempts. Please try again later."
+      });
+    }
+    try {
+      const resetReq = await findResetRequest(cleanPhone);
+      if (!resetReq || resetReq.resetToken !== input2.resetToken || resetReq.status !== "APPROVED") {
+        return res.status(401).json({
+          error: "INVALID_SESSION",
+          message: "Invalid or expired reset session. Please re-verify your identity."
+        });
+      }
+      if (resetReq.tokenExpiresAt && /* @__PURE__ */ new Date() > new Date(resetReq.tokenExpiresAt)) {
+        return res.status(400).json({
+          error: "TOKEN_EXPIRED",
+          message: "Reset session expired. Please verify your identity again."
+        });
+      }
+      const db = await getDb();
+      if (!db) {
+        return res.status(503).json({ error: "DATABASE_UNAVAILABLE", message: "Database service unavailable." });
+      }
+      const newHash = hashPassword(input2.newPassword);
+      await db.update(farmers).set({
+        passwordHash: newHash,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq(farmers.phone, cleanPhone));
+      await updateResetRequest(resetReq.requestId, {
+        status: "COMPLETED",
+        completedAt: /* @__PURE__ */ new Date()
+      });
+      console.info(`[Auth Audit] Farmer password reset completed: phone=${cleanPhone}`);
+      return res.json({
+        success: true,
+        message: "Your farmer password has been reset successfully. You can now log in."
+      });
+    } catch (err) {
+      console.error("[Farmer Forgot Password Reset Error]", err?.message || err);
+      return res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Failed to reset farmer password. Please try again."
+      });
+    }
+  });
   api.post(["/registration", "/farmers/register"], async (req, res) => {
     const input2 = respondValidation(res, registrationSchema, req.body);
     if (!input2) return;
@@ -112227,6 +112712,89 @@ Stack: ${err?.stack}`);
     if (!db) return res.status(503).json({ error: "SERVICE_UNAVAILABLE" });
     const logs = await db.select().from(staffAuditLogs).orderBy(desc(staffAuditLogs.createdAt)).limit(50);
     return res.json({ auditLogs: logs });
+  });
+  api.get("/officers/password-resets", requireApiAuth, requireRole("HEAD_OFFICER"), async (_req, res) => {
+    try {
+      const requests = await getResetRequests();
+      return res.json({ requests });
+    } catch (err) {
+      return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: err?.message || err });
+    }
+  });
+  api.put("/officers/password-resets/:id/approve", requireApiAuth, requireRole("HEAD_OFFICER"), async (req, res) => {
+    const idParam = String(req.params.id);
+    const existing = await findResetRequest(idParam);
+    if (!existing) {
+      return res.status(404).json({ error: "NOT_FOUND", message: "Password reset request not found." });
+    }
+    const resetToken = `HO-RES-${crypto3.randomBytes(3).toString("hex").toUpperCase()}`;
+    const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1e3);
+    const updated = await updateResetRequest(existing.requestId, {
+      status: "APPROVED",
+      resetToken,
+      tokenExpiresAt,
+      reviewedByOfficerId: req.principal.id,
+      reviewedByOfficerName: req.principal.name,
+      reviewedAt: /* @__PURE__ */ new Date()
+    });
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.insert(staffAuditLogs).values({
+          performedByOfficerId: req.principal.id,
+          performedByOfficerName: req.principal.name,
+          targetOfficerId: existing.userId,
+          targetOfficerName: existing.name,
+          action: "PASSWORD_RESET_APPROVED",
+          details: `Approved password reset for ${existing.userCode} (${existing.name}). Token issued: ${resetToken}`
+        });
+      } catch (e2) {
+        console.warn("[AuditLog] Failed to record reset approval:", e2);
+      }
+    }
+    console.info(`[Staff Audit] Head Officer ${req.principal.name} approved password reset for ${existing.userCode}: token=${resetToken}`);
+    return res.json({
+      success: true,
+      message: `Password reset request approved for ${existing.name}. Share the token with the officer.`,
+      request: updated,
+      resetToken,
+      tokenExpiresAt
+    });
+  });
+  api.put("/officers/password-resets/:id/reject", requireApiAuth, requireRole("HEAD_OFFICER"), async (req, res) => {
+    const idParam = String(req.params.id);
+    const existing = await findResetRequest(idParam);
+    if (!existing) {
+      return res.status(404).json({ error: "NOT_FOUND", message: "Password reset request not found." });
+    }
+    const reason = req.body?.reason || "Rejected by Head Officer after administrative review.";
+    const updated = await updateResetRequest(existing.requestId, {
+      status: "REJECTED",
+      rejectionReason: reason,
+      reviewedByOfficerId: req.principal.id,
+      reviewedByOfficerName: req.principal.name,
+      reviewedAt: /* @__PURE__ */ new Date()
+    });
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.insert(staffAuditLogs).values({
+          performedByOfficerId: req.principal.id,
+          performedByOfficerName: req.principal.name,
+          targetOfficerId: existing.userId,
+          targetOfficerName: existing.name,
+          action: "PASSWORD_RESET_REJECTED",
+          details: `Rejected password reset for ${existing.userCode} (${existing.name}). Reason: ${reason}`
+        });
+      } catch (e2) {
+        console.warn("[AuditLog] Failed to record reset rejection:", e2);
+      }
+    }
+    return res.json({
+      success: true,
+      message: "Password reset request rejected.",
+      request: updated
+    });
   });
   api.get("/officers/notifications", requireApiAuth, requireRole("officer"), async (req, res) => {
     const db = await getDb();

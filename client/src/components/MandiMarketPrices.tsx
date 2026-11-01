@@ -327,28 +327,28 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                       <div>
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h5 className="text-[#0a1f33] dark:text-slate-100 font-extrabold text-base leading-snug tracking-tight">
+                            <h5 className="text-slate-900 dark:text-white font-black text-base leading-snug tracking-tight">
                               {card.commodity}
                             </h5>
-                            <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 mt-1">
+                            <span className="inline-block text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 mt-1">
                               Variety: {card.variety}
                             </span>
                           </div>
 
                           {/* Selected Checkmark Indicator */}
                           {isSelected && (
-                            <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                            <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
                               <CheckCircle2 size={11} /> Selected
                             </span>
                           )}
                         </div>
 
                         {/* Mandi & District */}
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 mt-2">
+                        <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800 dark:text-slate-100 mt-2">
                           <Building2 size={13} className="text-emerald-700 dark:text-emerald-400 shrink-0" />
                           <span className="truncate">{card.market}</span>
                         </div>
-                        <div className="text-[11px] text-slate-500 ml-5">
+                        <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 ml-5">
                           {card.district}, {card.state}
                         </div>
                       </div>
@@ -358,14 +358,14 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                         {/* Prices row */}
                         <div className="flex items-baseline justify-between gap-2">
                           <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                               Current Modal Price
                             </span>
                             <div className="flex items-baseline gap-1 mt-0.5">
-                              <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
+                              <span className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight">
                                 ₹{card.latest.modalPrice.toLocaleString("en-IN")}
                               </span>
-                              <span className="text-[11px] font-bold text-slate-500">
+                              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                                 /{card.priceUnit.replace("₹/", "")}
                               </span>
                             </div>
@@ -373,11 +373,11 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
 
                           {/* Previous Price */}
                           <div className="text-right">
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                               Previous Session
                             </span>
                             {card.previous ? (
-                              <span className="text-sm font-bold text-slate-600 dark:text-slate-400 line-through">
+                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300 line-through">
                                 ₹{card.previous.modalPrice.toLocaleString("en-IN")}
                               </span>
                             ) : (
@@ -389,54 +389,54 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                         {/* Movement Badge */}
                         <div className="mt-3">
                           {card.trend === "UP" && (
-                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
-                              <div className="flex items-center gap-1.5 text-xs font-extrabold">
-                                <span className="text-sm font-black text-emerald-600">↑</span>
+                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-600 text-emerald-950 dark:text-emerald-100 font-extrabold shadow-2xs">
+                              <div className="flex items-center gap-1.5 text-xs font-black">
+                                <span className="text-sm font-black text-[#10B981]">↑</span>
                                 <span>Price Increased</span>
                               </div>
-                              <span className="text-xs font-black">
+                              <span className="text-xs font-black text-emerald-900 dark:text-emerald-200">
                                 +₹{card.difference.toLocaleString("en-IN")} (+{card.percentageChange}%)
                               </span>
                             </div>
                           )}
 
                           {card.trend === "DOWN" && (
-                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300">
-                              <div className="flex items-center gap-1.5 text-xs font-extrabold">
-                                <span className="text-sm font-black text-rose-600">↓</span>
+                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-600 text-rose-950 dark:text-rose-100 font-extrabold shadow-2xs">
+                              <div className="flex items-center gap-1.5 text-xs font-black">
+                                <span className="text-sm font-black text-[#EF4444]">↓</span>
                                 <span>Price Decreased</span>
                               </div>
-                              <span className="text-xs font-black">
+                              <span className="text-xs font-black text-rose-900 dark:text-rose-200">
                                 -₹{Math.abs(card.difference).toLocaleString("en-IN")} ({card.percentageChange}%)
                               </span>
                             </div>
                           )}
 
                           {card.trend === "STABLE" && (
-                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                              <div className="flex items-center gap-1.5 text-xs font-extrabold">
-                                <span className="text-sm font-black text-slate-500">→</span>
+                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-extrabold shadow-2xs">
+                              <div className="flex items-center gap-1.5 text-xs font-black">
+                                <span className="text-sm font-black text-slate-600 dark:text-slate-300">→</span>
                                 <span>Price Unchanged</span>
                               </div>
-                              <span className="text-xs font-bold">₹0.00 (0.00%)</span>
+                              <span className="text-xs font-black">₹0.00 (0.00%)</span>
                             </div>
                           )}
 
                           {card.trend === "NO_PREVIOUS" && (
-                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
-                              <div className="flex items-center gap-1.5 text-xs font-semibold">
-                                <span className="text-sm text-slate-400">•</span>
+                            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-semibold shadow-2xs">
+                              <div className="flex items-center gap-1.5 text-xs font-bold">
+                                <span className="text-sm text-slate-500">•</span>
                                 <span>Previous price record not available</span>
                               </div>
-                              <span className="text-[11px] font-bold">1st Session</span>
+                              <span className="text-[11px] font-black">1st Session</span>
                             </div>
                           )}
                         </div>
 
                         {/* Daily Min - Max Range */}
-                        <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between">
-                          <span>Daily Range:</span>
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        <div className="mt-2 text-[11px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                          <span className="font-semibold">Daily Range:</span>
+                          <span className="font-black text-slate-900 dark:text-white">
                             ₹{card.latest.minPrice.toLocaleString("en-IN")} – ₹{card.latest.maxPrice.toLocaleString("en-IN")}
                           </span>
                         </div>
@@ -594,7 +594,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
 
               <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-extrabold border-b border-slate-200 dark:border-slate-700">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-black border-b border-slate-200 dark:border-slate-700">
                     <tr>
                       <th className="p-3">Mandi / Market Yard</th>
                       <th className="p-3">Commodity & Variety</th>
@@ -604,14 +604,14 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                       <th className="p-3 text-right">Modal Rate</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-100 font-medium">
                     {records.map((r) => {
                       const isRowActive = activeComparison && activeComparison.market === r.market && activeComparison.commodity === r.commodity && activeComparison.variety === r.variety;
                       return (
                         <tr
                           key={r.id}
-                          className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition cursor-pointer ${
-                            isRowActive ? "bg-emerald-50/60 dark:bg-emerald-950/30" : ""
+                          className={`hover:bg-slate-50 dark:hover:bg-slate-800/60 transition cursor-pointer ${
+                            isRowActive ? "bg-emerald-50/70 dark:bg-emerald-950/40" : ""
                           }`}
                           onClick={() => {
                             const match = comparisons.find(
@@ -620,22 +620,22 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                             if (match) handleSelectCard(match);
                           }}
                         >
-                          <td className="p-3 font-bold text-foreground flex items-center gap-2">
-                            <Building2 size={13} className="text-emerald-700 shrink-0" />
+                          <td className="p-3 font-extrabold text-slate-950 dark:text-white flex items-center gap-2">
+                            <Building2 size={13} className="text-emerald-700 dark:text-emerald-400 shrink-0" />
                             <span>{r.market}</span>
                           </td>
                           <td className="p-3">
-                            <span className="font-semibold text-foreground">{r.commodity}</span>
-                            <div className="text-[11px] text-muted-foreground">{r.variety}</div>
+                            <span className="font-extrabold text-slate-950 dark:text-white">{r.commodity}</span>
+                            <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{r.variety}</div>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-400 font-mono text-[11px]">
+                          <td className="p-3 text-slate-800 dark:text-slate-200 font-mono text-[11px] font-semibold">
                             {r.arrivalDate}
                           </td>
-                          <td className="p-3 text-slate-500">₹{r.minPrice.toLocaleString("en-IN")}</td>
-                          <td className="p-3 text-slate-500">₹{r.maxPrice.toLocaleString("en-IN")}</td>
-                          <td className="p-3 text-right font-extrabold text-foreground text-sm">
+                          <td className="p-3 text-slate-800 dark:text-slate-200 font-bold">₹{r.minPrice.toLocaleString("en-IN")}</td>
+                          <td className="p-3 text-slate-800 dark:text-slate-200 font-bold">₹{r.maxPrice.toLocaleString("en-IN")}</td>
+                          <td className="p-3 text-right font-black text-slate-950 dark:text-white text-sm">
                             ₹{r.modalPrice.toLocaleString("en-IN")}
-                            <span className="text-[10px] text-slate-400 font-normal ml-1">/ qtl</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal ml-1">/ qtl</span>
                           </td>
                         </tr>
                       );

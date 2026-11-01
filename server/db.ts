@@ -20,8 +20,11 @@ import {
   staffAuditLogs,
   staffNotifications,
   chatMessages,
+  passwordResetRequests,
   type InsertUser,
 } from "../drizzle/schema";
+
+export { passwordResetRequests };
 import { ENV } from "./_core/env";
 import { ensurePostgresSchema } from "./scripts/migratePostgres";
 
