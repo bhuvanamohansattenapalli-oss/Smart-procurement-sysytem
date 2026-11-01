@@ -649,69 +649,38 @@ export async function getLiveAgriculturalWeather(query: {
         sunrise: "06:05",
         sunset: "17:55",
       },
-      hourlyForecast: [
-        {
-          time: "06:00",
-          temperatureC: 25,
-          humidityPercent: 78,
-          precipitationProbability: 5,
+      hourlyForecast: Array.from({ length: 24 }, (_, i) => {
+        const hourStr = i.toString().padStart(2, "0") + ":00";
+        const temp = i >= 6 && i <= 14 ? 24 + (i - 6) : i > 14 ? 32 - Math.floor((i - 14) * 0.8) : 23;
+        return {
+          time: hourStr,
+          temperatureC: temp,
+          humidityPercent: 60 + (i % 5) * 3,
+          precipitationProbability: i >= 14 && i <= 17 ? 15 : 5,
           precipitationAmountMm: 0,
           rainfallMm: 0,
-          windSpeedKmH: 10,
-          weatherCondition: "Clear Sky",
-          weatherCode: 0,
-        },
-        {
-          time: "12:00",
-          temperatureC: 32,
-          humidityPercent: 55,
-          precipitationProbability: 10,
-          precipitationAmountMm: 0,
-          rainfallMm: 0,
-          windSpeedKmH: 14,
+          windSpeedKmH: 10 + (i % 4),
           weatherCondition: "Partly Cloudy",
           weatherCode: 2,
-        },
-        {
-          time: "18:00",
-          temperatureC: 29,
-          humidityPercent: 65,
-          precipitationProbability: 10,
-          precipitationAmountMm: 0,
-          rainfallMm: 0,
-          windSpeedKmH: 12,
-          weatherCondition: "Partly Cloudy",
-          weatherCode: 2,
-        },
-      ],
-      dailyForecast: [
-        {
-          date: new Date().toISOString().slice(0, 10),
-          dayName: "Today",
-          tempHighC: 33,
-          tempLowC: 24,
-          maxPrecipitationProbability: 10,
+        };
+      }),
+      dailyForecast: Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(Date.now() + i * 86400000);
+        const dayNames = ["Today", "Tomorrow", "In 2 Days", "In 3 Days", "In 4 Days", "In 5 Days", "In 6 Days"];
+        return {
+          date: d.toISOString().slice(0, 10),
+          dayName: dayNames[i] || `Day ${i + 1}`,
+          tempHighC: 33 + (i % 2),
+          tempLowC: 23 + (i % 2),
+          maxPrecipitationProbability: i === 3 ? 25 : 10,
           totalRainfallMm: 0,
-          maxWindSpeedKmH: 14,
-          weatherCondition: "Partly Cloudy",
-          weatherCode: 2,
+          maxWindSpeedKmH: 12 + (i % 3),
+          weatherCondition: i === 3 ? "Partly Cloudy" : "Mainly Clear",
+          weatherCode: i === 3 ? 2 : 1,
           sunrise: "06:05",
           sunset: "17:55",
-        },
-        {
-          date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-          dayName: "Tomorrow",
-          tempHighC: 34,
-          tempLowC: 23,
-          maxPrecipitationProbability: 5,
-          totalRainfallMm: 0,
-          maxWindSpeedKmH: 12,
-          weatherCondition: "Mainly Clear",
-          weatherCode: 1,
-          sunrise: "06:05",
-          sunset: "17:55",
-        },
-      ],
+        };
+      }),
       sellingAdvisory: baselineAdvisory,
       metadata: {
         dataSource: "Regional Meteorological Baseline (API Offline)",

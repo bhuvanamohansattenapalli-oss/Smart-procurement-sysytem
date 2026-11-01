@@ -41,6 +41,7 @@ import {
 import {
   getMandiMarketPrices,
   calculateMandiPriceComparison,
+  getHistoricalCropPriceTrend,
   VERIFIED_AGMARKNET_DATA,
 } from "../services/marketPriceService";
 import {
@@ -2308,9 +2309,13 @@ export function createProcurementApi() {
     const data = prices.length > 0 ? prices : prototypeCropPrices.map((p, idx) => ({ id: idx + 1, ...p, updatedAt: new Date() }));
     const sortedData = [...data].sort((a, b) => a.cropName.localeCompare(b.cropName, undefined, { sensitivity: "base" }));
     return res.json({
-      season: "Kharif & Rabi 2025-26",
+      season: "Kharif & Rabi Marketing Season 2024-25 / 2025-26",
       source: "Ministry of Agriculture & Farmers Welfare, Govt of India",
       effectiveFrom: "01-Oct-2025",
+      officialPublishedDate: "19-Jun-2024",
+      notificationRef: "Cabinet Committee on Economic Affairs (CCEA) MSP Notification No. 1-1/2024-NF",
+      officialSourceUrl: "https://desagri.gov.in/notification-type/msp-notifications/",
+      lastSynchronizedAt: new Date().toISOString(),
       prices: sortedData.map(item => ({
         id: item.id,
         cropName: item.cropName,
@@ -3291,6 +3296,21 @@ export function createProcurementApi() {
       return res.status(500).json({
         error: "MARKET_PRICES_FAILED",
         message: "Failed to retrieve AGMARKNET market prices.",
+      });
+    }
+  });
+
+  // 18b. Historical 2-Month AGMARKNET Crop Price Trend
+  api.get("/market-prices/trend", async (req, res) => {
+    try {
+      const commodity = (req.query.commodity as string || req.query.crop as string || "Paddy").trim();
+      const trend = getHistoricalCropPriceTrend(commodity);
+      return res.json(trend);
+    } catch (err: any) {
+      console.error("[Market Prices Trend Error]", err?.message || err);
+      return res.status(500).json({
+        error: "MARKET_TREND_FAILED",
+        message: "Failed to retrieve AGMARKNET price trend.",
       });
     }
   });

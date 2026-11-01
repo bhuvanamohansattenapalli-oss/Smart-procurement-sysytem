@@ -167,7 +167,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                 {actualAdvisory?.recommendation ||
                   "Weather conditions appear suitable for normal transportation."}
               </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
                 {actualAdvisory?.rationale ||
                   `Precipitation probability (${actualRainProb}%) and ambient temperature (${actualTemp}°C) present safe operational conditions for harvesting and dispatch.`}
               </p>
@@ -337,11 +337,14 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
         </div>
 
         {/* Strict Agricultural Advisory Disclaimer */}
-        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 text-[11px] text-slate-600 dark:text-slate-400 flex items-start gap-2.5">
-          <Info size={15} className="shrink-0 text-slate-500 mt-0.5" />
+        <div className="p-3.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 flex items-start gap-2.5 font-medium shadow-2xs">
+          <Info size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
           <p className="leading-relaxed">
-            <b>Important Agronomic Advisory Notice:</b> {actualAdvisory?.disclaimer ||
-              "Weather conditions are a critical operational consideration, but do not alone dictate the best crop-selling date. Farmers should simultaneously evaluate APMC mandi modal price trends, government MSP announcements, moisture thresholds (<17% for Grade A paddy), transport availability, and storage capacity before scheduling their dispatch."}
+            <b className="text-slate-950 dark:text-white font-bold">Important Agronomic Advisory Notice:</b>{" "}
+            <span className="text-slate-800 dark:text-slate-200">
+              {actualAdvisory?.disclaimer ||
+                "Weather conditions are a critical operational consideration, but do not alone dictate the best crop-selling date. Farmers should simultaneously evaluate APMC mandi modal price trends, government MSP announcements, moisture thresholds (<17% for Grade A paddy), transport availability, and storage capacity before scheduling their dispatch."}
+            </span>
           </p>
         </div>
       </div>

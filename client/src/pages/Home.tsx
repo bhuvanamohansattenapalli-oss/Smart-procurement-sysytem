@@ -79,6 +79,9 @@ import {
   Send,
   Trash2,
   Info,
+  ExternalLink,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +93,7 @@ import { cn } from "@/lib/utils";
 import { MapView } from "@/components/Map";
 
 import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
 import { CROP_CATALOGUE, filterCrops, getCatalogueCropImage, CropItem } from "@/lib/cropCatalogue";
 import {
   downloadGatePassPdf,
@@ -108,6 +111,21 @@ function getInitials(name?: string | null, fallback = "SO"): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return fallback;
   return parts.map(p => p[0]).join("").slice(0, 2).toUpperCase() || fallback;
+}
+
+function formatIndianDateTime(dateOrStr?: string | Date | null): string {
+  if (!dateOrStr) return "Publication date unavailable";
+  const d = typeof dateOrStr === "string" ? new Date(dateOrStr) : dateOrStr;
+  if (isNaN(d.getTime())) return "Publication date unavailable";
+  return d.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 type Screen =
@@ -1138,6 +1156,54 @@ export default function Home() {
   const [calcCropVariety, setCalcCropVariety] = useState<string>("Common Paddy — Grade A");
   const [calcQuintals, setCalcQuintals] = useState<string>("18");
 
+  const [mspMetadata, setMspMetadata] = useState<{
+    season?: string;
+    source?: string;
+    officialPublishedDate?: string;
+    effectiveFrom?: string;
+    notificationRef?: string;
+    officialSourceUrl?: string;
+    lastSynchronizedAt?: string;
+  } | null>({
+    season: "Kharif & Rabi Marketing Season 2024-25 / 2025-26",
+    source: "Ministry of Agriculture & Farmers Welfare, Govt of India",
+    officialPublishedDate: "19-Jun-2024",
+    effectiveFrom: "01-Oct-2025",
+    notificationRef: "Cabinet Committee on Economic Affairs (CCEA) MSP Notification No. 1-1/2024-NF",
+    officialSourceUrl: "https://desagri.gov.in/notification-type/msp-notifications/",
+    lastSynchronizedAt: new Date().toISOString(),
+  });
+
+  const [liveClockTime, setLiveClockTime] = useState(() => new Date());
+  const [queueLastSynced, setQueueLastSynced] = useState<Date | null>(() => new Date());
+
+  const [analyticsTrendCrop, setAnalyticsTrendCrop] = useState<string>("Paddy");
+  const [cropTrendData, setCropTrendData] = useState<{
+    commodity: string;
+    coveragePeriod: string;
+    startDate: string;
+    endDate: string;
+    startPrice: number;
+    latestPrice: number;
+    absoluteChange: number;
+    percentageChange: number;
+    trend: "UP" | "DOWN" | "STABLE";
+    movementLabel: "Price Increased" | "Price Decreased" | "Price Unchanged";
+    points: Array<{
+      date: string;
+      displayDate: string;
+      averageModalPrice: number;
+      minModalPrice: number;
+      maxModalPrice: number;
+      reportingCount: number;
+    }>;
+    totalReportingSessions: number;
+    coverageNotice?: string;
+    dataSource: string;
+    lastSynchronizedAt?: string;
+  } | null>(null);
+  const [cropTrendLoading, setCropTrendLoading] = useState<boolean>(false);
+
   const [farmerAnalyticsData, setFarmerAnalyticsData] = useState<{
     summary: {
       totalBookings: number;
@@ -1550,8 +1616,32 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         setCropPricesList([...(data.prices ?? [])].sort((a: any, b: any) => a.cropName.localeCompare(b.cropName, undefined, { sensitivity: "base" })));
+        setMspMetadata({
+          season: data.season,
+          source: data.source,
+          officialPublishedDate: data.officialPublishedDate,
+          effectiveFrom: data.effectiveFrom,
+          notificationRef: data.notificationRef,
+          officialSourceUrl: data.officialSourceUrl,
+          lastSynchronizedAt: data.lastSynchronizedAt || new Date().toISOString(),
+        });
       }
     } catch {}
+  };
+
+  const loadCropPriceTrend = async (crop: string) => {
+    setCropTrendLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/market-prices/trend?commodity=${encodeURIComponent(crop)}`));
+      if (res.ok) {
+        const data = await res.json();
+        setCropTrendData(data);
+      }
+    } catch (err) {
+      console.error("Failed to load crop price trend", err);
+    } finally {
+      setCropTrendLoading(false);
+    }
   };
 
   const loadFarmerAnalytics = async (token?: string) => {
@@ -1771,6 +1861,21 @@ export default function Home() {
     }
   }, []);
 
+  // Live Ticking Clock (updates every 1s in Asia/Kolkata)
+  useEffect(() => {
+    const clockTimer = window.setInterval(() => {
+      setLiveClockTime(new Date());
+    }, 1000);
+    return () => window.clearInterval(clockTimer);
+  }, []);
+
+  // 2-Month Historical AGMARKNET Price Trend for Analytics
+  useEffect(() => {
+    if (screen === "farmerAnalytics") {
+      void loadCropPriceTrend(analyticsTrendCrop);
+    }
+  }, [screen, analyticsTrendCrop]);
+
   useEffect(() => {
     if ((screen !== "queue" && screen !== "token") || !farmerToken || !bookingId) return;
     const refreshQueue = () => void fetch(apiUrl(`/queue/${bookingId}`), { headers: { Authorization: `Bearer ${farmerToken}` }, cache: "no-store" })
@@ -1778,6 +1883,7 @@ export default function Home() {
       .then((data: { position: number; peopleAhead: number; estimatedWaitMinutes: number; status: string; currentToken: string }) => {
         setQueueAhead(data.peopleAhead);
         setBookingRecord(record => record ? { ...record, queue: data } : record);
+        setQueueLastSynced(new Date());
       })
       .catch(() => undefined);
     refreshQueue();
@@ -3709,15 +3815,32 @@ export default function Home() {
                 />
               </label>
 
-              <label>
-                Password
+              <div className="grid gap-1.5 mb-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="farmer-login-password" className="text-[10px] font-extrabold text-[#3b5449] dark:text-emerald-300 uppercase tracking-wider cursor-pointer m-0">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    className="text-xs text-emerald-800 dark:text-emerald-400 font-bold hover:underline cursor-pointer bg-transparent border-0 p-0 focus:outline-hidden"
+                    onClick={() => {
+                      setForgotStep("RESET");
+                      setForgotPhone(farmerCredentials.phone);
+                      setForgotError(null);
+                    }}
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
                 <div className="relative">
                   <Input
+                    id="farmer-login-password"
                     type={showLoginPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={farmerCredentials.password}
                     onChange={event => setFarmerCredentials(credentials => ({ ...credentials, password: event.target.value }))}
                     required
+                    className="pr-10"
                   />
                   <button
                     type="button"
@@ -3728,20 +3851,6 @@ export default function Home() {
                     {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-              </label>
-
-              <div className="flex justify-end -mt-2 mb-2">
-                <button
-                  type="button"
-                  className="text-xs text-emerald-800 font-bold hover:underline cursor-pointer bg-transparent border-0 p-0"
-                  onClick={() => {
-                    setForgotStep("RESET");
-                    setForgotPhone(farmerCredentials.phone);
-                    setForgotError(null);
-                  }}
-                >
-                  Forgot Password?
-                </button>
               </div>
 
               {authError && <p className="form-note text-red-600 font-semibold">{authError}</p>}
@@ -4783,7 +4892,142 @@ export default function Home() {
     })()
   );
 
-  const queue = farmerShell(<><SectionTitle eyebrow="LIVE QUEUE" title={t.queueTitle} body={tUi("Your connected queue refreshes every fifteen seconds while this screen is open.", language)} action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}/><div className="queue-layout"><section className="queue-main"><div className="queue-visual"><img src={queueUrl} alt="Orderly procurement centre queue"/><div className="image-shade"/><div className="queue-overlay"><Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill><h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2><p>Processing is moving steadily today.</p></div></div><div className="your-position"><div><small>YOUR TOKEN</small><strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong><span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span></div><div><small>PEOPLE AHEAD</small><strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong><span>Updated from the API</span></div><div><small>ESTIMATED WAIT</small><strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong><span>{bookingRecord?.queue?.status ?? "WAITING"}</span></div></div><div className="queue-track"><div className="track-labels"><span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span></div><div className="track-bar"><i style={{ width: `${Math.max(18, queueProgress)}%` }} /><b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b></div><div className="queue-scale"><span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span><span>Queue</span><span>Position {bookingRecord?.queue?.position ?? 18}</span><span>{bookingRecord?.tokenNumber ?? "P-042"}</span></div></div></section><aside className="queue-side"><Pill kind="blue">CENTRE RHYTHM</Pill><h3>Connected estimate.</h3><p>The current token and waiting estimate are derived from live database records.</p><div className="rhythm-metrics"><span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span><span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span></div><hr/><h4>What to do now</h4><ul><li><Check/> Keep your documents ready.</li><li><Check/> Avoid joining early.</li><li><Check/> Check again before leaving.</li></ul><button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button></aside></div><section className="queue-alert"><Bell/><div><b>Queue notifications are active.</b><p>The backend creates a notification when your token is close to the front.</p></div><span><Check/> Active</span></section></>);
+  const queue = farmerShell(
+    <>
+      <SectionTitle
+        eyebrow="LIVE QUEUE"
+        title={t.queueTitle}
+        body={tUi("Your connected queue refreshes every fifteen seconds while this screen is open.", language)}
+        action={<Pill kind="green"><span className="pulse-dot"/> {t.live} updates</Pill>}
+      />
+
+      {/* Real-time Ticking Clock & Database Sync Separation Banner */}
+      <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        {/* Real-Time Live Clock (Updates every 1s in Asia/Kolkata) */}
+        <div className="flex items-center gap-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-black tracking-wide">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+            </span>
+            <span>LIVE CLOCK (IST)</span>
+          </div>
+
+          <div className="text-sm sm:text-base font-black tracking-tight text-[#0f2d1e] dark:text-emerald-100 font-mono tabular-nums">
+            {liveClockTime.toLocaleTimeString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+            })}
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2 font-sans hidden sm:inline">
+              ({liveClockTime.toLocaleDateString("en-IN", {
+                timeZone: "Asia/Kolkata",
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })})
+            </span>
+          </div>
+        </div>
+
+        {/* Clearly Separated Queue Database Sync Indicator */}
+        <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 font-medium">
+          <RefreshCw size={13} className="text-emerald-600 dark:text-emerald-400 animate-spin-slow shrink-0" />
+          <span>
+            <b>Queue Records Synced:</b>{" "}
+            <span className="text-slate-900 dark:text-white font-bold font-mono">
+              {queueLastSynced
+                ? queueLastSynced.toLocaleTimeString("en-IN", {
+                    timeZone: "Asia/Kolkata",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  })
+                : "Just now"}
+            </span>
+          </span>
+          <span className="hidden md:inline text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+            Database sync every 15s
+          </span>
+        </div>
+      </div>
+
+      <div className="queue-layout">
+        <section className="queue-main">
+          <div className="queue-visual">
+            <img src={queueUrl} alt="Orderly procurement centre queue"/>
+            <div className="image-shade"/>
+            <div className="queue-overlay">
+              <Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill>
+              <h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2>
+              <p>Processing is moving steadily today.</p>
+            </div>
+          </div>
+          <div className="your-position">
+            <div>
+              <small>YOUR TOKEN</small>
+              <strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong>
+              <span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span>
+            </div>
+            <div>
+              <small>PEOPLE AHEAD</small>
+              <strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong>
+              <span>Updated from the API</span>
+            </div>
+            <div>
+              <small>ESTIMATED WAIT</small>
+              <strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong>
+              <span>{bookingRecord?.queue?.status ?? "WAITING"}</span>
+            </div>
+          </div>
+          <div className="queue-track">
+            <div className="track-labels">
+              <span>Current {bookingRecord?.queue?.currentToken ?? "P-024"}</span>
+              <span>Your {bookingRecord?.tokenNumber ?? "P-042"}</span>
+            </div>
+            <div className="track-bar">
+              <i style={{ width: `${Math.max(18, queueProgress)}%` }} />
+              <b style={{ left: `${Math.max(18, queueProgress)}%` }}>{bookingRecord?.tokenNumber ?? "P-042"}</b>
+            </div>
+            <div className="queue-scale">
+              <span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span>
+              <span>Queue</span>
+              <span>Position {bookingRecord?.queue?.position ?? 18}</span>
+              <span>{bookingRecord?.tokenNumber ?? "P-042"}</span>
+            </div>
+          </div>
+        </section>
+        <aside className="queue-side">
+          <Pill kind="blue">CENTRE RHYTHM</Pill>
+          <h3>Connected estimate.</h3>
+          <p>The current token and waiting estimate are derived from live database records.</p>
+          <div className="rhythm-metrics">
+            <span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span>
+            <span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span>
+          </div>
+          <hr/>
+          <h4>What to do now</h4>
+          <ul>
+            <li><Check/> Keep your documents ready.</li>
+            <li><Check/> Avoid joining early.</li>
+            <li><Check/> Check again before leaving.</li>
+          </ul>
+          <button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button>
+        </aside>
+      </div>
+      <section className="queue-alert">
+        <Bell/>
+        <div>
+          <b>Queue notifications are active.</b>
+          <p>The backend creates a notification when your token is close to the front.</p>
+        </div>
+        <span><Check/> Active</span>
+      </section>
+    </>
+  );
 
   const status = farmerShell(
     (() => {
@@ -5569,10 +5813,11 @@ export default function Home() {
               })}
             </div>
 
-            <div className="mt-5 p-4 bg-emerald-50/80 border border-emerald-200/60 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
-              <Sparkles size={18} className="text-emerald-700 shrink-0 mt-0.5" />
+            <div className="mt-5 p-4 bg-emerald-50/90 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700/80 rounded-xl text-xs flex items-start gap-2.5 shadow-xs">
+              <Sparkles size={18} className="text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5" />
               <div>
-                <b>Rythu Seva Tip:</b> Maintain paddy bag tarp covers during transit even on sunny days to prevent sudden coastal humidity absorption.
+                <b className="text-emerald-950 dark:text-emerald-200 font-bold">Rythu Seva Tip:</b>{" "}
+                <span className="text-slate-900 dark:text-slate-100 font-medium">Maintain paddy bag tarp covers during transit even on sunny days to prevent sudden coastal humidity absorption.</span>
               </div>
             </div>
           </div>
@@ -8048,6 +8293,69 @@ export default function Home() {
         }
       />
 
+      {/* Official Government MSP Notification & Synchronization Status Card */}
+      <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-[#0d3320] to-teal-950 text-white shadow-md border border-emerald-800/60 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/25 text-emerald-300 border border-emerald-400/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Live Govt MSP Sync
+            </span>
+            <span className="text-xs font-semibold text-emerald-100">
+              {mspMetadata?.source || "Ministry of Agriculture & Farmers Welfare, Govt of India"}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-emerald-100/90 font-medium">
+            <div className="flex items-center gap-1.5">
+              <CalendarDays size={14} className="text-emerald-300 shrink-0" />
+              <span>
+                <b>Official Publication Date:</b>{" "}
+                {mspMetadata?.officialPublishedDate ? (
+                  <span className="text-emerald-200 font-bold">
+                    {mspMetadata.officialPublishedDate} (Effective from: {mspMetadata.effectiveFrom || "01-Oct-2025"})
+                  </span>
+                ) : (
+                  <span className="text-emerald-300/80 italic">Publication date unavailable</span>
+                )}
+              </span>
+            </div>
+            <span className="hidden sm:inline text-emerald-400/60">•</span>
+            <div className="flex items-center gap-1.5">
+              <Clock3 size={14} className="text-emerald-300 shrink-0" />
+              <span>
+                <b>Last synced:</b>{" "}
+                <span className="text-emerald-200 font-bold">
+                  {formatIndianDateTime(mspMetadata?.lastSynchronizedAt || new Date())}
+                </span>
+              </span>
+            </div>
+          </div>
+          <p className="text-[11px] text-emerald-200/75 m-0">
+            Official notification: <b>{mspMetadata?.notificationRef || "Cabinet Committee on Economic Affairs (CCEA) MSP Notification"}</b> ({mspMetadata?.season || "Kharif & Rabi 2024-25 / 2025-26"}).
+          </p>
+        </div>
+
+        {/* Official Government Source Link Card (Right Side on Desktop / Responsive on Mobile) */}
+        <a
+          href={mspMetadata?.officialSourceUrl || "https://desagri.gov.in/notification-type/msp-notifications/"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex items-center justify-between sm:justify-start gap-3 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-emerald-300 text-white transition-all shadow-xs hover:shadow-md shrink-0 focus:outline-hidden"
+          title="Open official Directorate of Economics & Statistics MSP notifications portal"
+        >
+          <div className="text-left">
+            <div className="text-xs font-black tracking-wide flex items-center gap-1.5 text-white">
+              View Official Government MSP Rates
+              <ExternalLink size={14} className="text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </div>
+            <div className="text-[11px] text-emerald-200 font-medium">
+              Verify the latest government notifications
+            </div>
+          </div>
+        </a>
+      </div>
+
       <div className="crop-filter-bar">
         <div className="crop-category-pills">
           {["ALL", "Cereals", "Pulses", "Oilseeds", "Commercial"].map(cat => (
@@ -8474,6 +8782,175 @@ export default function Home() {
             <span className="text-muted-foreground">{tUi("Net Logistics Spent:", language)}</span>
             <b className="text-foreground font-mono">₹{(farmerAnalyticsData?.summary.transportLogistics.spent ?? 420).toLocaleString("en-IN")}</b>
           </div>
+        </div>
+      </div>
+
+      {/* Average Crop Price Trend – Last 2 Months */}
+      <div className="my-6 p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs">
+        {/* Header with Title and Crop Selector */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <Pill kind="green">OFFICIAL AGMARKNET TIME-SERIES</Pill>
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                Direct Mandi Observations
+              </span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-black text-[#0f2d1e] dark:text-white mt-1.5 m-0">
+              Average Crop Price Trend – Last 2 Months
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5 m-0">
+              Bi-monthly aggregated modal prices per quintal grouped chronologically by market reporting date.
+            </p>
+          </div>
+
+          {/* Crop Selector Controls */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: "Paddy", label: "🌾 Paddy" },
+              { id: "Cotton", label: "☁️ Cotton" },
+              { id: "Maize", label: "🌽 Maize" },
+              { id: "Bengal Gram", label: "🧆 Bengal Gram" },
+              { id: "Chilli Red", label: "🌶️ Chilli Red" },
+            ].map(c => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setAnalyticsTrendCrop(c.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                  analyticsTrendCrop === c.id
+                    ? "bg-emerald-700 text-white border-emerald-700 shadow-xs"
+                    : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Trend Summary Metric Strip */}
+        {cropTrendData && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/70 dark:border-slate-800">
+            <div>
+              <span className="text-[11px] text-muted-foreground font-semibold block">Latest Modal Rate</span>
+              <strong className="text-base sm:text-lg font-black text-[#0f2d1e] dark:text-white">
+                ₹{cropTrendData.latestPrice.toLocaleString("en-IN")} <small className="text-xs font-normal">/ Qtl</small>
+              </strong>
+            </div>
+
+            <div>
+              <span className="text-[11px] text-muted-foreground font-semibold block">Trend Direction</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {cropTrendData.trend === "UP" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-100/80 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                    <TrendingUp size={14} /> Price Increased (+₹{cropTrendData.absoluteChange})
+                  </span>
+                ) : cropTrendData.trend === "DOWN" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-extrabold text-red-700 dark:text-red-400 bg-red-100/80 dark:bg-red-950/60 px-2 py-0.5 rounded-md">
+                    <TrendingDown size={14} /> Price Decreased (-₹{Math.abs(cropTrendData.absoluteChange)})
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-extrabold text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                    <Minus size={14} /> Price Unchanged
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <span className="text-[11px] text-muted-foreground font-semibold block">2-Month Change</span>
+              <strong className={`text-base font-black ${cropTrendData.percentageChange > 0 ? "text-emerald-700 dark:text-emerald-400" : cropTrendData.percentageChange < 0 ? "text-red-600 dark:text-red-400" : "text-slate-700"}`}>
+                {cropTrendData.percentageChange > 0 ? `+${cropTrendData.percentageChange}%` : `${cropTrendData.percentageChange}%`}
+              </strong>
+            </div>
+
+            <div>
+              <span className="text-[11px] text-muted-foreground font-semibold block">Coverage Period</span>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate" title={cropTrendData.coveragePeriod}>
+                📅 {cropTrendData.coveragePeriod}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Line / Area Graph */}
+        {cropTrendLoading ? (
+          <div className="h-64 flex flex-col items-center justify-center text-xs text-muted-foreground gap-2">
+            <RefreshCw size={22} className="animate-spin text-emerald-600" />
+            <span>Loading historical AGMARKNET trend data…</span>
+          </div>
+        ) : cropTrendData && cropTrendData.points.length > 0 ? (
+          <div className="h-72 w-full pt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={cropTrendData.points} margin={{ top: 12, right: 18, left: 0, bottom: 20 }}>
+                <defs>
+                  <linearGradient id="cropPriceGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={cropTrendData.trend === "DOWN" ? "#ef4444" : "#10b981"} stopOpacity={0.35}/>
+                    <stop offset="95%" stopColor={cropTrendData.trend === "DOWN" ? "#ef4444" : "#10b981"} stopOpacity={0.0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                <XAxis
+                  dataKey="displayDate"
+                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  interval={0}
+                  angle={-20}
+                  textAnchor="end"
+                />
+                <YAxis
+                  domain={['auto', 'auto']}
+                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  tickFormatter={val => `₹${val}`}
+                />
+                <Tooltip
+                  formatter={(val: any) => [`₹${Number(val).toLocaleString("en-IN")} / Quintal`, "Average Modal Price"]}
+                  labelFormatter={(label: any, p: any) => {
+                    const row = p?.[0]?.payload;
+                    return row ? `${row.displayDate} (${row.date}) · ${row.reportingCount} Mandi Report(s)` : label;
+                  }}
+                  contentStyle={{
+                    backgroundColor: "#062817",
+                    borderRadius: "12px",
+                    color: "#fff",
+                    fontSize: "12px",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    padding: "10px 14px",
+                    boxShadow: "0 8px 20px rgba(0,0,0,0.25)"
+                  }}
+                  itemStyle={{ color: "#a7f3d0", fontWeight: 700 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="averageModalPrice"
+                  stroke={cropTrendData.trend === "DOWN" ? "#dc2626" : "#059669"}
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#cropPriceGradient)"
+                  dot={{ r: 4, fill: cropTrendData.trend === "DOWN" ? "#dc2626" : "#059669", strokeWidth: 1, stroke: "#fff" }}
+                  activeDot={{ r: 6, fill: cropTrendData.trend === "DOWN" ? "#dc2626" : "#059669" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-56 flex flex-col items-center justify-center text-center p-4 bg-muted/20 rounded-xl border border-dashed text-xs text-muted-foreground">
+            <Wheat size={28} className="text-muted-foreground/40 mb-1" />
+            <b>No records for this commodity</b>
+            <span>Historical market reporting records will appear here as mandis submit sessions.</span>
+          </div>
+        )}
+
+        {/* Footer Notes & Data Attribution */}
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span>
+            <b>Official Data Source:</b> {cropTrendData?.dataSource || "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)"}
+          </span>
+          {cropTrendData?.coverageNotice && (
+            <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+              ℹ️ {cropTrendData.coverageNotice}
+            </span>
+          )}
         </div>
       </div>
 

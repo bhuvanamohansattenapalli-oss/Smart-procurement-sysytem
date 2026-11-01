@@ -3,6 +3,7 @@ import {
   getMandiMarketPrices,
   calculateMandiPriceComparison,
   calculateAllMandiPriceComparisons,
+  getHistoricalCropPriceTrend,
   VERIFIED_AGMARKNET_DATA,
   type MandiPriceRecord,
 } from "./services/marketPriceService";
@@ -219,5 +220,54 @@ describe("AGMARKNET Market Price Service & Price Comparison Suite", () => {
     expect(result.lastSynchronizedAt).toContain("T");
     expect(result.comparison.metadata.lastSynchronizedAt).toContain("T");
     expect(result.comparison.latest.arrivalDate).not.toEqual(result.lastSynchronizedAt);
+  });
+
+  // SCENARIO 9: 2-MONTH AVERAGE CROP PRICE TREND
+  it("calculates 2-month date-grouped average modal price trend for Paddy accurately", () => {
+    const trend = getHistoricalCropPriceTrend("Paddy");
+
+    expect(trend).toBeDefined();
+    expect(trend.commodity).toContain("Paddy");
+    expect(trend.points.length).toBeGreaterThanOrEqual(8);
+    expect(trend.startDate).toBe("2026-09-02");
+    expect(trend.endDate).toBe("2026-10-31");
+    expect(trend.coveragePeriod).toContain("Sep");
+    expect(trend.coveragePeriod).toContain("Oct");
+
+    // Chronological order check
+    for (let i = 1; i < trend.points.length; i++) {
+      const prevDate = new Date(trend.points[i - 1].date).getTime();
+      const currDate = new Date(trend.points[i].date).getTime();
+      expect(currDate).toBeGreaterThan(prevDate);
+    }
+
+    // Trend metrics
+    expect(trend.latestPrice).toBeGreaterThan(trend.startPrice);
+    expect(trend.absoluteChange).toBeGreaterThan(0);
+    expect(trend.percentageChange).toBeGreaterThan(0);
+    expect(trend.trend).toBe("UP");
+    expect(trend.movementLabel).toBe("Price Increased");
+    expect(trend.dataSource).toContain("AGMARKNET");
+  });
+
+  it("handles crops with decreasing trend like Bengal Gram with negative percentage and 'Price Decreased' label", () => {
+    const trend = getHistoricalCropPriceTrend("Bengal Gram");
+
+    expect(trend).toBeDefined();
+    expect(trend.points.length).toBeGreaterThanOrEqual(5);
+    expect(trend.trend).toBe("DOWN");
+    expect(trend.movementLabel).toBe("Price Decreased");
+    expect(trend.absoluteChange).toBeLessThan(0);
+    expect(trend.percentageChange).toBeLessThan(0);
+  });
+
+  it("gracefully returns empty result structure with notice when crop has no records", () => {
+    const trend = getHistoricalCropPriceTrend("NonExistentCropXYZ");
+
+    expect(trend.points).toEqual([]);
+    expect(trend.totalReportingSessions).toBe(0);
+    expect(trend.trend).toBe("STABLE");
+    expect(trend.movementLabel).toBe("Price Unchanged");
+    expect(trend.coverageNotice).toContain("No historical");
   });
 });
