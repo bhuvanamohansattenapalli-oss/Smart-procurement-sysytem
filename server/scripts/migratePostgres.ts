@@ -271,6 +271,21 @@ CREATE INDEX IF NOT EXISTS "idx_notifications_farmer" ON "notifications" ("farme
 `;
 
 export async function ensurePostgresSchema(pool: pg.Pool): Promise<void> {
+  // Fast check: If key tables already exist, skip redundant DDL execution
+  try {
+    const checkRes = await withTimeout(
+      pool.query("SELECT to_regclass('public.farmers') as f, to_regclass('public.users') as u"),
+      3000,
+      "Table existence probe timed out"
+    );
+    if (checkRes.rows[0]?.f && checkRes.rows[0]?.u) {
+      console.log("[Database Migration] PostgreSQL tables verified. Skipping redundant DDL initialization.");
+      return;
+    }
+  } catch (checkErr: any) {
+    console.warn("[Database Migration] Fast table existence probe warning:", checkErr?.message || checkErr);
+  }
+
   let sqlContent = EMBEDDED_POSTGRES_SCHEMA_SQL;
   try {
     const sqlPath = path.resolve(process.cwd(), "drizzle", "0000_init_postgres.sql");

@@ -18,7 +18,7 @@ import {
   staffNotifications,
   chatMessages,
 } from "../../drizzle/schema";
-import { getDb, normalizePhone } from "../db";
+import { getDb, normalizePhone, isPostgresActive } from "../db";
 import { requireApiAuth, requireRole } from "../middleware/apiAuth";
 import { hashPassword, verifyPassword } from "../services/passwordService";
 import { ensurePrototypeSeed, prototypeCropPrices, prototypeSlots } from "../services/seedService";
@@ -34,6 +34,13 @@ import {
   checkAiRateLimit,
 } from "../services/geminiService";
 import type { AuthenticatedRequest, BookingContext, StaffRole } from "../types/api";
+
+function maskPhone(phone: string | undefined | null): string {
+  if (!phone) return "unknown";
+  const str = String(phone).replace(/\D/g, "");
+  if (str.length <= 4) return "****";
+  return `${str.slice(0, 2)}****${str.slice(-2)}`;
+}
 
 const phoneSchema = z.string().trim().transform(normalizePhone).pipe(
   z.string().regex(/^\d{10}$/, "Phone must be a valid 10-digit Indian mobile number.")
@@ -580,23 +587,24 @@ export function createProcurementApi() {
     next();
   });
 
-  api.get(["/health", "/health/db"], async (_req, res) => {
+  api.get("/health", async (_req, res) => {
+    const isPg = isPostgresActive();
+    const hasDbUrl = Boolean(process.env.DATABASE_URL);
+    res.status(200).json({
+      status: "healthy",
+      service: "ProcureFlow API",
+      database: isPg ? "postgresql" : (hasDbUrl ? "connecting" : "unconfigured"),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  api.get("/health/db", async (_req, res) => {
     try {
       const { runDatabaseHealthCheck } = await import("../services/dbHealthService");
       const health = await runDatabaseHealthCheck();
       res.status(health.status === "unhealthy" ? 503 : 200).json(health);
     } catch (err: any) {
       res.status(503).json({ status: "unhealthy", error: err?.message || err });
-    }
-  });
-
-  api.use(async (_req, res, next) => {
-    try {
-      await ensurePrototypeSeed();
-      next();
-    } catch (err: any) {
-      console.warn("[ProcureFlow API] Prototype seed initialization note:", err?.message || err);
-      next();
     }
   });
 
@@ -652,19 +660,22 @@ export function createProcurementApi() {
   api.post(["/registration", "/farmers/register"], async (req, res) => {
     const input = respondValidation(res, registrationSchema, req.body);
     if (!input) return;
+    const cleanPhone = normalizePhone(input.phone);
+    console.info(`[Auth Audit] Farmer registration initiated: phone=${maskPhone(cleanPhone)}`);
     const db = await getDb();
     if (!db) {
+      console.warn(`[Registration Warning] Database service unavailable for registration: phone=${maskPhone(cleanPhone)}`);
       return res.status(503).json({
         error: "DATABASE_UNAVAILABLE",
         message: "Database service is currently unavailable. Please verify your PostgreSQL connection or retry shortly.",
       });
     }
-    const cleanPhone = normalizePhone(input.phone);
 
     try {
       // 1. Check for duplicate registration
       const existing = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
       if (existing) {
+        console.warn(`[Auth Audit] Farmer registration rejected: phone=${maskPhone(cleanPhone)} reason=PHONE_EXISTS`);
         return res.status(409).json({
           error: "PHONE_EXISTS",
           message: "A farmer is already registered with this mobile number. Please sign in or reset your password.",
@@ -712,14 +723,14 @@ export function createProcurementApi() {
         await db.insert(notifications).values({
           farmerId: farmer.id,
           title: "New farmer registration submitted",
-          message: `Farmer ${farmer.name} (${cleanPhone}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
+          message: `Farmer ${farmer.name} (${maskPhone(cleanPhone)}) from ${farmer.village}, ${farmer.district} submitted registration and is awaiting officer verification.`,
           category: "REGISTRATION",
         });
       } catch (notifErr) {
         console.warn("[Registration] Notification insert non-fatal notice:", notifErr);
       }
 
-      console.info(`[Auth Audit] Farmer registered: id=${farmer.id} phone=${cleanPhone} code=${farmerCode}`);
+      console.info(`[Auth Audit] Farmer registered: id=${farmer.id} phone=${maskPhone(cleanPhone)} code=${farmerCode}`);
       return res.status(201).json({
         message: "Registration submitted — awaiting officer verification.",
         registrationId: registration?.id,
@@ -727,7 +738,7 @@ export function createProcurementApi() {
         status: "PENDING",
       });
     } catch (err: any) {
-      console.error("[Registration Error]", err?.message || err);
+      console.error(`[Registration Exception] phone=${maskPhone(cleanPhone)} error=${err?.message || err}\nStack: ${err?.stack}`);
       if (err?.code === "23505" || err?.message?.includes("unique") || err?.message?.includes("duplicate")) {
         return res.status(409).json({
           error: "PHONE_EXISTS",
@@ -751,19 +762,21 @@ export function createProcurementApi() {
   api.post("/farmers/login", async (req, res) => {
     const input = respondValidation(res, loginSchema, req.body);
     if (!input) return;
+    const cleanPhone = normalizePhone(input.phone);
+    console.info(`[Auth Audit] Farmer login initiated: phone=${maskPhone(cleanPhone)}`);
     const db = await getDb();
     if (!db) {
+      console.warn(`[Login Warning] Database service unavailable for login: phone=${maskPhone(cleanPhone)}`);
       return res.status(503).json({
         error: "DATABASE_UNAVAILABLE",
         message: "Database service is currently unavailable. Please verify your PostgreSQL connection or retry shortly.",
       });
     }
-    const cleanPhone = normalizePhone(input.phone);
 
     try {
       const farmer = (await db.select().from(farmers).where(eq(farmers.phone, cleanPhone)).limit(1))[0];
       if (!farmer) {
-        console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=FARMER_NOT_FOUND`);
+        console.warn(`[Auth Audit] Farmer login rejected: phone=${maskPhone(cleanPhone)} reason=FARMER_NOT_FOUND`);
         return res.status(401).json({
           error: "FARMER_NOT_FOUND",
           message: "No registered farmer found with this mobile number. Please register first or verify your number.",
@@ -771,7 +784,7 @@ export function createProcurementApi() {
       }
 
       if (!verifyPassword(input.password, farmer.passwordHash)) {
-        console.warn(`[Auth Audit] Farmer login rejected: phone=${cleanPhone} reason=PASSWORD_MISMATCH`);
+        console.warn(`[Auth Audit] Farmer login rejected: phone=${maskPhone(cleanPhone)} reason=PASSWORD_MISMATCH`);
         return res.status(401).json({
           error: "INVALID_CREDENTIALS",
           message: "Incorrect password. Please verify your password and try again.",
@@ -779,7 +792,7 @@ export function createProcurementApi() {
       }
 
       if (farmer.status !== "APPROVED") {
-        console.info(`[Auth Audit] Farmer login deferred: phone=${cleanPhone} status=${farmer.status}`);
+        console.info(`[Auth Audit] Farmer login deferred: phone=${maskPhone(cleanPhone)} status=${farmer.status}`);
         return res.status(403).json({
           error: "REGISTRATION_NOT_APPROVED",
           message: `Your registration is ${farmer.status.toLowerCase()}. Officer approval is required before login.`,
@@ -794,7 +807,7 @@ export function createProcurementApi() {
         code: farmer.farmerCode,
         name: farmer.name,
       });
-      console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${cleanPhone} code=${farmer.farmerCode}`);
+      console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${maskPhone(cleanPhone)} code=${farmer.farmerCode}`);
       return res.json({
         accessToken: token,
         tokenType: "Bearer",
@@ -802,7 +815,7 @@ export function createProcurementApi() {
         farmer: formatFarmer(farmer),
       });
     } catch (err: any) {
-      console.error("[Login Error]", err?.message || err);
+      console.error(`[Login Exception] phone=${maskPhone(cleanPhone)} error=${err?.message || err}\nStack: ${err?.stack}`);
       if (err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT" || err?.code === "ENOTFOUND" || err?.message?.includes("timeout") || err?.message?.includes("connect")) {
         return res.status(503).json({
           error: "DATABASE_UNAVAILABLE",

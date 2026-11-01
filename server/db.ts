@@ -161,7 +161,9 @@ export class LocalDatabaseStore {
 
   constructor() {
     this.initTables();
-    this.loadFromDisk();
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      this.loadFromDisk();
+    }
   }
 
   private initTables() {
@@ -228,6 +230,9 @@ export class LocalDatabaseStore {
   }
 
   saveToDisk() {
+    if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+      return;
+    }
     try {
       const targetPath = this.getStorageFilePath();
       const dir = path.dirname(targetPath);
@@ -621,6 +626,15 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
       return null as any;
     }
   } else {
+    if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+      console.error(
+        "[Database] CRITICAL: DATABASE_URL is not configured in production environment variables! Refusing local JSON fallback in production."
+      );
+      _db = null;
+      _pool = null;
+      _isPostgres = false;
+      return null as any;
+    }
     console.log(
       "[Database] No DATABASE_URL configured in environment. Running in development mode with persistent local store (.data/procureflow_db.json)."
     );

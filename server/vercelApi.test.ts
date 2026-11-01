@@ -128,4 +128,52 @@ describe("Vercel Serverless Function API Entry Point (api/index.ts)", () => {
     expect(data.error).toBe("FARMER_NOT_FOUND");
     expect(data.message).toBeDefined();
   });
+
+  it("handles fast /api/status diagnostic endpoint", async () => {
+    const res = await fetch(`${baseUrl}/api/status`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toBe("ok");
+    expect(data.environment).toBeDefined();
+    expect(typeof data.environment.hasDatabaseUrl).toBe("boolean");
+    expect(typeof data.environment.hasJwtSecret).toBe("boolean");
+    expect(typeof data.environment.hasGeminiApiKey).toBe("boolean");
+    expect(data.system.nodeVersion).toBeDefined();
+  });
+
+  it("handles /api/health endpoint seamlessly", async () => {
+    const res = await fetch(`${baseUrl}/api/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toBe("healthy");
+    expect(data.service).toBe("ProcureFlow API");
+  });
+
+  it("handles Farmer Registration on Vercel handler", async () => {
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const testPhone = `981111${randomSuffix}`;
+    const res = await fetch(`${baseUrl}/api/registration`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Test Farmer Vercel",
+        phone: testPhone,
+        password: "TestPassword@2026",
+        village: "Test Village",
+        district: "Guntur",
+        primaryCrop: "Paddy",
+        aadhaarMasked: "XXXX XXXX 9988",
+        declarationAccepted: true,
+      }),
+    });
+
+    expect([201, 409]).toContain(res.status);
+    const data = await res.json();
+    if (res.status === 201) {
+      expect(data.status).toBe("PENDING");
+      expect(data.farmer).toBeDefined();
+    } else {
+      expect(data.error).toBe("PHONE_EXISTS");
+    }
+  });
 });
