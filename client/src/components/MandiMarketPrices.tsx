@@ -257,6 +257,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
               <option value="Guntur">Guntur District</option>
               <option value="NTR">NTR / Vijayawada</option>
               <option value="Kurnool">Kurnool District</option>
+              <option value="Nandyal">Nandyal District</option>
               <option value="Nalgonda">Nalgonda (Miryalaguda)</option>
               <option value="Warangal">Warangal District</option>
               <option value="Khammam">Khammam District</option>

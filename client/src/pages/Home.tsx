@@ -8206,7 +8206,7 @@ export default function Home() {
         <MandiMarketPrices
           initialCommodity="Paddy"
           initialState="Andhra Pradesh"
-          initialDistrict="Guntur"
+          initialDistrict={profileRecord?.district || "Guntur"}
           onSelectPrice={(p: any) => {
             setCalcCropVariety(`${p.commodity} — ${p.variety}`);
             setCalcQuintals("40");

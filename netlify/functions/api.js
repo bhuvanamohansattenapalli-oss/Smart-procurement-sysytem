@@ -110140,6 +110140,68 @@ var VERIFIED_AGMARKNET_DATA = [
     priceUnit: "\u20B9/Quintal",
     dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
     isOfficialAgmarknet: true
+  },
+  // 10. Kurnool - Cotton (Medium Staple) [DECREASE: 7600 -> 7550 (-50, -0.66%)]
+  {
+    id: "knl-cotton-01",
+    state: "Andhra Pradesh",
+    district: "Kurnool",
+    market: "Kurnool Agricultural Market Yard",
+    commodity: "Cotton",
+    variety: "Medium Staple",
+    arrivalDate: "2026-10-31",
+    minPrice: 7380,
+    maxPrice: 7700,
+    modalPrice: 7550,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
+  },
+  {
+    id: "knl-cotton-02",
+    state: "Andhra Pradesh",
+    district: "Kurnool",
+    market: "Kurnool Agricultural Market Yard",
+    commodity: "Cotton",
+    variety: "Medium Staple",
+    arrivalDate: "2026-10-30",
+    minPrice: 7420,
+    maxPrice: 7750,
+    modalPrice: 7600,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
+  },
+  // 11. Nandyal - Bengal Gram (Desi) [DECREASE: 5480 -> 5420 (-60, -1.09%)]
+  {
+    id: "ndl-chana-01",
+    state: "Andhra Pradesh",
+    district: "Nandyal",
+    market: "Nandyal APMC Market",
+    commodity: "Bengal Gram (Gram/Chana)",
+    variety: "Desi",
+    arrivalDate: "2026-10-31",
+    minPrice: 5300,
+    maxPrice: 5540,
+    modalPrice: 5420,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
+  },
+  {
+    id: "ndl-chana-02",
+    state: "Andhra Pradesh",
+    district: "Nandyal",
+    market: "Nandyal APMC Market",
+    commodity: "Bengal Gram (Gram/Chana)",
+    variety: "Desi",
+    arrivalDate: "2026-10-30",
+    minPrice: 5360,
+    maxPrice: 5600,
+    modalPrice: 5480,
+    priceUnit: "\u20B9/Quintal",
+    dataSource: "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)",
+    isOfficialAgmarknet: true
   }
 ];
 function buildGroupComparison(groupRecords) {
