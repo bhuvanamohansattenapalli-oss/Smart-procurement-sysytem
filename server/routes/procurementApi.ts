@@ -34,6 +34,7 @@ import {
   isGeminiConfigured,
   getGeminiModel,
   checkAiRateLimit,
+  testGeminiConnectivity,
 } from "../services/geminiService";
 import {
   getLiveAgriculturalWeather,
@@ -2729,6 +2730,29 @@ export function createProcurementApi() {
       provider: "Google Gemini AI (@google/genai)",
       fallbackAvailable: true,
       supportedLanguages: ["EN", "TE", "HI", "AUTO"],
+    });
+  });
+
+  api.get("/ai/health", async (_req, res) => {
+    const configured = isGeminiConfigured();
+    const model = getGeminiModel();
+    if (!configured) {
+      return res.json({
+        ok: false,
+        configured: false,
+        model,
+        message: "GEMINI_API_KEY environment variable is not configured.",
+      });
+    }
+
+    const probe = await testGeminiConnectivity();
+    return res.json({
+      ok: probe.ok,
+      configured: true,
+      model: probe.model,
+      latencyMs: probe.latencyMs,
+      error: probe.error || null,
+      status: probe.ok ? "connected" : "degraded",
     });
   });
 

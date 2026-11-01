@@ -109133,14 +109133,17 @@ function getGeminiModel() {
   const rawModel = process.env.GEMINI_MODEL?.trim();
   if (rawModel) {
     const normalized = rawModel.toLowerCase().replace(/\s+/g, "-");
+    if (normalized.includes("3.5-flash-lite") || normalized.includes("3.5-lite")) return "gemini-3.5-flash-lite";
+    if (normalized.includes("flash-lite-latest") || normalized.includes("flash-lite")) return "gemini-flash-lite-latest";
+    if (normalized.includes("3.5-flash")) return "gemini-3.5-flash-lite";
     if (normalized.includes("3.8")) return "gemini-3.8-flash";
-    if (normalized.includes("3.5")) return "gemini-3.5-flash-lite";
-    if (normalized.includes("3.1")) return "gemini-3.1-flash-lite";
-    if (!normalized.includes("2.5") && !normalized.includes("2.0") && !normalized.includes("1.5")) {
-      return normalized;
+    if (normalized.includes("argon") || normalized.includes("gemini-4")) return "gemini-4-argon";
+    if (normalized.includes("2.5") || normalized.includes("2.0") || normalized.includes("1.5")) {
+      return "gemini-3.5-flash-lite";
     }
+    return normalized;
   }
-  return "gemini-3.8-flash";
+  return "gemini-3.5-flash-lite";
 }
 function getGeminiClient() {
   const key = getGeminiApiKey();
@@ -109149,6 +109152,37 @@ function getGeminiClient() {
     _clientInstance = new GoogleGenAI2({ apiKey: key });
   }
   return _clientInstance;
+}
+async function testGeminiConnectivity() {
+  const client = getGeminiClient();
+  const model = getGeminiModel();
+  if (!client) {
+    return { ok: false, model, error: "GEMINI_API_KEY environment variable is not configured." };
+  }
+  const startTime = Date.now();
+  try {
+    const config2 = { maxOutputTokens: 10 };
+    if (model.includes("3.8") || model.includes("argon")) {
+      config2.thinkingConfig = { thinkingBudget: 0 };
+    }
+    const testPromise = client.models.generateContent({
+      model,
+      contents: "Ping",
+      config: config2
+    });
+    const timeoutPromise = new Promise(
+      (_, reject) => setTimeout(() => reject(new Error("Gemini connectivity probe timed out after 6000ms")), 6e3)
+    );
+    const result = await Promise.race([testPromise, timeoutPromise]);
+    const latencyMs = Date.now() - startTime;
+    if (result && result.text) {
+      return { ok: true, model, latencyMs };
+    }
+    return { ok: false, model, latencyMs, error: "Empty response received from Gemini API." };
+  } catch (err) {
+    const latencyMs = Date.now() - startTime;
+    return { ok: false, model, latencyMs, error: err?.message || String(err) };
+  }
 }
 function sanitizeInput(input2, maxLength = 1e3) {
   if (!input2 || typeof input2 !== "string") return "";
@@ -109175,7 +109209,7 @@ CURRENT FARMER & AP PROCUREMENT CONTEXT:
 - Estimated Wait Time: ~${context?.estimatedWaitMinutes ?? 0} minutes
 - Procurement Stage: ${context?.procurementStatus || "NOT_ARRIVED"}
 - Official MSP 2025-26: Common Paddy \u20B92,300/q, Grade A Paddy \u20B92,320/q, Cotton \u20B97,521/q, Maize \u20B92,225/q
-- Mandi Quality Norms: Maximum permissible moisture is 17.0% for paddy.
+- Mandi Quality Norms: Maximum permissible moisture is strictly 17.0% for paddy.
 - Subsidized Freight: 30% government subsidy on Tractor Trolley (\u20B918/km), Mini Truck (\u20B922/km), Heavy Lorry (\u20B935/km).
 - Official Helplines: Rythu Bharosa Kendra (RBK): 1800-425-0002, Kisan Call Centre: 1800-180-1551, AP Grievance: 1902.
 `;
@@ -109205,7 +109239,7 @@ LANGUAGE & TONE:
 ${contextSnippet}
 `;
 }
-function buildOfficerSystemInstruction(officerRole = "OFFICER", officerName = "Procurement Officer", centreName = "Mandi Yard") {
+function buildOfficerSystemInstruction(officerRole = "OFFICER", officerName = "Procurement Officer", centreName = "Mandi Yard", lang = "EN") {
   return `
 You are "ProcureFlow Officer Copilot", an AI operational assistant built for Mandi Procurement Officers, Quality Control Inspectors, and Logistics Managers in Andhra Pradesh.
 
@@ -109225,7 +109259,7 @@ CRITICAL SECURITY & ROLE CONSTRAINTS:
 - NEVER reveal personal, financial, or sensitive information of other farmers (e.g., Aadhaar digits, personal bank account numbers).
 - YOU CANNOT execute administrative transactions (approving registrations, processing DBT payments, cancelling bookings, changing status). Remind the officer to perform all state-changing actions via the dedicated, authenticated buttons in the Officer Dashboard.
 - Provide crisp, professional, bulleted operational summaries.
-- Communicate fluently in English, Telugu, or Hindi matching the officer's input.
+- Target Language: ${lang === "TE" ? "Telugu (\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41)" : lang === "HI" ? "Hindi (\u0939\u093F\u0902\u0926\u0940)" : "English"}. Respond fluently in the target language.
 `;
 }
 function formatContents(history = [], currentQuestion) {
@@ -109243,6 +109277,79 @@ function formatContents(history = [], currentQuestion) {
   });
   return contents;
 }
+async function executeGeminiWithFallback(params) {
+  const { client, primaryModel, contents, systemInstruction, role, lang, previewQuestion } = params;
+  const candidateModels = [];
+  if (primaryModel) candidateModels.push(primaryModel);
+  if (!candidateModels.includes("gemini-3.5-flash-lite")) candidateModels.push("gemini-3.5-flash-lite");
+  if (!candidateModels.includes("gemini-flash-lite-latest")) candidateModels.push("gemini-flash-lite-latest");
+  const startTime = Date.now();
+  console.log(
+    `[Gemini AI] Request started | Role: ${role} | Lang: ${lang} | Candidates: [${candidateModels.join(", ")}] | Prompt: "${previewQuestion.slice(0, 50)}..."`
+  );
+  let lastError = null;
+  for (let i2 = 0; i2 < candidateModels.length; i2++) {
+    const modelToTry = candidateModels[i2];
+    const attemptStartTime = Date.now();
+    if (Date.now() - startTime > 22e3) {
+      console.warn(`[Gemini AI] Total request budget exceeded before trying ${modelToTry}`);
+      break;
+    }
+    try {
+      const config2 = {
+        systemInstruction,
+        maxOutputTokens: 1024
+      };
+      if (modelToTry.includes("3.8") || modelToTry.includes("argon")) {
+        config2.thinkingConfig = { thinkingBudget: 0 };
+      }
+      const perAttemptTimeoutMs = 12e3;
+      const generatePromise = client.models.generateContent({
+        model: modelToTry,
+        contents,
+        config: config2
+      });
+      const timeoutPromise = new Promise(
+        (_, reject) => setTimeout(
+          () => reject(new Error(`Model ${modelToTry} response timed out (${perAttemptTimeoutMs / 1e3}s limit)`)),
+          perAttemptTimeoutMs
+        )
+      );
+      const result = await Promise.race([generatePromise, timeoutPromise]);
+      const responseText = result.text?.trim();
+      if (responseText) {
+        const totalDuration = Date.now() - startTime;
+        const attemptDuration = Date.now() - attemptStartTime;
+        console.log(
+          `[Gemini AI] Success with ${modelToTry} in ${attemptDuration}ms (Total: ${totalDuration}ms) | Output length: ${responseText.length} chars`
+        );
+        return { text: responseText, model: modelToTry, latencyMs: totalDuration };
+      }
+      throw new Error(`Empty response returned from ${modelToTry}`);
+    } catch (err) {
+      const attemptDuration = Date.now() - attemptStartTime;
+      lastError = err;
+      const status = err?.status || err?.statusCode || (err?.message?.includes("timed out") ? 408 : 500);
+      console.warn(
+        `[Gemini AI] Attempt failed on ${modelToTry} after ${attemptDuration}ms | Status: ${status} | Error: ${err?.message || err}`
+      );
+      if (status === 400 || status === 401 || status === 403) {
+        const msg = String(err?.message || "");
+        if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid")) {
+          console.error(`[Gemini AI] Fatal API key error encountered. Halting fallback chain.`);
+          throw new Error("Invalid Gemini API Key configured in server environment.");
+        }
+      }
+      if (i2 < candidateModels.length - 1) {
+        if (status === 429 || status === 503) {
+          console.log(`[Gemini AI] Waiting 600ms backoff before switching to candidate ${candidateModels[i2 + 1]}...`);
+          await new Promise((r2) => setTimeout(r2, 600));
+        }
+      }
+    }
+  }
+  throw lastError || new Error("All Gemini candidate models failed to return a response.");
+}
 async function generateFarmerAssistantReply(options) {
   const { question, history = [], context = {}, language: manualLang } = options;
   const cleanQuestion = sanitizeInput(question);
@@ -109255,8 +109362,9 @@ async function generateFarmerAssistantReply(options) {
   }
   const detectedLang = detectLanguage(cleanQuestion, manualLang);
   const client = getGeminiClient();
-  const model = getGeminiModel();
+  const primaryModel = getGeminiModel();
   if (!client) {
+    console.warn("[Gemini AI] No API key configured. Utilizing local offline rule engine.");
     const fallbackText = createMockAssistantReply(cleanQuestion, context, detectedLang);
     return {
       text: fallbackText,
@@ -109269,43 +109377,43 @@ async function generateFarmerAssistantReply(options) {
   try {
     const systemInstruction = buildFarmerSystemInstruction(context, detectedLang);
     const contents = formatContents(history, cleanQuestion);
-    const callPromise = client.models.generateContent({
-      model,
+    const result = await executeGeminiWithFallback({
+      client,
+      primaryModel,
       contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-        maxOutputTokens: 1024
-      }
+      systemInstruction,
+      role: "farmer",
+      lang: detectedLang,
+      previewQuestion: cleanQuestion
     });
-    const timeoutPromise = new Promise(
-      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out (25s limit reached).")), 25e3)
-    );
-    const result = await Promise.race([callPromise, timeoutPromise]);
-    const responseText = result.text?.trim();
-    if (!responseText) {
-      throw new Error("Gemini returned empty text response.");
-    }
     return {
-      text: responseText,
+      text: result.text,
       source: "gemini",
-      model,
-      languageDetected: detectedLang
+      model: result.model,
+      languageDetected: detectedLang,
+      latencyMs: result.latencyMs
     };
   } catch (err) {
-    console.warn(`[Gemini Farmer AI Error] ${err?.message || err}. Falling back to offline advisor.`);
+    console.warn(`[Gemini Farmer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisor.`);
     const fallbackText = createMockAssistantReply(cleanQuestion, context, detectedLang);
     return {
       text: fallbackText,
       source: "fallback",
       model: "offline-rule-engine",
       languageDetected: detectedLang,
-      warning: `Gemini unavailable (${err?.message || "connection error"}). Displaying verified offline response. You may retry.`
+      warning: `Gemini temporarily unavailable (${err?.message || "connection error"}). Displaying verified offline response. You may retry.`
     };
   }
 }
 async function generateOfficerAssistantReply(options) {
-  const { question, history = [], officerRole = "OFFICER", officerName = "Officer", centreName = "Procurement Centre", language: manualLang } = options;
+  const {
+    question,
+    history = [],
+    officerRole = "OFFICER",
+    officerName = "Officer",
+    centreName = "Procurement Centre",
+    language: manualLang
+  } = options;
   const cleanQuestion = sanitizeInput(question);
   if (!cleanQuestion) {
     return {
@@ -109316,8 +109424,9 @@ async function generateOfficerAssistantReply(options) {
   }
   const detectedLang = detectLanguage(cleanQuestion, manualLang);
   const client = getGeminiClient();
-  const model = getGeminiModel();
+  const primaryModel = getGeminiModel();
   if (!client) {
+    console.warn("[Gemini AI] No API key configured for Officer Copilot. Utilizing offline advisory.");
     const offlineReply = `[Offline Officer Advisory]
 \u2022 FAQ Standard: Paddy moisture maximum 17.0%, foreign matter <= 1.0%, damaged grains <= 5.0%.
 \u2022 Administrative Actions: All approvals, rejections, and payments must be processed using the dedicated dashboard controls.
@@ -109331,33 +109440,26 @@ async function generateOfficerAssistantReply(options) {
     };
   }
   try {
-    const systemInstruction = buildOfficerSystemInstruction(officerRole, officerName, centreName);
+    const systemInstruction = buildOfficerSystemInstruction(officerRole, officerName, centreName, detectedLang);
     const contents = formatContents(history, cleanQuestion);
-    const callPromise = client.models.generateContent({
-      model,
+    const result = await executeGeminiWithFallback({
+      client,
+      primaryModel,
       contents,
-      config: {
-        systemInstruction,
-        temperature: 0.6,
-        maxOutputTokens: 1024
-      }
+      systemInstruction,
+      role: "officer",
+      lang: detectedLang,
+      previewQuestion: cleanQuestion
     });
-    const timeoutPromise = new Promise(
-      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out (25s limit reached).")), 25e3)
-    );
-    const result = await Promise.race([callPromise, timeoutPromise]);
-    const responseText = result.text?.trim();
-    if (!responseText) {
-      throw new Error("Gemini returned empty text response for officer query.");
-    }
     return {
-      text: responseText,
+      text: result.text,
       source: "gemini",
-      model,
-      languageDetected: detectedLang
+      model: result.model,
+      languageDetected: detectedLang,
+      latencyMs: result.latencyMs
     };
   } catch (err) {
-    console.warn(`[Gemini Officer AI Error] ${err?.message || err}. Falling back to offline advisory.`);
+    console.warn(`[Gemini Officer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisory.`);
     const offlineReply = `[Offline Officer Advisory]
 \u2022 Operational Norm: Paddy moisture maximum 17.0%, foreign matter <= 1.0%.
 \u2022 Role Protection: Verify farmer Aadhaar and e-Crop before issuing weighbridge slip.
@@ -109367,7 +109469,7 @@ async function generateOfficerAssistantReply(options) {
       source: "fallback",
       model: "offline-rule-engine",
       languageDetected: detectedLang,
-      warning: `Gemini unavailable (${err?.message || "connection error"}). Displaying verified offline advisory.`
+      warning: `Gemini temporarily unavailable (${err?.message || "connection error"}). Displaying verified offline advisory.`
     };
   }
 }
@@ -113649,6 +113751,27 @@ Stack: ${err?.stack}`);
       provider: "Google Gemini AI (@google/genai)",
       fallbackAvailable: true,
       supportedLanguages: ["EN", "TE", "HI", "AUTO"]
+    });
+  });
+  api.get("/ai/health", async (_req, res) => {
+    const configured = isGeminiConfigured();
+    const model = getGeminiModel();
+    if (!configured) {
+      return res.json({
+        ok: false,
+        configured: false,
+        model,
+        message: "GEMINI_API_KEY environment variable is not configured."
+      });
+    }
+    const probe = await testGeminiConnectivity();
+    return res.json({
+      ok: probe.ok,
+      configured: true,
+      model: probe.model,
+      latencyMs: probe.latencyMs,
+      error: probe.error || null,
+      status: probe.ok ? "connected" : "degraded"
     });
   });
   api.post("/ai/chat", async (req, res) => {

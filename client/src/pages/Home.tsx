@@ -3296,6 +3296,7 @@ export default function Home() {
   };
 
   const assistantReply = async (question: string) => {
+    if (chatLoading) return;
     const prompt = question.trim();
     if (!prompt) return;
     setChat(items => [...items, { role: "user", text: prompt }]);
@@ -3307,6 +3308,9 @@ export default function Home() {
     let source = "gemini";
     let model = "gemini-3.5-flash-lite";
     let warning: string | undefined = undefined;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 24_000);
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -3320,6 +3324,7 @@ export default function Home() {
       const response = await fetch(apiUrl("/ai/chat"), {
         method: "POST",
         headers,
+        signal: controller.signal,
         body: JSON.stringify({
           question: prompt,
           bookingId: bookingId || undefined,
@@ -3330,7 +3335,14 @@ export default function Home() {
         }),
       });
 
-      if (response.ok) {
+      clearTimeout(timeoutId);
+
+      if (response.status === 429) {
+        const data = await response.json().catch(() => ({}));
+        reply = data.message || "AI assistant is busy. Please wait a few seconds and try again.";
+        source = "fallback";
+        warning = "Rate limit reached. Please wait a moment before sending another query.";
+      } else if (response.ok) {
         const data = await response.json();
         if (data.response) {
           reply = data.response;
@@ -3339,17 +3351,22 @@ export default function Home() {
           warning = data.warning;
         }
       }
-    } catch {}
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err?.name === "AbortError") {
+        warning = "Request took longer than expected. Retrying or switching to offline guidance.";
+      }
+    } finally {
+      if (!reply) {
+        reply = getClientAiReply(prompt, language);
+        source = "fallback";
+      }
 
-    if (!reply) {
-      reply = getClientAiReply(prompt, language);
-      source = "fallback";
-    }
-
-    setChatLoading(false);
-    setChat(items => [...items, { role: "assistant", text: reply, source, model, warning }]);
-    if (!isMuted) {
-      speak(reply);
+      setChatLoading(false);
+      setChat(items => [...items, { role: "assistant", text: reply, source, model, warning }]);
+      if (!isMuted && reply) {
+        speak(reply);
+      }
     }
   };
 
@@ -3366,6 +3383,7 @@ export default function Home() {
   };
 
   const officerAssistantReply = async (question: string) => {
+    if (officerChatLoading) return;
     const prompt = question.trim();
     if (!prompt) return;
     setOfficerChat(items => [...items, { role: "user", text: prompt }]);
@@ -3376,6 +3394,9 @@ export default function Home() {
     let source = "gemini";
     let model = "gemini-3.5-flash-lite";
     let warning: string | undefined = undefined;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 24_000);
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -3389,6 +3410,7 @@ export default function Home() {
       const response = await fetch(apiUrl("/ai/chat"), {
         method: "POST",
         headers,
+        signal: controller.signal,
         body: JSON.stringify({
           question: prompt,
           language,
@@ -3398,7 +3420,14 @@ export default function Home() {
         }),
       });
 
-      if (response.ok) {
+      clearTimeout(timeoutId);
+
+      if (response.status === 429) {
+        const data = await response.json().catch(() => ({}));
+        reply = data.message || "Officer AI Copilot is busy. Please wait a few seconds and try again.";
+        source = "fallback";
+        warning = "Rate limit reached. Please wait a moment.";
+      } else if (response.ok) {
         const data = await response.json();
         if (data.response) {
           reply = data.response;
@@ -3407,17 +3436,19 @@ export default function Home() {
           warning = data.warning;
         }
       }
-    } catch {}
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+    } finally {
+      if (!reply) {
+        reply = "Fair Average Quality (FAQ) norms mandate that paddy moisture must be <= 17.0%, foreign matter <= 1.0%, and damaged grains <= 5.0%. Please use the Officer Dashboard controls directly to execute administrative updates.";
+        source = "fallback";
+      }
 
-    if (!reply) {
-      reply = "Fair Average Quality (FAQ) norms mandate that paddy moisture must be <= 17.0%, foreign matter <= 1.0%, and damaged grains <= 5.0%. Please use the Officer Dashboard controls directly to execute administrative updates.";
-      source = "fallback";
-    }
-
-    setOfficerChatLoading(false);
-    setOfficerChat(items => [...items, { role: "assistant", text: reply, source, model, warning }]);
-    if (!isMuted) {
-      speak(reply);
+      setOfficerChatLoading(false);
+      setOfficerChat(items => [...items, { role: "assistant", text: reply, source, model, warning }]);
+      if (!isMuted && reply) {
+        speak(reply);
+      }
     }
   };
 
