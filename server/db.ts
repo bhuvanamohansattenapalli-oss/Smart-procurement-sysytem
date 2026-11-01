@@ -549,7 +549,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMsg: string): Pr
 
 let _initDbPromise: Promise<ReturnType<typeof drizzle>> | null = null;
 let _lastConnectionAttempt = 0;
-const CONNECTION_COOLDOWN_MS = 8_000;
+const CONNECTION_COOLDOWN_MS = 2_000;
+let _lastDbError: string | null = null;
+let _lastDbDiagnostics: { host: string; port: string; dbname: string; userMasked: string } | null = null;
+
+export function getLastDbDiagnostics() {
+  return {
+    lastError: _lastDbError,
+    target: _lastDbDiagnostics,
+    lastAttempt: _lastConnectionAttempt ? new Date(_lastConnectionAttempt).toISOString() : null,
+  };
+}
 
 async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
   const connectionString = process.env.DATABASE_URL;
@@ -559,6 +569,22 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
       return null as any;
     }
     _lastConnectionAttempt = Date.now();
+    try {
+      const parsed = new URL(connectionString);
+      _lastDbDiagnostics = {
+        host: parsed.hostname,
+        port: parsed.port || "5432",
+        dbname: parsed.pathname.replace(/^\//, ""),
+        userMasked: parsed.username ? `${parsed.username.slice(0, 4)}***` : "none",
+      };
+    } catch {
+      _lastDbDiagnostics = {
+        host: "invalid-url-format",
+        port: "",
+        dbname: "",
+        userMasked: "unknown",
+      };
+    }
     const masked = maskConnectionString(connectionString);
     console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
 
@@ -574,7 +600,7 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
       const pool = new Pool({
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
-        connectionTimeoutMillis: 10000,
+        connectionTimeoutMillis: 15000,
         idleTimeoutMillis: 10000,
         max: 10,
         statement_timeout: 25000,
@@ -587,11 +613,11 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
         console.warn("[Database Pool Idle Warning]", poolErr?.message || poolErr);
       });
 
-      // Fail-Fast: Test connection probe with a 5000ms timeout
+      // Fail-Fast: Test connection probe with a 10000ms timeout
       const testRes = await withTimeout(
         pool.query("SELECT 1 AS connected"),
-        5000,
-        `PostgreSQL connection probe to ${masked} timed out after 5000ms.`
+        10000,
+        `PostgreSQL connection probe to ${masked} timed out after 10000ms.`
       );
       if (!testRes || !testRes.rows || testRes.rows.length === 0) {
         throw new Error("PostgreSQL handshake returned empty response.");
@@ -609,8 +635,10 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
       _pool = pool;
       _db = drizzle(pool);
       _isPostgres = true;
+      _lastDbError = null;
       return _db;
     } catch (error: any) {
+      _lastDbError = error instanceof Error ? error.message : String(error);
       console.warn(
         "\n================================================================================\n" +
         "[DATABASE WARNING] Failed to connect to PostgreSQL database using DATABASE_URL!\n" +

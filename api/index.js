@@ -611,6 +611,7 @@ var db_exports = {};
 __export(db_exports, {
   LocalDatabaseStore: () => LocalDatabaseStore,
   getDb: () => getDb,
+  getLastDbDiagnostics: () => getLastDbDiagnostics,
   getPgPool: () => getPgPool,
   getUserByOpenId: () => getUserByOpenId,
   isPostgresActive: () => isPostgresActive,
@@ -730,6 +731,13 @@ function withTimeout2(promise, ms, timeoutMsg) {
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
+function getLastDbDiagnostics() {
+  return {
+    lastError: _lastDbError,
+    target: _lastDbDiagnostics,
+    lastAttempt: _lastConnectionAttempt ? new Date(_lastConnectionAttempt).toISOString() : null
+  };
+}
 async function initDbInternal() {
   const connectionString = process.env.DATABASE_URL;
   if (connectionString && connectionString.trim().length > 0) {
@@ -737,6 +745,22 @@ async function initDbInternal() {
       return null;
     }
     _lastConnectionAttempt = Date.now();
+    try {
+      const parsed = new URL(connectionString);
+      _lastDbDiagnostics = {
+        host: parsed.hostname,
+        port: parsed.port || "5432",
+        dbname: parsed.pathname.replace(/^\//, ""),
+        userMasked: parsed.username ? `${parsed.username.slice(0, 4)}***` : "none"
+      };
+    } catch {
+      _lastDbDiagnostics = {
+        host: "invalid-url-format",
+        port: "",
+        dbname: "",
+        userMasked: "unknown"
+      };
+    }
     const masked = maskConnectionString(connectionString);
     console.log(`[Database] DATABASE_URL detected. Connecting to PostgreSQL at ${masked}...`);
     try {
@@ -744,7 +768,7 @@ async function initDbInternal() {
       const pool = new Pool2({
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
-        connectionTimeoutMillis: 1e4,
+        connectionTimeoutMillis: 15e3,
         idleTimeoutMillis: 1e4,
         max: 10,
         statement_timeout: 25e3,
@@ -757,8 +781,8 @@ async function initDbInternal() {
       });
       const testRes = await withTimeout2(
         pool.query("SELECT 1 AS connected"),
-        5e3,
-        `PostgreSQL connection probe to ${masked} timed out after 5000ms.`
+        1e4,
+        `PostgreSQL connection probe to ${masked} timed out after 10000ms.`
       );
       if (!testRes || !testRes.rows || testRes.rows.length === 0) {
         throw new Error("PostgreSQL handshake returned empty response.");
@@ -772,8 +796,10 @@ async function initDbInternal() {
       _pool = pool;
       _db = drizzle(pool);
       _isPostgres = true;
+      _lastDbError = null;
       return _db;
     } catch (error) {
+      _lastDbError = error instanceof Error ? error.message : String(error);
       console.warn(
         `
 ================================================================================
@@ -883,7 +909,7 @@ async function getUserByOpenId(openId) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result.length > 0 ? result[0] : void 0;
 }
-var Pool2, _db, _pool, _isPostgres, LocalDatabaseStore, localStore, _initDbPromise, _lastConnectionAttempt, CONNECTION_COOLDOWN_MS;
+var Pool2, _db, _pool, _isPostgres, LocalDatabaseStore, localStore, _initDbPromise, _lastConnectionAttempt, CONNECTION_COOLDOWN_MS, _lastDbError, _lastDbDiagnostics;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -1240,7 +1266,9 @@ var init_db = __esm({
     localStore = new LocalDatabaseStore();
     _initDbPromise = null;
     _lastConnectionAttempt = 0;
-    CONNECTION_COOLDOWN_MS = 8e3;
+    CONNECTION_COOLDOWN_MS = 2e3;
+    _lastDbError = null;
+    _lastDbDiagnostics = null;
   }
 });
 
@@ -5126,6 +5154,20 @@ app.use((req, _res, next) => {
   next();
 });
 app.get(["/api/status", "/api/diag", "/status", "/diag"], (_req, res) => {
+  let targetInfo = null;
+  if (process.env.DATABASE_URL) {
+    try {
+      const u = new URL(process.env.DATABASE_URL);
+      targetInfo = {
+        host: u.hostname,
+        port: u.port || "5432",
+        database: u.pathname.replace(/^\//, ""),
+        userMasked: u.username ? `${u.username.slice(0, 8)}***` : "none"
+      };
+    } catch {
+      targetInfo = { host: "invalid-url-format" };
+    }
+  }
   res.status(200).json({
     status: "ok",
     service: "ProcureFlow Vercel Serverless Function",
@@ -5135,7 +5177,8 @@ app.get(["/api/status", "/api/diag", "/status", "/diag"], (_req, res) => {
       hasGeminiApiKey: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0),
       geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
       nodeEnv: process.env.NODE_ENV || "production",
-      isVercel: Boolean(process.env.VERCEL)
+      isVercel: Boolean(process.env.VERCEL),
+      configuredDbTarget: targetInfo
     },
     system: {
       nodeVersion: process.version,
@@ -5157,15 +5200,17 @@ app.get(["/api/status/db", "/status/db"], async (_req, res) => {
     });
   }
   try {
-    const { getDb: getDb2, isPostgresActive: isPostgresActive2, getPgPool: getPgPool2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+    const { getDb: getDb2, isPostgresActive: isPostgresActive2, getPgPool: getPgPool2, getLastDbDiagnostics: getLastDbDiagnostics2 } = await Promise.resolve().then(() => (init_db(), db_exports));
     const db = await getDb2();
     const pool = getPgPool2();
+    const diag = getLastDbDiagnostics2 ? getLastDbDiagnostics2() : null;
     if (!db || !pool) {
       return res.status(503).json({
         status: "unhealthy",
         error: "DATABASE_CONNECTION_FAILED",
         message: "Failed to establish a connection to PostgreSQL via DATABASE_URL.",
         isPostgres: isPostgresActive2(),
+        diagnostics: diag,
         latencyMs: Date.now() - startTime,
         timestamp: (/* @__PURE__ */ new Date()).toISOString()
       });
@@ -5177,6 +5222,7 @@ app.get(["/api/status/db", "/status/db"], async (_req, res) => {
       database: "postgresql",
       isPostgres: isPostgresActive2(),
       tablesReady: Boolean(checkTables.rows[0]?.f && checkTables.rows[0]?.u),
+      diagnostics: diag,
       latencyMs: Date.now() - startTime,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });

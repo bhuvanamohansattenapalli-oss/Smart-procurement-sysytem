@@ -50,6 +50,21 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 
 // 1. Zero-dependency environment & runtime status check
 app.get(["/api/status", "/api/diag", "/status", "/diag"], (_req: Request, res: Response) => {
+  let targetInfo: any = null;
+  if (process.env.DATABASE_URL) {
+    try {
+      const u = new URL(process.env.DATABASE_URL);
+      targetInfo = {
+        host: u.hostname,
+        port: u.port || "5432",
+        database: u.pathname.replace(/^\//, ""),
+        userMasked: u.username ? `${u.username.slice(0, 8)}***` : "none",
+      };
+    } catch {
+      targetInfo = { host: "invalid-url-format" };
+    }
+  }
+
   res.status(200).json({
     status: "ok",
     service: "ProcureFlow Vercel Serverless Function",
@@ -60,6 +75,7 @@ app.get(["/api/status", "/api/diag", "/status", "/diag"], (_req: Request, res: R
       geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
       nodeEnv: process.env.NODE_ENV || "production",
       isVercel: Boolean(process.env.VERCEL),
+      configuredDbTarget: targetInfo,
     },
     system: {
       nodeVersion: process.version,
@@ -84,15 +100,18 @@ app.get(["/api/status/db", "/status/db"], async (_req: Request, res: Response) =
   }
 
   try {
-    const { getDb, isPostgresActive, getPgPool } = await import("./db");
+    const { getDb, isPostgresActive, getPgPool, getLastDbDiagnostics } = await import("./db");
     const db = await getDb();
     const pool = getPgPool();
+    const diag = getLastDbDiagnostics ? getLastDbDiagnostics() : null;
+
     if (!db || !pool) {
       return res.status(503).json({
         status: "unhealthy",
         error: "DATABASE_CONNECTION_FAILED",
         message: "Failed to establish a connection to PostgreSQL via DATABASE_URL.",
         isPostgres: isPostgresActive(),
+        diagnostics: diag,
         latencyMs: Date.now() - startTime,
         timestamp: new Date().toISOString(),
       });
@@ -106,6 +125,7 @@ app.get(["/api/status/db", "/status/db"], async (_req: Request, res: Response) =
       database: "postgresql",
       isPostgres: isPostgresActive(),
       tablesReady: Boolean(checkTables.rows[0]?.f && checkTables.rows[0]?.u),
+      diagnostics: diag,
       latencyMs: Date.now() - startTime,
       timestamp: new Date().toISOString(),
     });
