@@ -575,12 +575,16 @@ async function initDbInternal(): Promise<ReturnType<typeof drizzle>> {
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
         connectionTimeoutMillis: 10000,
-        idleTimeoutMillis: 30000,
+        idleTimeoutMillis: 10000,
         max: 10,
         statement_timeout: 25000,
         query_timeout: 25000,
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000,
+      });
+
+      pool.on("error", (poolErr: any) => {
+        console.warn("[Database Pool Idle Warning]", poolErr?.message || poolErr);
       });
 
       // Fail-Fast: Test connection probe with a 5000ms timeout

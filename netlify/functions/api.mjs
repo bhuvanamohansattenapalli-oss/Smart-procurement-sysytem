@@ -38041,12 +38041,15 @@ async function initDbInternal() {
         connectionString,
         ssl: isSslRequired ? { rejectUnauthorized: false } : void 0,
         connectionTimeoutMillis: 1e4,
-        idleTimeoutMillis: 3e4,
+        idleTimeoutMillis: 1e4,
         max: 10,
         statement_timeout: 25e3,
         query_timeout: 25e3,
         keepAlive: true,
         keepAliveInitialDelayMillis: 1e4
+      });
+      pool.on("error", (poolErr) => {
+        console.warn("[Database Pool Idle Warning]", poolErr?.message || poolErr);
       });
       const testRes = await withTimeout2(
         pool.query("SELECT 1 AS connected"),
