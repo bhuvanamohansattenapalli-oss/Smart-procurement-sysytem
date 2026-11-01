@@ -101658,9 +101658,15 @@ function isGeminiConfigured() {
   return Boolean(key && key.length > 10);
 }
 function getGeminiModel() {
-  const envModel = process.env.GEMINI_MODEL?.trim();
-  if (envModel && !envModel.includes("2.5") && !envModel.includes("2.0") && !envModel.includes("1.5")) {
-    return envModel;
+  const rawModel = process.env.GEMINI_MODEL?.trim();
+  if (rawModel) {
+    const normalized = rawModel.toLowerCase().replace(/\s+/g, "-");
+    if (normalized.includes("3.8")) return "gemini-3.8-flash";
+    if (normalized.includes("3.5")) return "gemini-3.5-flash-lite";
+    if (normalized.includes("3.1")) return "gemini-3.1-flash-lite";
+    if (!normalized.includes("2.5") && !normalized.includes("2.0") && !normalized.includes("1.5")) {
+      return normalized;
+    }
   }
   return "gemini-3.5-flash-lite";
 }
