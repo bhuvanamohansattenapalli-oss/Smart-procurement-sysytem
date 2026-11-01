@@ -302,11 +302,14 @@ WEATHER INTEGRATION INSTRUCTIONS (STRICT COMPLIANCE):
 
 MULTIMODAL AGRICULTURAL VISION & SAFETY INSTRUCTIONS:
 - When an image is provided:
-  • Crop Health & Pests: Carefully inspect visible leaves, stems, or grains for signs of pest damage, chlorosis, blast, blight, or discoloration.
-  • Mandatory Safety Rule: NEVER claim a 100% definitive diagnosis from a photograph alone. State observations as possibilities and advise physical verification by the local Village Agricultural Assistant (VAA) or Rythu Bharosa Kendra (RBK).
-  • Image Clarity: If lighting, resolution, or focus is inadequate, explain politely what details are unclear and guide the farmer on how to take a clearer photo.
-  • Chemical Safety: Do NOT recommend dangerous chemical dosages or hazardous pesticides without adequate evidence; promote Integrated Pest Management (IPM) and safe handling.
-  • Mandi Receipts / Documents: Extract key data accurately (weights, deductions, net amounts, token numbers) and remind the farmer to keep the physical slip safe.
+  • Crop Diseases & Visible Symptoms: Inspect visible leaves, stems, flowers, or panicles for fungal, bacterial, or viral disease symptoms (e.g. leaf blast diamond-shaped lesions with grey centers, sheath blight oval greenish-grey lesions, brown spot, bacterial leaf blight).
+  • Pest Damage: Inspect for characteristic signs of insect infestation (e.g. yellow stem borer dead hearts or white heads, brown planthopper hopper burn patches, leaf folder longitudinal leaf folds with translucent feeding streaks, gall midge silver shoots).
+  • Yellowing & Leaf Discoloration: Differentiate between physiological/nutrient deficiencies (uniform chlorosis in older leaves for Nitrogen; Khaira reddish-brown bronzing for Zinc deficiency), moisture/salinity stress, and viral infections like Rice Tungro (stunted plants, yellow-orange discolored leaves).
+  • Paddy Grain Quality: Inspect grain clusters or grain samples for discoloration, chalkiness, immature green grains, broken grains, moisture dampness, and assess against AP Fair Average Quality (FAQ) standards (strict maximum moisture <= 17.0%, foreign matter <= 1.0%, damaged/discolored grains <= 5.0%).
+  • Mandi Receipts & Agricultural Documents: Accurately read and transcribe text, numeric entries, weighbridge gross/tare/net weights in quintals, moisture deductions, settlement amounts, token numbers, and dates. Remind the farmer to retain the physical stamped receipt for DBT bank verification.
+  • Mandatory Diagnostic Safety Rule: NEVER claim a 100% definitive disease or pest diagnosis from an image alone. Explicitly state observations as advisory possibilities and advise physical inspection by the local Rythu Bharosa Kendram (RBK) or Village Agricultural Assistant (VAA) before purchasing or applying commercial treatments.
+  • Image Clarity: If lighting is dim, blurry, out-of-focus, or the crop/document details are unclear, explain specifically what cannot be seen clearly and kindly guide the farmer on how to capture a clearer close-up photograph in natural daylight.
+  • Chemical Safety: Do NOT prescribe dangerous, unapproved, or high-dosage chemical pesticides. Prioritize Integrated Pest Management (IPM), cultural practices, and biological controls (e.g. Neem oil, Trichoderma).
 
 STRICT ACCURACY & INTEGRITY RULES:
 - Never fabricate or invent government schemes, subsidies, or prices. Only reference verified official schemes (Rythu Bharosa, PM-Kisan, AP Civil Supplies, e-Crop).
@@ -556,12 +559,19 @@ export async function generateFarmerAssistantReply(options: FarmerChatOptions): 
 
   if (!client) {
     console.warn("[Gemini AI] No API key configured. Utilizing local offline rule engine.");
-    const fallbackText = createMockAssistantReply(cleanQuestion, {
-      ...context,
-      district: weatherReport?.district,
-      weatherCondition: weatherReport?.current?.weatherCondition,
-      temperature: weatherReport?.current?.temperatureC,
-    }, detectedLang);
+    const isImageRequest = Boolean(image);
+    const fallbackText = isImageRequest
+      ? (detectedLang === "TE"
+          ? "⚠️ క్షమించండి, చిత్రం విశ్లేషణ కోసం AI సర్వీస్ ప్రస్తుతం కాన్ఫిగర్ చేయబడలేదు. దయచేసి ధృవీకరించిన సమాచారం కోసం మీ సమీప రైతు భరోసా కేంద్రం (RBK) లేదా గ్రామ వ్యవసాయ సహాయకుడిని (VAA) సంప్రదించండి."
+          : detectedLang === "HI"
+          ? "⚠️ क्षमा करें, छवि विश्लेषण के लिए AI सेवा वर्तमान में कॉन्फ़िगर नहीं है। कृपया प्रत्यक्ष मार्गदर्शन के लिए अपने नजदीकी रायथू भरोसा केंद्र (RBK) या ग्राम कृषि सहायक (VAA) से संपर्क करें।"
+          : "⚠️ Image analysis is currently unavailable as the AI service is not configured. ProcureFlow does not fabricate AI diagnoses. Please consult your local Rythu Bharosa Kendram (RBK) or Village Agricultural Assistant (VAA).")
+      : createMockAssistantReply(cleanQuestion, {
+          ...context,
+          district: weatherReport?.district,
+          weatherCondition: weatherReport?.current?.weatherCondition,
+          temperature: weatherReport?.current?.temperatureC,
+        }, detectedLang);
     return {
       text: fallbackText,
       source: "fallback",
@@ -596,12 +606,22 @@ export async function generateFarmerAssistantReply(options: FarmerChatOptions): 
     };
   } catch (err: any) {
     console.warn(`[Gemini Farmer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisor.`);
-    const fallbackText = createMockAssistantReply(cleanQuestion, {
-      ...context,
-      district: weatherReport?.district,
-      weatherCondition: weatherReport?.current?.weatherCondition,
-      temperature: weatherReport?.current?.temperatureC,
-    }, detectedLang);
+    const isImageRequest = Boolean(image);
+    let fallbackText: string;
+    if (isImageRequest) {
+      fallbackText = detectedLang === "TE"
+        ? "⚠️ క్షమించండి, చిత్రం విశ్లేషణ కోసం AI సర్వీస్ ప్రస్తుతం అందుబాటులో లేదు (సమయం ముగిసింది లేదా కోటా పరిమితి). ప్రొక్యూర్-ఫ్లో కల్పిత సమాధానాలను ఇవ్వదు. దయచేసి కాసేపటి తర్వాత మళ్లీ ప్రయత్నించండి లేదా మీ సమీప రైతు భరోసా కేంద్రం (RBK) / గ్రామ వ్యవసాయ సహాయకుడిని (VAA) సంప్రదించండి."
+        : detectedLang === "HI"
+        ? "⚠️ क्षमा करें, फोटो विश्लेषण के लिए AI सेवा वर्तमान में अनुपलब्ध है (समय समाप्त या कोटा सीमा)। प्रोक्योर-फ्लो मनगढ़ंत उत्तर नहीं देता है। कृपया कुछ समय बाद पुनः प्रयास करें या प्रत्यक्ष निरीक्षण के लिए अपने नजदीकी रायथू भरोसा केंद्र (RBK) / ग्राम कृषि सहायक (VAA) से संपर्क करें।"
+        : "⚠️ Visual analysis is temporarily unavailable as the AI service timed out or reached quota limits. ProcureFlow does not fabricate AI visual diagnoses. Please retry in a few moments, or present your crop sample or document directly to your local Rythu Bharosa Kendram (RBK) or Village Agricultural Assistant (VAA) for verified physical inspection.";
+    } else {
+      fallbackText = createMockAssistantReply(cleanQuestion, {
+        ...context,
+        district: weatherReport?.district,
+        weatherCondition: weatherReport?.current?.weatherCondition,
+        temperature: weatherReport?.current?.temperatureC,
+      }, detectedLang);
+    }
     return {
       text: fallbackText,
       source: "fallback",
@@ -688,7 +708,10 @@ export async function generateOfficerAssistantReply(options: OfficerChatOptions)
     };
   } catch (err: any) {
     console.warn(`[Gemini Officer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisory.`);
-    const offlineReply = `[Offline Officer Advisory]\n• Operational Norm: Paddy moisture maximum 17.0%, foreign matter <= 1.0%.\n• Role Protection: Verify farmer Aadhaar and e-Crop before issuing weighbridge slip.\n• System Status: Gemini service is currently experiencing high latency or rate limits. Please use the dashboard console controls directly.`;
+    const isImageRequest = Boolean(image);
+    const offlineReply = isImageRequest
+      ? `[Offline Officer Notice]\n• Document/Image OCR is temporarily unavailable (Gemini service timed out or reached quota).\n• Verification Protocol: Please verify the physical document (Gate Pass / Weighbridge Slip / Pattadar Passbook) manually.\n• System Status: You may retry when AI connectivity restores.`
+      : `[Offline Officer Advisory]\n• Operational Norm: Paddy moisture maximum 17.0%, foreign matter <= 1.0%.\n• Role Protection: Verify farmer Aadhaar and e-Crop before issuing weighbridge slip.\n• System Status: Gemini service is currently experiencing high latency or rate limits. Please use the dashboard console controls directly.`;
     return {
       text: offlineReply,
       source: "fallback",

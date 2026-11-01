@@ -2597,11 +2597,14 @@ WEATHER INTEGRATION INSTRUCTIONS (STRICT COMPLIANCE):
 
 MULTIMODAL AGRICULTURAL VISION & SAFETY INSTRUCTIONS:
 - When an image is provided:
-  \u2022 Crop Health & Pests: Carefully inspect visible leaves, stems, or grains for signs of pest damage, chlorosis, blast, blight, or discoloration.
-  \u2022 Mandatory Safety Rule: NEVER claim a 100% definitive diagnosis from a photograph alone. State observations as possibilities and advise physical verification by the local Village Agricultural Assistant (VAA) or Rythu Bharosa Kendra (RBK).
-  \u2022 Image Clarity: If lighting, resolution, or focus is inadequate, explain politely what details are unclear and guide the farmer on how to take a clearer photo.
-  \u2022 Chemical Safety: Do NOT recommend dangerous chemical dosages or hazardous pesticides without adequate evidence; promote Integrated Pest Management (IPM) and safe handling.
-  \u2022 Mandi Receipts / Documents: Extract key data accurately (weights, deductions, net amounts, token numbers) and remind the farmer to keep the physical slip safe.
+  \u2022 Crop Diseases & Visible Symptoms: Inspect visible leaves, stems, flowers, or panicles for fungal, bacterial, or viral disease symptoms (e.g. leaf blast diamond-shaped lesions with grey centers, sheath blight oval greenish-grey lesions, brown spot, bacterial leaf blight).
+  \u2022 Pest Damage: Inspect for characteristic signs of insect infestation (e.g. yellow stem borer dead hearts or white heads, brown planthopper hopper burn patches, leaf folder longitudinal leaf folds with translucent feeding streaks, gall midge silver shoots).
+  \u2022 Yellowing & Leaf Discoloration: Differentiate between physiological/nutrient deficiencies (uniform chlorosis in older leaves for Nitrogen; Khaira reddish-brown bronzing for Zinc deficiency), moisture/salinity stress, and viral infections like Rice Tungro (stunted plants, yellow-orange discolored leaves).
+  \u2022 Paddy Grain Quality: Inspect grain clusters or grain samples for discoloration, chalkiness, immature green grains, broken grains, moisture dampness, and assess against AP Fair Average Quality (FAQ) standards (strict maximum moisture <= 17.0%, foreign matter <= 1.0%, damaged/discolored grains <= 5.0%).
+  \u2022 Mandi Receipts & Agricultural Documents: Accurately read and transcribe text, numeric entries, weighbridge gross/tare/net weights in quintals, moisture deductions, settlement amounts, token numbers, and dates. Remind the farmer to retain the physical stamped receipt for DBT bank verification.
+  \u2022 Mandatory Diagnostic Safety Rule: NEVER claim a 100% definitive disease or pest diagnosis from an image alone. Explicitly state observations as advisory possibilities and advise physical inspection by the local Rythu Bharosa Kendram (RBK) or Village Agricultural Assistant (VAA) before purchasing or applying commercial treatments.
+  \u2022 Image Clarity: If lighting is dim, blurry, out-of-focus, or the crop/document details are unclear, explain specifically what cannot be seen clearly and kindly guide the farmer on how to capture a clearer close-up photograph in natural daylight.
+  \u2022 Chemical Safety: Do NOT prescribe dangerous, unapproved, or high-dosage chemical pesticides. Prioritize Integrated Pest Management (IPM), cultural practices, and biological controls (e.g. Neem oil, Trichoderma).
 
 STRICT ACCURACY & INTEGRITY RULES:
 - Never fabricate or invent government schemes, subsidies, or prices. Only reference verified official schemes (Rythu Bharosa, PM-Kisan, AP Civil Supplies, e-Crop).
@@ -2771,7 +2774,8 @@ async function generateFarmerAssistantReply(options) {
   } : void 0;
   if (!client) {
     console.warn("[Gemini AI] No API key configured. Utilizing local offline rule engine.");
-    const fallbackText = createMockAssistantReply(cleanQuestion, {
+    const isImageRequest = Boolean(image);
+    const fallbackText = isImageRequest ? detectedLang === "TE" ? "\u26A0\uFE0F \u0C15\u0C4D\u0C37\u0C2E\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F, \u0C1A\u0C3F\u0C24\u0C4D\u0C30\u0C02 \u0C35\u0C3F\u0C36\u0C4D\u0C32\u0C47\u0C37\u0C23 \u0C15\u0C4B\u0C38\u0C02 AI \u0C38\u0C30\u0C4D\u0C35\u0C40\u0C38\u0C4D \u0C2A\u0C4D\u0C30\u0C38\u0C4D\u0C24\u0C41\u0C24\u0C02 \u0C15\u0C3E\u0C28\u0C4D\u0C2B\u0C3F\u0C17\u0C30\u0C4D \u0C1A\u0C47\u0C2F\u0C2C\u0C21\u0C32\u0C47\u0C26\u0C41. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C27\u0C43\u0C35\u0C40\u0C15\u0C30\u0C3F\u0C02\u0C1A\u0C3F\u0C28 \u0C38\u0C2E\u0C3E\u0C1A\u0C3E\u0C30\u0C02 \u0C15\u0C4B\u0C38\u0C02 \u0C2E\u0C40 \u0C38\u0C2E\u0C40\u0C2A \u0C30\u0C48\u0C24\u0C41 \u0C2D\u0C30\u0C4B\u0C38\u0C3E \u0C15\u0C47\u0C02\u0C26\u0C4D\u0C30\u0C02 (RBK) \u0C32\u0C47\u0C26\u0C3E \u0C17\u0C4D\u0C30\u0C3E\u0C2E \u0C35\u0C4D\u0C2F\u0C35\u0C38\u0C3E\u0C2F \u0C38\u0C39\u0C3E\u0C2F\u0C15\u0C41\u0C21\u0C3F\u0C28\u0C3F (VAA) \u0C38\u0C02\u0C2A\u0C4D\u0C30\u0C26\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F." : detectedLang === "HI" ? "\u26A0\uFE0F \u0915\u094D\u0937\u092E\u093E \u0915\u0930\u0947\u0902, \u091B\u0935\u093F \u0935\u093F\u0936\u094D\u0932\u0947\u0937\u0923 \u0915\u0947 \u0932\u093F\u090F AI \u0938\u0947\u0935\u093E \u0935\u0930\u094D\u0924\u092E\u093E\u0928 \u092E\u0947\u0902 \u0915\u0949\u0928\u094D\u092B\u093C\u093F\u0917\u0930 \u0928\u0939\u0940\u0902 \u0939\u0948\u0964 \u0915\u0943\u092A\u092F\u093E \u092A\u094D\u0930\u0924\u094D\u092F\u0915\u094D\u0937 \u092E\u093E\u0930\u094D\u0917\u0926\u0930\u094D\u0936\u0928 \u0915\u0947 \u0932\u093F\u090F \u0905\u092A\u0928\u0947 \u0928\u091C\u0926\u0940\u0915\u0940 \u0930\u093E\u092F\u0925\u0942 \u092D\u0930\u094B\u0938\u093E \u0915\u0947\u0902\u0926\u094D\u0930 (RBK) \u092F\u093E \u0917\u094D\u0930\u093E\u092E \u0915\u0943\u0937\u093F \u0938\u0939\u093E\u092F\u0915 (VAA) \u0938\u0947 \u0938\u0902\u092A\u0930\u094D\u0915 \u0915\u0930\u0947\u0902\u0964" : "\u26A0\uFE0F Image analysis is currently unavailable as the AI service is not configured. ProcureFlow does not fabricate AI diagnoses. Please consult your local Rythu Bharosa Kendram (RBK) or Village Agricultural Assistant (VAA)." : createMockAssistantReply(cleanQuestion, {
       ...context,
       district: weatherReport?.district,
       weatherCondition: weatherReport?.current?.weatherCondition,
@@ -2808,12 +2812,18 @@ async function generateFarmerAssistantReply(options) {
     };
   } catch (err) {
     console.warn(`[Gemini Farmer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisor.`);
-    const fallbackText = createMockAssistantReply(cleanQuestion, {
-      ...context,
-      district: weatherReport?.district,
-      weatherCondition: weatherReport?.current?.weatherCondition,
-      temperature: weatherReport?.current?.temperatureC
-    }, detectedLang);
+    const isImageRequest = Boolean(image);
+    let fallbackText;
+    if (isImageRequest) {
+      fallbackText = detectedLang === "TE" ? "\u26A0\uFE0F \u0C15\u0C4D\u0C37\u0C2E\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F, \u0C1A\u0C3F\u0C24\u0C4D\u0C30\u0C02 \u0C35\u0C3F\u0C36\u0C4D\u0C32\u0C47\u0C37\u0C23 \u0C15\u0C4B\u0C38\u0C02 AI \u0C38\u0C30\u0C4D\u0C35\u0C40\u0C38\u0C4D \u0C2A\u0C4D\u0C30\u0C38\u0C4D\u0C24\u0C41\u0C24\u0C02 \u0C05\u0C02\u0C26\u0C41\u0C2C\u0C3E\u0C1F\u0C41\u0C32\u0C4B \u0C32\u0C47\u0C26\u0C41 (\u0C38\u0C2E\u0C2F\u0C02 \u0C2E\u0C41\u0C17\u0C3F\u0C38\u0C3F\u0C02\u0C26\u0C3F \u0C32\u0C47\u0C26\u0C3E \u0C15\u0C4B\u0C1F\u0C3E \u0C2A\u0C30\u0C3F\u0C2E\u0C3F\u0C24\u0C3F). \u0C2A\u0C4D\u0C30\u0C4A\u0C15\u0C4D\u0C2F\u0C42\u0C30\u0C4D-\u0C2B\u0C4D\u0C32\u0C4B \u0C15\u0C32\u0C4D\u0C2A\u0C3F\u0C24 \u0C38\u0C2E\u0C3E\u0C27\u0C3E\u0C28\u0C3E\u0C32\u0C28\u0C41 \u0C07\u0C35\u0C4D\u0C35\u0C26\u0C41. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C15\u0C3E\u0C38\u0C47\u0C2A\u0C1F\u0C3F \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C2E\u0C33\u0C4D\u0C32\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F \u0C32\u0C47\u0C26\u0C3E \u0C2E\u0C40 \u0C38\u0C2E\u0C40\u0C2A \u0C30\u0C48\u0C24\u0C41 \u0C2D\u0C30\u0C4B\u0C38\u0C3E \u0C15\u0C47\u0C02\u0C26\u0C4D\u0C30\u0C02 (RBK) / \u0C17\u0C4D\u0C30\u0C3E\u0C2E \u0C35\u0C4D\u0C2F\u0C35\u0C38\u0C3E\u0C2F \u0C38\u0C39\u0C3E\u0C2F\u0C15\u0C41\u0C21\u0C3F\u0C28\u0C3F (VAA) \u0C38\u0C02\u0C2A\u0C4D\u0C30\u0C26\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F." : detectedLang === "HI" ? "\u26A0\uFE0F \u0915\u094D\u0937\u092E\u093E \u0915\u0930\u0947\u0902, \u092B\u094B\u091F\u094B \u0935\u093F\u0936\u094D\u0932\u0947\u0937\u0923 \u0915\u0947 \u0932\u093F\u090F AI \u0938\u0947\u0935\u093E \u0935\u0930\u094D\u0924\u092E\u093E\u0928 \u092E\u0947\u0902 \u0905\u0928\u0941\u092A\u0932\u092C\u094D\u0927 \u0939\u0948 (\u0938\u092E\u092F \u0938\u092E\u093E\u092A\u094D\u0924 \u092F\u093E \u0915\u094B\u091F\u093E \u0938\u0940\u092E\u093E)\u0964 \u092A\u094D\u0930\u094B\u0915\u094D\u092F\u094B\u0930-\u092B\u094D\u0932\u094B \u092E\u0928\u0917\u0922\u093C\u0902\u0924 \u0909\u0924\u094D\u0924\u0930 \u0928\u0939\u0940\u0902 \u0926\u0947\u0924\u093E \u0939\u0948\u0964 \u0915\u0943\u092A\u092F\u093E \u0915\u0941\u091B \u0938\u092E\u092F \u092C\u093E\u0926 \u092A\u0941\u0928\u0903 \u092A\u094D\u0930\u092F\u093E\u0938 \u0915\u0930\u0947\u0902 \u092F\u093E \u092A\u094D\u0930\u0924\u094D\u092F\u0915\u094D\u0937 \u0928\u093F\u0930\u0940\u0915\u094D\u0937\u0923 \u0915\u0947 \u0932\u093F\u090F \u0905\u092A\u0928\u0947 \u0928\u091C\u0926\u0940\u0915\u0940 \u0930\u093E\u092F\u0925\u0942 \u092D\u0930\u094B\u0938\u093E \u0915\u0947\u0902\u0926\u094D\u0930 (RBK) / \u0917\u094D\u0930\u093E\u092E \u0915\u0943\u0937\u093F \u0938\u0939\u093E\u092F\u0915 (VAA) \u0938\u0947 \u0938\u0902\u092A\u0930\u094D\u0915 \u0915\u0930\u0947\u0902\u0964" : "\u26A0\uFE0F Visual analysis is temporarily unavailable as the AI service timed out or reached quota limits. ProcureFlow does not fabricate AI visual diagnoses. Please retry in a few moments, or present your crop sample or document directly to your local Rythu Bharosa Kendram (RBK) or Village Agricultural Assistant (VAA) for verified physical inspection.";
+    } else {
+      fallbackText = createMockAssistantReply(cleanQuestion, {
+        ...context,
+        district: weatherReport?.district,
+        weatherCondition: weatherReport?.current?.weatherCondition,
+        temperature: weatherReport?.current?.temperatureC
+      }, detectedLang);
+    }
     return {
       text: fallbackText,
       source: "fallback",
@@ -2890,7 +2900,11 @@ async function generateOfficerAssistantReply(options) {
     };
   } catch (err) {
     console.warn(`[Gemini Officer AI Error] All Gemini attempts failed: ${err?.message || err}. Falling back to offline advisory.`);
-    const offlineReply = `[Offline Officer Advisory]
+    const isImageRequest = Boolean(image);
+    const offlineReply = isImageRequest ? `[Offline Officer Notice]
+\u2022 Document/Image OCR is temporarily unavailable (Gemini service timed out or reached quota).
+\u2022 Verification Protocol: Please verify the physical document (Gate Pass / Weighbridge Slip / Pattadar Passbook) manually.
+\u2022 System Status: You may retry when AI connectivity restores.` : `[Offline Officer Advisory]
 \u2022 Operational Norm: Paddy moisture maximum 17.0%, foreign matter <= 1.0%.
 \u2022 Role Protection: Verify farmer Aadhaar and e-Crop before issuing weighbridge slip.
 \u2022 System Status: Gemini service is currently experiencing high latency or rate limits. Please use the dashboard console controls directly.`;

@@ -755,6 +755,13 @@ export default function Home() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraMenuRef = useRef<HTMLDivElement>(null);
+  const [isWebcamOpen, setIsWebcamOpen] = useState(false);
+  const [webcamLoading, setWebcamLoading] = useState(false);
+  const [webcamFacingMode, setWebcamFacingMode] = useState<"environment" | "user">("environment");
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const webcamVideoRef = useRef<HTMLVideoElement>(null);
+  const webcamStreamRef = useRef<MediaStream | null>(null);
+  const isSubmittingAiRef = useRef(false);
   const [officerChatInput, setOfficerChatInput] = useState("");
   const [officerChatLoading, setOfficerChatLoading] = useState(false);
   const [officerChatSessionId, setOfficerChatSessionId] = useState<string>(() => `officer-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
@@ -3405,13 +3412,135 @@ export default function Home() {
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
 
+  // Stop and release desktop webcam streams
+  const stopWebcam = () => {
+    if (webcamStreamRef.current) {
+      webcamStreamRef.current.getTracks().forEach(track => track.stop());
+      webcamStreamRef.current = null;
+    }
+    if (webcamVideoRef.current) {
+      webcamVideoRef.current.srcObject = null;
+    }
+    setIsWebcamOpen(false);
+    setWebcamLoading(false);
+  };
+
+  // Start desktop webcam stream with fallback to native file picker
+  const startWebcam = async (facing: "environment" | "user" = "environment") => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    setWebcamLoading(true);
+    setIsWebcamOpen(true);
+    setWebcamFacingMode(facing);
+
+    try {
+      if (webcamStreamRef.current) {
+        webcamStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      webcamStreamRef.current = stream;
+      if (webcamVideoRef.current) {
+        webcamVideoRef.current.srcObject = stream;
+        await webcamVideoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      console.warn("Webcam unavailable or permission denied:", err);
+      stopWebcam();
+      toast.info(tUi("Webcam not accessible. Opening file selector...", language));
+      cameraInputRef.current?.click();
+    } finally {
+      setWebcamLoading(false);
+    }
+  };
+
+  const captureFromWebcam = () => {
+    const video = webcamVideoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      toast.error(tUi("Camera is not ready yet. Please wait a moment.", language));
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+      if (!blob) {
+        toast.error("Failed to capture photo.");
+        return;
+      }
+      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
+      stopWebcam();
+      void processSelectedImage(file);
+    }, "image/jpeg", 0.88);
+  };
+
+  const handleTakePhotoClick = () => {
+    setIsCameraMenuOpen(false);
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width: 768px) and (pointer: coarse)").matches);
+
+    if (isMobile) {
+      // Mobile rear camera via native browser file capture
+      cameraInputRef.current?.click();
+    } else {
+      // Desktop: use webcam if available, with graceful fallback to file picker
+      if (typeof navigator !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
+        void startWebcam("environment");
+      } else {
+        cameraInputRef.current?.click();
+      }
+    }
+  };
+
+  const handleChooseGalleryClick = () => {
+    setIsCameraMenuOpen(false);
+    galleryInputRef.current?.click();
+  };
+
+  // Sync video stream when modal mounts
+  useEffect(() => {
+    if (isWebcamOpen && webcamStreamRef.current && webcamVideoRef.current) {
+      webcamVideoRef.current.srcObject = webcamStreamRef.current;
+      webcamVideoRef.current.play().catch(() => {});
+    }
+  }, [isWebcamOpen]);
+
+  // Clean up webcam streams on unmount
+  useEffect(() => {
+    return () => {
+      if (webcamStreamRef.current) {
+        webcamStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
   const assistantReply = async (question: string) => {
-    if (chatLoading || imageCompressing) return;
+    if (chatLoading || imageCompressing || isSubmittingAiRef.current) return;
     const prompt = question.trim();
     const currentImage = attachedImage;
 
     // Allow sending if prompt is provided OR image is attached
     if (!prompt && !currentImage) return;
+
+    isSubmittingAiRef.current = true;
+    setIsAnalyzingImage(Boolean(currentImage));
 
     const displayPrompt = prompt || (currentImage ? "Uploaded an agricultural photograph for inspection" : "");
 
@@ -3495,11 +3624,23 @@ export default function Home() {
       }
     } finally {
       if (!reply) {
-        reply = getClientAiReply(prompt, language);
-        source = "fallback";
+        if (currentImage) {
+          reply = language === "TE"
+            ? "⚠️ క్షమించండి, చిత్రం విశ్లేషణ కోసం AI సర్వీస్ ప్రస్తుతం అందుబాటులో లేదు (సమయం ముగిసింది లేదా కోటా పరిమితి). ప్రొక్యూర్-ఫ్లో కల్పిత సమాధానాలను ఇవ్వదు. దయచేసి కాసేపటి తర్వాత మళ్లీ ప్రయత్నించండి లేదా మీ సమీప రైతు భరోసా కేంద్రం (RBK) / గ్రామ వ్యవసాయ సహాయకుడిని (VAA) సంప్రదించండి."
+            : language === "HI"
+            ? "⚠️ क्षमा करें, फोटो विश्लेषण के लिए AI सेवा वर्तमान में अनुपलब्ध है (समय समाप्त या कोटा सीमा)। प्रोक्योर-फ्लो मनगढ़ंत उत्तर नहीं देता है। कृपया कुछ समय बाद पुनः प्रयास करें या प्रत्यक्ष निरीक्षण के लिए अपने नजदीकी रायथू भरोसा केंद्र (RBK) / ग्राम कृषि सहायक (VAA) से संपर्क करें।"
+            : "⚠️ Visual analysis is temporarily unavailable as the AI service timed out or reached quota limits. ProcureFlow does not fabricate AI visual diagnoses. Please retry in a few moments, or present your crop sample or document directly to your local Rythu Bharosa Kendram (RBK) or Village Agricultural Assistant (VAA) for verified physical inspection.";
+          source = "fallback";
+          warning = "Gemini service temporarily unreachable. No fabricated visual diagnosis provided.";
+        } else {
+          reply = getClientAiReply(prompt, language);
+          source = "fallback";
+        }
       }
 
       setChatLoading(false);
+      setIsAnalyzingImage(false);
+      isSubmittingAiRef.current = false;
       setChat(items => [...items, { role: "assistant", text: reply, source, model, warning }]);
       if (!isMuted && reply) {
         speak(reply);
@@ -6697,8 +6838,16 @@ export default function Home() {
             {chatLoading && (
               <div className="flex flex-col items-start w-full">
                 <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-xs px-4 py-3 shadow-xs flex items-center gap-2 text-xs text-slate-600">
-                  <Bot size={15} className="text-emerald-700 animate-pulse" />
-                  <span className="font-semibold">{tUi("ProcureFlow Krishi Assistant is thinking...", language)}</span>
+                  {isAnalyzingImage ? (
+                    <Camera size={15} className="text-emerald-700 animate-pulse" />
+                  ) : (
+                    <Bot size={15} className="text-emerald-700 animate-pulse" />
+                  )}
+                  <span className="font-semibold">
+                    {isAnalyzingImage
+                      ? tUi("Analyzing agricultural image...", language)
+                      : tUi("ProcureFlow Krishi Assistant is thinking...", language)}
+                  </span>
                   <div className="flex items-center gap-1 ml-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-bounce" />
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-bounce [animation-delay:0.2s]" />
@@ -6872,10 +7021,7 @@ export default function Home() {
                   <div className="absolute bottom-full left-0 mb-2 w-48 sm:w-52 bg-white rounded-xl shadow-lg border border-slate-200 p-1.5 z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsCameraMenuOpen(false);
-                        cameraInputRef.current?.click();
-                      }}
+                      onClick={handleTakePhotoClick}
                       className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-900 hover:bg-emerald-50 rounded-lg transition-colors text-left cursor-pointer"
                     >
                       <Camera size={16} className="text-emerald-700 shrink-0" />
@@ -6884,10 +7030,7 @@ export default function Home() {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsCameraMenuOpen(false);
-                        galleryInputRef.current?.click();
-                      }}
+                      onClick={handleChooseGalleryClick}
                       className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-emerald-900 hover:bg-emerald-50 rounded-lg transition-colors text-left cursor-pointer"
                     >
                       <ImageIcon size={16} className="text-emerald-700 shrink-0" />
@@ -6941,6 +7084,107 @@ export default function Home() {
               <Headphones size={13} className="text-emerald-700 shrink-0" />
               <span>Voice recognition & speech read-aloud enabled in English, Telugu and Hindi.</span>
             </div>
+
+            {/* Desktop Webcam Live Capture Modal */}
+            {isWebcamOpen && (
+              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+                <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/80">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                        <Camera size={18} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 m-0">{tUi("Take a Photo", language)}</h3>
+                        <p className="text-[11px] text-slate-500 m-0">
+                          {tUi("Align your crop leaf, grain sample, or mandi document", language)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={stopWebcam}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      title={tUi("Close", language)}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* Viewfinder Video Stream */}
+                  <div className="relative w-full bg-black aspect-4/3 flex items-center justify-center overflow-hidden">
+                    <video
+                      ref={webcamVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Viewfinder Target Framing Overlay */}
+                    <div className="absolute inset-6 pointer-events-none border border-white/20 rounded-xl flex flex-col justify-between p-2">
+                      <div className="flex justify-between">
+                        <span className="w-4 h-4 border-t-2 border-l-2 border-emerald-400 rounded-tl-sm" />
+                        <span className="w-4 h-4 border-t-2 border-r-2 border-emerald-400 rounded-tr-sm" />
+                      </div>
+                      <div className="text-center">
+                        <span className="px-2.5 py-1 rounded-full bg-black/60 text-white/90 text-[10px] font-semibold backdrop-blur-xs">
+                          {tUi("Webcam Active", language)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="w-4 h-4 border-b-2 border-l-2 border-emerald-400 rounded-bl-sm" />
+                        <span className="w-4 h-4 border-b-2 border-r-2 border-emerald-400 rounded-br-sm" />
+                      </div>
+                    </div>
+
+                    {webcamLoading && (
+                      <div className="absolute inset-0 bg-slate-950/70 flex flex-col items-center justify-center gap-2 text-white text-xs">
+                        <LoaderCircle size={24} className="animate-spin text-emerald-400" />
+                        <span>Starting camera...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modal Footer Controls */}
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        stopWebcam();
+                        galleryInputRef.current?.click();
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:text-emerald-800 transition-colors order-2 sm:order-1 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <ImageIcon size={14} />
+                      <span>{tUi("Choose from Files Instead", language)}</span>
+                    </button>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end order-1 sm:order-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={stopWebcam}
+                        className="text-xs h-9 px-3 cursor-pointer"
+                      >
+                        {tUi("Cancel", language)}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={captureFromWebcam}
+                        disabled={webcamLoading}
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold h-9 px-4 flex items-center gap-2 cursor-pointer shadow-sm"
+                      >
+                        <Camera size={15} />
+                        <span>{tUi("Capture Photo", language)}</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
