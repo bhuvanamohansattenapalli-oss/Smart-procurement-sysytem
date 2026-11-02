@@ -3564,7 +3564,300 @@ const extraTranslations: Record<Language, Record<string, string>> = {
   },
 };
 
+export const comprehensiveFeatureTranslations: Partial<Record<Language, Record<string, string>>> = {
+  TE: {
+    // Navigation & Global Branding
+    "Farmer Portal": "రైతు పోర్టల్",
+    "Officer Console": "అధికారుల కన్సోల్",
+    "Smart Procurement Management System": "స్మార్ట్ ధాన్యం సేకరణ నిర్వహణ వ్యవస్థ",
+    "Live Agricultural Weather": "ప్రత్యక్ష వ్యవసాయ వాతావరణం",
+    "Weather & Advisory": "వాతావరణం & సలహాలు",
+    "Government Mandi Rates": "ప్రభుత్వ మార్కెట్ ధరలు",
+    "Govt MSP Rates": "ప్రభుత్వ మద్దతు ధరలు (MSP)",
+    "AI Help Centre": "AI రైతు సహాయ కేంద్రం",
+    "Logistics & Transport": "రవాణా & లాజిస్టిక్స్",
+    "Token Pass": "టోకెన్ పాస్",
+    "Live Queue": "ప్రత్యక్ష క్యూ",
+    "Procurement Status": "సేకరణ స్థితి",
+    "Payment Settlement": "చెల్లింపుల వివరాలు",
+    "Analytics & History": "విశ్లేషణ & చరిత్ర",
+    "Farmer Profile": "రైతు ప్రొఫైల్",
+    "Language": "భాష",
+    "Sign In": "లాగిన్ అవ్వండి",
+    "Sign Out": "లాగౌట్",
+    "Register": "నమోదు చేసుకోండి",
+    "Register now": "ఇప్పుడే నమోదు చేసుకోండి",
+    "New Farmer Registration": "కొత్త రైతు నమోదు",
+    "Dashboard": "డ్యాష్‌బోర్డ్",
+    "Overview": "సమీక్ష",
+    "Notifications": "నోటిఫికేషన్‌లు",
+
+    // Government MSP & Mandi Rates
+    "Official Government MSP Rates": "అధికారిక ప్రభుత్వ మద్దతు ధరలు",
+    "Official MSP Rates": "అధికారిక మద్దతు ధరలు",
+    "Last synchronized with official government portal": "అధికారిక ప్రభుత్వ పోర్టల్‌తో విజయవంతంగా సమకాలీకరించబడింది",
+    "Last synced with official portal": "ప్రభుత్వ పోర్టల్‌తో చివరిగా సమకాలీకరించిన సమయం",
+    "Last synchronized at": "సమకాలీకరించిన సమయం",
+    "Published on": "ప్రచురించిన తేదీ",
+    "Effective From": "అమలులోకి వచ్చిన తేదీ",
+    "Notification Reference": "నోటిఫికేషన్ రిఫరెన్స్",
+    "Official Source": "అధికారిక మూలం",
+    "MSP per Quintal": "క్వింటాల్‌కు మద్దతు ధర",
+    "Market Rate": "మార్కెట్ రేటు",
+    "Govt Bonus": "ప్రభుత్వ బోనస్",
+    "Effective Rate": "మొత్తం లభించే రేటు",
+    "Maximum Moisture": "గరిష్ట అనుమతించదగిన తేమ",
+    "Category": "వర్గం",
+    "Variety": "రకం",
+    "Cereals": "ధాన్యాలు",
+    "Pulses": "పప్పుధాన్యాలు",
+    "Oilseeds": "నూనెగింజలు",
+    "Commercial": "వాణిజ్య పంటలు",
+    "Live Mandi Comparison": "ప్రత్యక్ష మార్కెట్ ధరల పోలిక",
+    "Price Difference": "ధర వ్యత్యాసం",
+    "Gain over Open Market": "ఓపెన్ మార్కెట్ కంటే ఎక్కువ లాభం",
+    "Open Market Average": "బహిరంగ మార్కెట్ సగటు ధర",
+    "Government MSP": "ప్రభుత్వ మద్దతు ధర (MSP)",
+    "Moisture Standard": "తేమ ప్రమాణం (గరిష్టంగా 17.0%)",
+    "Verified Agmarknet Mandi Rates": "ధృవీకరించిన అగ్‌మార్క్‌నెట్ మార్కెట్ రేట్లు",
+
+    // Live Agricultural Weather
+    "Live Agricultural Weather Advisory": "ప్రత్యక్ష వ్యవసాయ వాతావరణ సలహా",
+    "Paddy Moisture & Harvesting Advisory": "వరి తేమ & కోత సలహా",
+    "Observed at": "పరిశీలించిన సమయం",
+    "Relative Humidity": "సాపేక్ష తేమ",
+    "Wind Speed": "గాలి వేగం",
+    "Apparent Temperature": "అనుభవమయ్యే ఉష్ణోగ్రత",
+    "Rain Probability": "వర్షం పడే అవకాశం",
+    "Expected Rainfall": "ఆశించిన వర్షపాతం",
+    "Daily Forecast": "రోజువారీ వాతావరణ అంచనా",
+    "Hourly Forecast": "గంటల వారీ అంచనా",
+    "Weather Conditions": "వాతావరణ పరిస్థితులు",
+    "Safe to Dispatch": "రవాణాకు అనుకూలం",
+    "Caution Advised": "జాగ్రత్త అవసరం",
+    "Delay Harvesting": "కోత వాయిదా వేయండి",
+    "Cover with Tarpaulins": "టార్పాలిన్ కవర్లతో కప్పండి",
+    "Sun-dry Grains": "ధాన్యాన్ని ఎండబెట్టండి",
+    "Moisture <= 17.0% required": "తేమ 17.0% కంటే తక్కువ ఉండాలి",
+    "Field Harvesting Status": "పంట కోత స్థితి",
+    "Grain Drying Guidance": "ధాన్యం ఎండబెట్టే సూచనలు",
+    "Mandi Dispatch Recommendation": "మార్కెట్‌కు తరలించే సిఫార్సు",
+
+    // AI Help Centre & Camera / Vision
+    "ProcureFlow AI Agricultural Assistant": "ప్రొక్యూర్‌ఫ్లో AI వ్యవసాయ సహాయకుడు",
+    "Ask questions about paddy procurement, MSP rates, weather, and crop diseases": "వరి కొనుగోలు, మద్దతు ధరలు, వాతావరణం మరియు పంట తెగుళ్లపై ప్రశ్నలు అడగండి",
+    "Take a Photo": "ఫోటో తీయండి",
+    "Upload from Device": "గ్యాలరీ నుండి అప్‌లోడ్ చేయండి",
+    "Attach crop or document photo": "పంట లేదా రసీదు ఫోటోను జతచేయండి",
+    "Crop or Mandi Document Photo": "పంట లేదా మార్కెట్ రసీదు ఫోటో",
+    "Remove photo": "ఫోటోను తొలగించండి",
+    "Remove image": "చిత్రాన్ని తొలగించండి",
+    "Tap camera to inspect crop leaves, pests, grain quality or mandi receipts": "పంట ఆకులు, తెగుళ్లు, ధాన్యం నాణ్యత లేదా మార్కెట్ రసీదులను పరీక్షించడానికి కెమెరాను నొక్కండి",
+    "Analyzing image with Gemini...": "చిత్రాన్ని AI ద్వారా విశ్లేషిస్తోంది...",
+    "Type your question in English, Telugu, or Hindi...": "మీ ప్రశ్నను తెలుగు, హిందీ లేదా ఇంగ్లీషులో టైప్ చేయండి...",
+    "Ask something...": "ఏదైనా అడగండి...",
+    "Clear Conversation": "సంభాషణను క్లియర్ చేయండి",
+    "Clear Chat": "చాట్ క్లియర్ చేయండి",
+    "Voice input active": "వాయిస్ ఇన్‌పుట్ ప్రారంభించబడింది",
+    "Tap microphone to speak": "మాట్లాడటానికి మైక్రోఫోన్ నొక్కండి",
+    "Quick Suggestions": "త్వరిత ప్రశ్నలు",
+    "Verified Offline Mode": "ధృవీకరించిన ఆఫ్‌లైన్ విధానం",
+    "Offline Mode": "ఆఫ్‌లైన్ మోడ్",
+
+    // Booking, Queue & Status
+    "Book Procurement Slot": "ధాన్యం సేకరణ స్లాట్ బుక్ చేయండి",
+    "Select Procurement Centre": "కొనుగోలు కేంద్రాన్ని ఎంచుకోండి",
+    "Select Crop": "పంటను ఎంచుకోండి",
+    "Estimated Quantity (Quintals)": "అంచనా పరిమాణం (క్వింటాళ్లలో)",
+    "Preferred Date": "కావాల్సిన తేదీ",
+    "Available Slots": "అందుబాటులో ఉన్న స్లాట్లు",
+    "Vehicle Type": "వాహనం రకం",
+    "Vehicle Number": "వాహనం నంబర్",
+    "Confirm Booking": "బుకింగ్‌ను నిర్ధారించండి",
+    "Cancel Booking": "బుకింగ్ రద్దు చేయండి",
+    "Queue Status": "క్యూ స్థితి",
+    "Your Position in Queue": "క్యూలో మీ స్థానం",
+    "Farmers Ahead of You": "మీ ముందున్న రైతులు",
+    "Estimated Waiting Time": "సుమారు నిరీక్షణ సమయం",
+    "Weighbridge Inspection": "వేబ్రిడ్జ్ తనిఖీ",
+    "Quality Inspection": "నాణ్యత తనిఖీ",
+    "Gross Weight": "స్థూల బరువు",
+    "Tare Weight": "ఖాళీ వాహనం బరువు",
+    "Net Weight": "నికర బరువు",
+    "Moisture Reading": "తేమ శాతం రీడింగ్",
+    "Payment Status": "చెల్లింపు స్థితి",
+    "Direct Benefit Transfer (DBT)": "నేరుగా బ్యాంకు ఖాతాలో జమ (DBT)",
+    "Settlement Initiated": "చెల్లింపు ప్రక్రియ ప్రారంభించబడింది",
+    "Transferred to Bank Account": "బ్యాంకు ఖాతాకు బదిలీ చేయబడింది",
+    "Transaction ID": "లావాదేవీ సంఖ్య (UTR)",
+
+    // Officer Console & Mobile Drawers
+    "Procurement Officer Console": "ధాన్యం కొనుగోలు అధికారి కన్సోల్",
+    "Pending Farmer Registrations": "పెండింగ్‌లో ఉన్న రైతు రిజిస్ట్రేషన్లు",
+    "Approve Farmer": "రైతును ఆమోదించండి",
+    "Reject Registration": "రిజిస్ట్రేషన్‌ను తిరస్కరించండి",
+    "Call Next Token": "తదుపరి టోకెన్‌ను పిలవండి",
+    "Record Weight": "బరువు నమోదు చేయండి",
+    "Record Moisture": "తేమ శాతం నమోదు చేయండి",
+    "Issue Gate Pass": "గేట్ పాస్ జారీ చేయండి",
+    "Release Payment": "చెల్లింపును విడుదల చేయండి",
+    "Farmer Navigation": "రైతు నావిగేషన్",
+    "Officer Navigation": "అధికారి నావిగేషన్",
+    "Close Menu": "మెనూని మూసివేయండి",
+    "Switch to Farmer Portal": "రైతు పోర్టల్‌కు మారండి",
+    "Switch to Officer Console": "అధికారుల కన్సోల్‌కు మారండి",
+  },
+  HI: {
+    // Navigation & Global Branding
+    "Farmer Portal": "किसान पोर्टल",
+    "Officer Console": "अधिकारी कंसोल",
+    "Smart Procurement Management System": "स्मार्ट खरीद प्रबंधन प्रणाली",
+    "Live Agricultural Weather": "लाइव कृषि मौसम",
+    "Weather & Advisory": "मौसम और परामर्श",
+    "Government Mandi Rates": "सरकारी मंडी दरें",
+    "Govt MSP Rates": "सरकारी समर्थन मूल्य (MSP)",
+    "AI Help Centre": "AI सहायता केंद्र",
+    "Logistics & Transport": "परिवहन और रसद",
+    "Token Pass": "टोकन पास",
+    "Live Queue": "लाइव कतार",
+    "Procurement Status": "खरीद स्थिति",
+    "Payment Settlement": "भुगतान निपटान",
+    "Analytics & History": "विश्लेषण और इतिहास",
+    "Farmer Profile": "किसान प्रोफ़ाइल",
+    "Language": "भाषा",
+    "Sign In": "साइन इन करें",
+    "Sign Out": "साइन आउट",
+    "Register": "पंजीकरण करें",
+    "Register now": "अभी पंजीकरण करें",
+    "New Farmer Registration": "नया किसान पंजीकरण",
+    "Dashboard": "डैशबोर्ड",
+    "Overview": "अवलोकन",
+    "Notifications": "सूचनाएं",
+
+    // Government MSP & Mandi Rates
+    "Official Government MSP Rates": "आधिकारिक सरकारी न्यूनतम समर्थन मूल्य (MSP)",
+    "Official MSP Rates": "आधिकारिक समर्थन मूल्य दरें",
+    "Last synchronized with official government portal": "आधिकारिक सरकारी पोर्टल से सफलतापूर्वक सिंक किया गया",
+    "Last synced with official portal": "आधिकारिक पोर्टल से अंतिम सिंक समय",
+    "Last synchronized at": "सिंक का समय",
+    "Published on": "प्रकाशन तिथि",
+    "Effective From": "प्रभावी तिथि",
+    "Notification Reference": "अधिसूचना संदर्भ",
+    "Official Source": "आधिकारिक स्रोत",
+    "MSP per Quintal": "प्रति क्विंटल समर्थन मूल्य",
+    "Market Rate": "बाजार दर",
+    "Govt Bonus": "सरकारी बोनस",
+    "Effective Rate": "कुल प्रभावी दर",
+    "Maximum Moisture": "अधिकतम अनुमेय नमी",
+    "Category": "श्रेणी",
+    "Variety": "किस्म",
+    "Cereals": "अनाज",
+    "Pulses": "दालें",
+    "Oilseeds": "तिलहन",
+    "Commercial": "व्यावसायिक फसलें",
+    "Live Mandi Comparison": "लाइव मंडी मूल्य तुलना",
+    "Price Difference": "मूल्य अंतर",
+    "Gain over Open Market": "खुले बाजार से अधिक लाभ",
+    "Open Market Average": "खुले बाजार का औसत भाव",
+    "Government MSP": "सरकारी समर्थन मूल्य (MSP)",
+    "Moisture Standard": "नमी मानक (अधिकतम 17.0%)",
+    "Verified Agmarknet Mandi Rates": "सत्यापित एगमार्कनेट मंडी दरें",
+
+    // Live Agricultural Weather
+    "Live Agricultural Weather Advisory": "लाइव कृषि मौसम परामर्श",
+    "Paddy Moisture & Harvesting Advisory": "धान नमी और कटाई सलाह",
+    "Observed at": "अवलोकन समय",
+    "Relative Humidity": "सापेक्ष आर्द्रता",
+    "Wind Speed": "हवा की गति",
+    "Apparent Temperature": "महसूस होने वाला तापमान",
+    "Rain Probability": "बारिश की संभावना",
+    "Expected Rainfall": "अपेक्षित वर्षा",
+    "Daily Forecast": "दैनिक पूर्वानुमान",
+    "Hourly Forecast": "प्रति घंटा पूर्वानुमान",
+    "Weather Conditions": "मौसम की स्थिति",
+    "Safe to Dispatch": "भेजने के लिए सुरक्षित",
+    "Caution Advised": "सावधानी बरतें",
+    "Delay Harvesting": "कटाई टालें",
+    "Cover with Tarpaulins": "तिरपाल से ढकें",
+    "Sun-dry Grains": "अनाज को धूप में सुखाएं",
+    "Moisture <= 17.0% required": "नमी 17.0% से कम होनी चाहिए",
+    "Field Harvesting Status": "खेत में कटाई की स्थिति",
+    "Grain Drying Guidance": "अनाज सुखाने के दिशानिर्देश",
+    "Mandi Dispatch Recommendation": "मंडी भेजने की सिफारिश",
+
+    // AI Help Centre & Camera / Vision
+    "ProcureFlow AI Agricultural Assistant": "प्रोक्योरफ्लो AI कृषि सहायक",
+    "Ask questions about paddy procurement, MSP rates, weather, and crop diseases": "धान खरीद, एमएसपी दरों, मौसम और फसल रोगों के बारे में पूछें",
+    "Take a Photo": "फोटो लें",
+    "Upload from Device": "डिवाइस से अपलोड करें",
+    "Attach crop or document photo": "फसल या रसीद की फोटो संलग्न करें",
+    "Crop or Mandi Document Photo": "फसल या मंडी रसीद फोटो",
+    "Remove photo": "फोटो हटाएं",
+    "Remove image": "चित्र हटाएं",
+    "Tap camera to inspect crop leaves, pests, grain quality or mandi receipts": "फसल के पत्ते, कीट, अनाज की गुणवत्ता या मंडी रसीद की जांच के लिए कैमरा दबाएं",
+    "Analyzing image with Gemini...": "चित्र का AI विश्लेषण किया जा रहा है...",
+    "Type your question in English, Telugu, or Hindi...": "अपना प्रश्न हिंदी, तेलुगु या अंग्रेजी में टाइप करें...",
+    "Ask something...": "कुछ पूछें...",
+    "Clear Conversation": "बातचीत हटाएं",
+    "Clear Chat": "चैट साफ़ करें",
+    "Voice input active": "ध्वनि इनपुट सक्रिय है",
+    "Tap microphone to speak": "बोलने के लिए माइक दबाएं",
+    "Quick Suggestions": "त्वरित सुझाव",
+    "Verified Offline Mode": "सत्यापित ऑफलाइन मोड",
+    "Offline Mode": "ऑफलाइन मोड",
+
+    // Booking, Queue & Status
+    "Book Procurement Slot": "खरीद स्लॉट बुक करें",
+    "Select Procurement Centre": "खरीद केंद्र चुनें",
+    "Select Crop": "फसल चुनें",
+    "Estimated Quantity (Quintals)": "अनुमानित मात्रा (क्विंटल में)",
+    "Preferred Date": "पसंदीदा तारीख",
+    "Available Slots": "उपलब्ध स्लॉट",
+    "Vehicle Type": "वाहन का प्रकार",
+    "Vehicle Number": "वाहन नंबर",
+    "Confirm Booking": "बुकिंग की पुष्टि करें",
+    "Cancel Booking": "बुकिंग रद्द करें",
+    "Queue Status": "कतार स्थिति",
+    "Your Position in Queue": "कतार में आपका स्थान",
+    "Farmers Ahead of You": "आपसे आगे किसान",
+    "Estimated Waiting Time": "अनुमानित प्रतीक्षा समय",
+    "Weighbridge Inspection": "वेईब्रिज निरीक्षण",
+    "Quality Inspection": "गुणवत्ता निरीक्षण",
+    "Gross Weight": "सकल वजन",
+    "Tare Weight": "खाली वाहन का वजन",
+    "Net Weight": "शुद्ध वजन",
+    "Moisture Reading": "नमी की रीडिंग",
+    "Payment Status": "भुगतान स्थिति",
+    "Direct Benefit Transfer (DBT)": "प्रत्यक्ष लाभ अंतरण (DBT)",
+    "Settlement Initiated": "निपटान शुरू हुआ",
+    "Transferred to Bank Account": "बैंक खाते में स्थानांतरित",
+    "Transaction ID": "लेनदेन संख्या (UTR)",
+
+    // Officer Console & Mobile Drawers
+    "Procurement Officer Console": "खरीद अधिकारी कंसोल",
+    "Pending Farmer Registrations": "लंबित किसान पंजीकरण",
+    "Approve Farmer": "किसान को स्वीकृत करें",
+    "Reject Registration": "पंजीकरण अस्वीकार करें",
+    "Call Next Token": "अगला टोकन बुलाएं",
+    "Record Weight": "वजन दर्ज करें",
+    "Record Moisture": "नमी दर्ज करें",
+    "Issue Gate Pass": "गेट पास जारी करें",
+    "Release Payment": "भुगतान जारी करें",
+    "Farmer Navigation": "किसान नेविगेशन",
+    "Officer Navigation": "अधिकारी नेविगेशन",
+    "Close Menu": "मेनू बंद करें",
+    "Switch to Farmer Portal": "किसान पोर्टल पर जाएं",
+    "Switch to Officer Console": "अधिकारी कंसोल पर जाएं",
+  },
+};
+
 for (const [lang, dict] of Object.entries(extraTranslations)) {
+  if (localizedUiText[lang as Language]) {
+    Object.assign(localizedUiText[lang as Language], dict);
+  }
+}
+
+for (const [lang, dict] of Object.entries(comprehensiveFeatureTranslations)) {
   if (localizedUiText[lang as Language]) {
     Object.assign(localizedUiText[lang as Language], dict);
   }
@@ -3647,4 +3940,79 @@ export function parseScheduledStartTime(dateStr?: string | null, timeStr?: strin
   }
 
   return null;
+}
+
+// ==========================================
+// DYNAMIC CLIENT TRANSLATION HELPERS
+// ==========================================
+interface DynamicTranslationCacheEntry {
+  translated: string;
+  timestamp: number;
+}
+const dynamicClientCache = new Map<string, DynamicTranslationCacheEntry>();
+const CLIENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Translates dynamic strings via the backend translation service with client-side caching.
+ * Always prefers static agrarian dictionary lookups first for instant sub-millisecond execution.
+ */
+export async function translateDynamic(text: string, targetLang: Language): Promise<string> {
+  if (!text || !text.trim() || targetLang === "EN") return text;
+  // First check static dictionary
+  const staticResult = getLocalizedText(text, targetLang);
+  if (staticResult && staticResult !== text) return staticResult;
+
+  // Supported dynamic targets
+  if (!["TE", "HI"].includes(targetLang)) return text;
+
+  const trimmed = text.trim();
+  const cacheKey = `${targetLang}:${trimmed}`;
+  const cached = dynamicClientCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CLIENT_CACHE_TTL_MS) {
+    return cached.translated;
+  }
+
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: trimmed, targetLang }),
+    });
+    if (!res.ok) return text;
+    const data = await res.json();
+    if (data?.translatedText) {
+      dynamicClientCache.set(cacheKey, {
+        translated: data.translatedText,
+        timestamp: Date.now(),
+      });
+      return data.translatedText;
+    }
+  } catch (err) {
+    console.warn("[Dynamic Translation]", err);
+  }
+  return text;
+}
+
+/**
+ * Batch translates multiple dynamic strings via the backend translation service.
+ */
+export async function translateDynamicBatch(texts: string[], targetLang: Language): Promise<string[]> {
+  if (!texts || texts.length === 0 || targetLang === "EN") return texts;
+  if (!["TE", "HI"].includes(targetLang)) return texts;
+
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texts, targetLang }),
+    });
+    if (!res.ok) return texts;
+    const data = await res.json();
+    if (Array.isArray(data?.translations)) {
+      return data.translations;
+    }
+  } catch (err) {
+    console.warn("[Dynamic Batch Translation]", err);
+  }
+  return texts;
 }

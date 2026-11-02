@@ -54,6 +54,13 @@ import {
   calculateOsrmRoadRoute,
   resolveLocationCoordinates,
 } from "../services/routingService";
+import {
+  translateText,
+  translateBatch,
+  getTranslationStats,
+  clearTranslationCache,
+  type SupportedLanguage,
+} from "../services/translationService";
 import type { AuthenticatedRequest, BookingContext, StaffRole } from "../types/api";
 
 function maskPhone(phone: string | undefined | null): string {
@@ -3116,6 +3123,77 @@ export function createProcurementApi() {
     } catch {
       return res.json({ sessionId, messages: [] });
     }
+  });
+
+  // ==========================================
+  // HYBRID MULTILINGUAL TRANSLATION ENDPOINTS
+  // ==========================================
+  api.post("/translate", async (req, res) => {
+    try {
+      const { text, texts, targetLang, sourceLang } = req.body || {};
+
+      if (!targetLang || !["EN", "TE", "HI"].includes(targetLang)) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: "Invalid or missing 'targetLang'. Supported languages are 'EN', 'TE', 'HI'.",
+        });
+      }
+
+      const lang = targetLang as SupportedLanguage;
+
+      // Handle batch translation
+      if (Array.isArray(texts)) {
+        const result = await translateBatch({
+          texts: texts.map(t => String(t || "")),
+          targetLang: lang,
+          sourceLang: typeof sourceLang === "string" ? sourceLang : "EN",
+        });
+        return res.json({
+          status: "ok",
+          ...result,
+        });
+      }
+
+      // Handle single text translation
+      if (typeof text !== "string") {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: "Either 'text' (string) or 'texts' (array of strings) is required.",
+        });
+      }
+
+      const result = await translateText({
+        text,
+        targetLang: lang,
+        sourceLang: typeof sourceLang === "string" ? sourceLang : "EN",
+      });
+
+      return res.json({
+        status: "ok",
+        ...result,
+      });
+    } catch (err: any) {
+      console.error("[Translation API Error]", err);
+      return res.status(500).json({
+        error: "TRANSLATION_FAILED",
+        message: err?.message || "Failed to process translation request.",
+      });
+    }
+  });
+
+  api.get("/translate/status", (_req, res) => {
+    return res.json({
+      status: "ok",
+      stats: getTranslationStats(),
+    });
+  });
+
+  api.post("/translate/clear-cache", requireApiAuth, requireRole("officer", "HEAD_OFFICER"), (_req, res) => {
+    clearTranslationCache();
+    return res.json({
+      status: "ok",
+      message: "Translation cache cleared successfully.",
+    });
   });
 
   // ==========================================

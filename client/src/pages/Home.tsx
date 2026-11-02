@@ -2,7 +2,7 @@
  * Fields & Flow design: contemporary agrarian wayfinding, clear
  * operational status, paddy green + canal blue, and large farmer-friendly controls.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -443,8 +443,8 @@ function LanguageDropdown({ language, setLanguage }: { language: Language; setLa
 
   const regionalLanguages: { code: Language; native: string; english: string }[] = [
     { code: "EN", native: "English", english: "English" },
-    { code: "HI", native: "हिन्दी", english: "Hindi" },
     { code: "TE", native: "తెలుగు", english: "Telugu" },
+    { code: "HI", native: "हिन्दी", english: "Hindi" },
     { code: "TA", native: "தமிழ்", english: "Tamil" },
     { code: "KN", native: "ಕನ್ನಡ", english: "Kannada" },
     { code: "ML", native: "മലയാളം", english: "Malayalam" },
@@ -702,7 +702,17 @@ function MetricCard({ label, value, hint, icon: Icon, tone = "green" }: { label:
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
-  const [language, setLanguage] = useState<Language>("EN");
+  const [language, setLanguage] = useState<Language>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("procureflow.language");
+        if (saved && ["EN", "TE", "HI", "TA", "KN", "ML", "MR", "BN", "GU", "PA", "OR", "AS", "UR"].includes(saved)) {
+          return saved as Language;
+        }
+      } catch {}
+    }
+    return "EN";
+  });
   const [mobileMenu, setMobileMenu] = useState(false);
   const [officerMobileMenu, setOfficerMobileMenu] = useState(false);
   const [landingMobileMenu, setLandingMobileMenu] = useState(false);
@@ -1567,10 +1577,22 @@ export default function Home() {
     const active = translations[language as keyof typeof translations] || {};
     return { ...translations.EN, ...active };
   }, [language]);
-  const changeLanguage = (next: Language) => { setLanguage(next); localStorage.setItem("procureflow.language", next); };
+  const changeLanguage = (next: Language) => {
+    setLanguage(next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("procureflow.language", next);
+        document.documentElement.lang = next.toLowerCase();
+        window.dispatchEvent(new CustomEvent("languagechange", { detail: { language: next } }));
+      } catch {}
+    }
+  };
 
-  useEffect(() => {
-    if (language === "EN") {
+  const applyDomTranslation = useCallback((targetLang: Language) => {
+    if (typeof document === "undefined") return;
+    document.documentElement.lang = targetLang.toLowerCase();
+
+    if (targetLang === "EN") {
       // Revert all text nodes and options cleanly to English using reverseTranslationMap
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       let node: Node | null;
@@ -1594,7 +1616,7 @@ export default function Home() {
       return;
     }
 
-    const dictionary = localizedUiText[language];
+    const dictionary = localizedUiText[targetLang];
     if (!dictionary) return;
 
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -1627,7 +1649,32 @@ export default function Home() {
       const enKey = reverseTranslationMap[trimmed] || trimmed;
       if (dictionary[enKey]) input.placeholder = dictionary[enKey];
     });
-  }, [language, screen]);
+  }, []);
+
+  useEffect(() => {
+    applyDomTranslation(language);
+
+    if (language !== "EN" && typeof MutationObserver !== "undefined") {
+      let timeoutId: any = null;
+      const observer = new MutationObserver(() => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          applyDomTranslation(language);
+        }, 120);
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: false,
+      });
+
+      return () => {
+        clearTimeout(timeoutId);
+        observer.disconnect();
+      };
+    }
+  }, [language, screen, applyDomTranslation]);
 
   const loadWeather = async (
     target?: string | { district?: string; village?: string; lat?: number; lon?: number }
