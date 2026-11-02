@@ -20,6 +20,7 @@ import {
   Calendar,
   Sparkles,
 } from "lucide-react";
+import { tUi, type Language } from "@/lib/translations";
 
 export interface SellingAdvisoryData {
   title: string;
@@ -47,6 +48,7 @@ export interface WeatherSellingAdvisoryProps {
   selectedCrop?: string;
   onNavigateToBooking?: () => void;
   onNavigateToTransport?: () => void;
+  language?: Language;
 }
 
 export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
@@ -62,7 +64,9 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
   selectedCrop = "Paddy",
   onNavigateToBooking,
   onNavigateToTransport,
+  language = "EN",
 }) => {
+  const t = (str: string) => tUi(str, language);
   const [cropStage, setCropStage] = useState<"HARVESTED" | "STANDING">("HARVESTED");
   const [storageType, setStorageType] = useState<"COVERED" | "OPEN_FIELD">("COVERED");
 

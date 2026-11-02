@@ -93,8 +93,9 @@ import { toast } from "sonner";
 import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { MapView } from "@/components/Map";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
+import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, getLocalizedText, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
 import { CROP_CATALOGUE, filterCrops, getCatalogueCropImage, CropItem } from "@/lib/cropCatalogue";
 import {
@@ -702,17 +703,7 @@ function MetricCard({ label, value, hint, icon: Icon, tone = "green" }: { label:
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("procureflow.language");
-        if (saved && ["EN", "TE", "HI", "TA", "KN", "ML", "MR", "BN", "GU", "PA", "OR", "AS", "UR"].includes(saved)) {
-          return saved as Language;
-        }
-      } catch {}
-    }
-    return "EN";
-  });
+  const { language, setLanguage } = useLanguage();
   const [mobileMenu, setMobileMenu] = useState(false);
   const [officerMobileMenu, setOfficerMobileMenu] = useState(false);
   const [landingMobileMenu, setLandingMobileMenu] = useState(false);
@@ -1616,9 +1607,6 @@ export default function Home() {
       return;
     }
 
-    const dictionary = localizedUiText[targetLang];
-    if (!dictionary) return;
-
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node: Node | null;
     while ((node = walker.nextNode())) {
@@ -1630,24 +1618,27 @@ export default function Home() {
       const currentVal = textNode.nodeValue;
       if (!currentVal) continue;
       const trimmed = currentVal.trim();
-      const enKey = reverseTranslationMap[trimmed] || trimmed;
-      if (dictionary[enKey]) {
-        textNode.nodeValue = currentVal.replace(trimmed, dictionary[enKey]);
+      if (!trimmed || /^\d+$/.test(trimmed)) continue;
+      const localized = getLocalizedText(trimmed, targetLang);
+      if (localized && localized !== trimmed) {
+        textNode.nodeValue = currentVal.replace(trimmed, localized);
       }
     }
 
     // Translate select options
     document.querySelectorAll<HTMLOptionElement>("option").forEach(opt => {
       const trimmed = opt.text.trim();
-      const enKey = reverseTranslationMap[trimmed] || trimmed;
-      if (dictionary[enKey]) opt.text = dictionary[enKey];
+      if (!trimmed || /^\d+$/.test(trimmed)) return;
+      const localized = getLocalizedText(trimmed, targetLang);
+      if (localized && localized !== trimmed) opt.text = localized;
     });
 
     // Translate input placeholders
     document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[placeholder], textarea[placeholder]").forEach(input => {
       const trimmed = input.placeholder.trim();
-      const enKey = reverseTranslationMap[trimmed] || trimmed;
-      if (dictionary[enKey]) input.placeholder = dictionary[enKey];
+      if (!trimmed) return;
+      const localized = getLocalizedText(trimmed, targetLang);
+      if (localized && localized !== trimmed) input.placeholder = localized;
     });
   }, []);
 
@@ -1660,7 +1651,7 @@ export default function Home() {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
           applyDomTranslation(language);
-        }, 120);
+        }, 40);
       });
 
       observer.observe(document.body, {
@@ -5283,6 +5274,7 @@ export default function Home() {
               initialCenter={{ lat: 16.2970, lng: 80.4350 }}
               initialZoom={8}
               onSelectCentre={(c) => setSelectedCentre(c as Centre)}
+              language={language}
             />
           </div>
           <div className="list-heading">
@@ -6847,6 +6839,7 @@ export default function Home() {
           district={weatherData?.district ?? selectedWeatherDistrict}
           onNavigateToBooking={() => navigate("paddy")}
           onNavigateToTransport={() => navigate("transportation")}
+          language={language}
         />
       </div>
 
@@ -10250,6 +10243,7 @@ export default function Home() {
           initialCommodity="Paddy"
           initialState="Andhra Pradesh"
           initialDistrict={profileRecord?.district || "Guntur"}
+          language={language}
           onSelectPrice={(p: any) => {
             setCalcCropVariety(`${p.commodity} — ${p.variety}`);
             setCalcQuintals("40");

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { tUi, type Language } from "@/lib/translations";
 
 export type MapMode = "roadmap" | "satellite";
 
@@ -58,6 +59,7 @@ interface MapViewProps {
   selectedCentreId?: number;
   onSelectCentre?: (centre: CentreLocation) => void;
   onMapReady?: (map: any) => void;
+  language?: Language;
 }
 
 // Default All-India Center (Geographical center near Nagpur / MP border)
@@ -125,7 +127,9 @@ export function MapView({
   centres = [],
   selectedCentreId,
   onSelectCentre,
+  language = "EN",
 }: MapViewProps) {
+  const t = (text: string) => tUi(text, language);
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapMode, setMapMode] = useState<MapMode>("roadmap");
   const [activeCentre, setActiveCentre] = useState<CentreLocation | null>(null);

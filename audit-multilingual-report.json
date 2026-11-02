@@ -1,0 +1,50 @@
+[
+  {
+    "file": "Home.tsx",
+    "totalVisible": 679,
+    "translatedTe": 679,
+    "translatedHi": 679,
+    "missingTe": [],
+    "missingHi": []
+  },
+  {
+    "file": "MandiMarketPrices.tsx",
+    "totalVisible": 32,
+    "translatedTe": 32,
+    "translatedHi": 32,
+    "missingTe": [],
+    "missingHi": []
+  },
+  {
+    "file": "WeatherSellingAdvisory.tsx",
+    "totalVisible": 8,
+    "translatedTe": 8,
+    "translatedHi": 8,
+    "missingTe": [],
+    "missingHi": []
+  },
+  {
+    "file": "Map.tsx",
+    "totalVisible": 15,
+    "translatedTe": 15,
+    "translatedHi": 15,
+    "missingTe": [],
+    "missingHi": []
+  },
+  {
+    "file": "DashboardLayout.tsx",
+    "totalVisible": 2,
+    "translatedTe": 2,
+    "translatedHi": 2,
+    "missingTe": [],
+    "missingHi": []
+  },
+  {
+    "file": "NotFound.tsx",
+    "totalVisible": 0,
+    "translatedTe": 0,
+    "translatedHi": 0,
+    "missingTe": [],
+    "missingHi": []
+  }
+]

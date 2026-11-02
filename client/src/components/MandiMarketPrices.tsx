@@ -30,6 +30,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { apiUrl } from "@/lib/api";
+import { tUi, type Language } from "@/lib/translations";
 
 export type PriceMovementType = "UP" | "DOWN" | "STABLE" | "NO_PREVIOUS";
 export type PriceMovementLabel =
@@ -97,6 +98,7 @@ export interface MandiMarketPricesProps {
   initialState?: string;
   initialDistrict?: string;
   onSelectPrice?: (record: any) => void;
+  language?: Language;
 }
 
 export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
@@ -104,7 +106,9 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
   initialState = "Andhra Pradesh",
   initialDistrict = "ALL",
   onSelectPrice,
+  language = "EN",
 }) => {
+  const t = (str: string) => tUi(str, language);
   const [commodity, setCommodity] = useState<string>(initialCommodity);
   const [district, setDistrict] = useState<string>(initialDistrict);
   const [loading, setLoading] = useState<boolean>(true);
