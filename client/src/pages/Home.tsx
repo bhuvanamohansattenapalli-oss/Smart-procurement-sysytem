@@ -704,6 +704,33 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [language, setLanguage] = useState<Language>("EN");
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [officerMobileMenu, setOfficerMobileMenu] = useState(false);
+  const [landingMobileMenu, setLandingMobileMenu] = useState(false);
+
+  // Mobile drawer body scroll locking
+  useEffect(() => {
+    if (mobileMenu || officerMobileMenu || landingMobileMenu) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileMenu, officerMobileMenu, landingMobileMenu]);
+
+  // Keyboard navigation: Close mobile drawers on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileMenu(false);
+        setOfficerMobileMenu(false);
+        setLandingMobileMenu(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const [registered, setRegistered] = useState(false);
   const [approved, setApproved] = useState(false);
   const [selectedCentre, setSelectedCentre] = useState<Centre>(centres[0]);
@@ -2014,12 +2041,21 @@ export default function Home() {
   const navigate = (next: Screen) => {
     if (farmerOnlyScreens.includes(next) && !farmerToken) {
       setAuthError("Please login with your approved farmer account to continue.");
-      setScreen("farmerLogin"); setMobileMenu(false); window.scrollTo({ top: 0, behavior: "smooth" }); return;
+      setScreen("farmerLogin");
+      setMobileMenu(false);
+      setOfficerMobileMenu(false);
+      setLandingMobileMenu(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
     if (next === "status" && farmerToken) {
       void refreshProcurementStatus(farmerToken, farmerId, bookingId);
     }
-    setScreen(next); setMobileMenu(false); window.scrollTo({ top: 0, behavior: "smooth" });
+    setScreen(next);
+    setMobileMenu(false);
+    setOfficerMobileMenu(false);
+    setLandingMobileMenu(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => {
     if (farmerOnlyScreens.includes(screen) && !farmerToken) setScreen("farmerLogin");
@@ -3912,13 +3948,184 @@ export default function Home() {
         </div>
         <main className="content-pad">{content}</main>
       </div>
-      {mobileMenu && <div className="mobile-drawer-backdrop" onClick={() => setMobileMenu(false)}><nav className="mobile-drawer" onClick={e => e.stopPropagation()}><div className="drawer-top"><AppLogo /><button onClick={() => setMobileMenu(false)}><X size={20} /></button></div><div className="drawer-links">{navItems.map(({ screen: target, label, icon: Icon }) => <button key={target} onClick={() => navigate(target)} className={screen === target ? "active" : ""}><Icon size={20} />{t.nav[label as keyof typeof t.nav] ?? label}</button>)}<hr /><button onClick={() => navigate("assistant")}><Bot size={20} /> Farmer assistant</button><button onClick={() => navigate("profile")}><UserCheck size={20} /> My profile</button></div><div className="drawer-bottom"><button onClick={logoutFarmer} className="drawer-logout"><LogIn size={18} /> Logout</button></div></nav></div>}
+      {mobileMenu && (
+        <div className="mobile-drawer-backdrop" onClick={() => setMobileMenu(false)}>
+          <nav className="mobile-drawer" onClick={e => e.stopPropagation()}>
+            <div className="drawer-top">
+              <AppLogo />
+              <button
+                onClick={() => setMobileMenu(false)}
+                className="drawer-close-btn"
+                aria-label="Close navigation"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {profileRecord && (
+              <div className="drawer-farmer-profile">
+                <div className="farmer-avatar-badge">
+                  {profileRecord.name ? profileRecord.name.charAt(0).toUpperCase() : "F"}
+                </div>
+                <div className="farmer-profile-info">
+                  <strong className="farmer-name-text">{profileRecord.name || "Registered Farmer"}</strong>
+                  <span className="farmer-id-text">
+                    ID: {profileRecord.farmerCode || (profileRecord.phone ? `+91 ${profileRecord.phone}` : farmerId || "AP-FARMER")}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="drawer-links">
+              <div className="drawer-section-label">MY HARVEST LIFECYCLE</div>
+              {navItems.map(({ screen: target, label, icon: Icon }) => (
+                <button
+                  key={target}
+                  onClick={() => navigate(target)}
+                  className={screen === target ? "active" : ""}
+                >
+                  <Icon size={20} />
+                  <span>{t.nav[label as keyof typeof t.nav] ?? label}</span>
+                </button>
+              ))}
+              <div className="drawer-divider" />
+              <div className="drawer-section-label">ASSISTANCE & PROFILE</div>
+              <button
+                onClick={() => navigate("assistant")}
+                className={screen === "assistant" ? "active" : ""}
+              >
+                <Bot size={20} />
+                <span>Farmer assistant</span>
+              </button>
+              <button
+                onClick={() => navigate("profile")}
+                className={screen === "profile" ? "active" : ""}
+              >
+                <UserCheck size={20} />
+                <span>My profile</span>
+              </button>
+            </div>
+            <div className="drawer-bottom">
+              <button onClick={logoutFarmer} className="drawer-logout">
+                <LogOut size={18} />
+                <span>Sign Out Farmer Account</span>
+              </button>
+            </div>
+          </nav>
+        </div>
+      )}
     </div>
   );
 
   const landing = (
     <div className="landing-page">
-      <header className="landing-nav"><AppLogo /><div className="nav-links"><a href="#how">How it works</a><a href="#services">Features</a><button onClick={() => navigate("farmerLogin")}>Farmer login</button><button className="officer-link" onClick={() => navigate("officerLogin")}>Officer console</button></div><div className="nav-end"><LanguageDropdown language={language} setLanguage={changeLanguage} /><ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Register now</ActionButton></div></header>
+      <header className="landing-nav">
+        <AppLogo />
+        <div className="nav-links landing-desktop-links">
+          <a href="#how">How it works</a>
+          <a href="#services">Features</a>
+          <button onClick={() => navigate("farmerLogin")}>Farmer login</button>
+          <button className="officer-link" onClick={() => navigate("officerLogin")}>Officer console</button>
+        </div>
+        <div className="nav-end landing-desktop-end">
+          <LanguageDropdown language={language} setLanguage={changeLanguage} />
+          <ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Register now</ActionButton>
+        </div>
+        <div className="landing-mobile-actions">
+          <LanguageDropdown language={language} setLanguage={changeLanguage} />
+          <button
+            onClick={() => setLandingMobileMenu(true)}
+            aria-label="Open navigation menu"
+            className="mobile-nav-toggle"
+          >
+            <Menu size={22} />
+          </button>
+        </div>
+      </header>
+
+      {landingMobileMenu && (
+        <div className="landing-drawer-backdrop" onClick={() => setLandingMobileMenu(false)}>
+          <nav className="landing-drawer" onClick={e => e.stopPropagation()}>
+            <div className="drawer-top">
+              <AppLogo />
+              <button
+                onClick={() => setLandingMobileMenu(false)}
+                className="drawer-close-btn"
+                aria-label="Close navigation"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="drawer-links">
+              <div className="drawer-section-label">PORTAL ACCESS</div>
+              <button
+                onClick={() => {
+                  navigate("farmerLogin");
+                  setLandingMobileMenu(false);
+                }}
+              >
+                <LogIn size={19} />
+                <span>Farmer Sign In</span>
+              </button>
+              <button
+                onClick={() => {
+                  navigate("registration");
+                  setLandingMobileMenu(false);
+                }}
+                className="active"
+              >
+                <UserCheck size={19} />
+                <span>New Farmer Registration</span>
+              </button>
+              <button
+                onClick={() => {
+                  navigate("officerLogin");
+                  setLandingMobileMenu(false);
+                }}
+              >
+                <ShieldCheck size={19} />
+                <span>Officer Console</span>
+              </button>
+
+              <div className="drawer-divider" />
+              <div className="drawer-section-label">EXPLORE PROCUREFLOW</div>
+              <a
+                href="#how"
+                onClick={() => setLandingMobileMenu(false)}
+              >
+                <Clock3 size={19} />
+                <span>How It Works</span>
+              </a>
+              <a
+                href="#services"
+                onClick={() => setLandingMobileMenu(false)}
+              >
+                <Sprout size={19} />
+                <span>Features & Services</span>
+              </a>
+              <button
+                onClick={() => {
+                  navigate("centres");
+                  setLandingMobileMenu(false);
+                }}
+              >
+                <MapPin size={19} />
+                <span>Live Mandis & Centres</span>
+              </button>
+            </div>
+            <div className="drawer-bottom">
+              <button
+                onClick={() => {
+                  navigate("registration");
+                  setLandingMobileMenu(false);
+                }}
+                className="action-button w-full justify-center"
+              >
+                <span>Register as farmer</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </nav>
+        </div>
+      )}
       <main>
         <section className="hero-section">
           <img src={queueUrl} alt="Lush green paddy crop field" className="hero-image" />
@@ -7436,37 +7643,110 @@ export default function Home() {
         </div>
       </aside>
       <div className="officer-main">
-        <header>
-          <div>
-            <span className="today-dot"/> 
-            {officerProfile ? (
-              <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-full ml-1 border border-emerald-300">
-                {(officerProfile?.role || "HEAD_OFFICER").replaceAll("_", " ")} · {officerProfile?.branch || "GUNTUR"}
-              </span>
-            ) : (
-              <>Procurement window <b>Open today</b></>
-            )}
+        <header className="officer-topbar">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setOfficerMobileMenu(true)}
+              aria-label="Open officer menu"
+              className="officer-menu-toggle"
+            >
+              <Menu size={22} />
+            </button>
+            <div className="officer-badge-area flex items-center gap-2">
+              <span className="today-dot"/> 
+              {officerProfile ? (
+                <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  <span className="hidden sm:inline">{(officerProfile?.role || "OFFICER").replaceAll("_", " ")} • </span>{officerProfile?.branch || "GUNTUR"}
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-slate-700">Officer Console</span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <LanguagePicker language={language} setLanguage={changeLanguage}/>
             <button
               className="notification-button relative"
               onClick={() => setShowOfficerNotifModal(true)}
               title="View officer & staff alerts"
+              aria-label="Officer alerts"
             >
-              <Bell size={19}/>
+              <Bell size={18}/>
               {officerNotificationsList.filter(n => !n.isRead).length > 0 && <i/>}
             </button>
             <span className="officer-user font-bold" title={officerProfile?.name || "Officer"}>
               {getInitials(officerProfile?.name, "SO")}
             </span>
             <button className="top-logout-btn" onClick={logoutOfficer} title="Log out of officer console">
-              <LogOut size={15} /> <span>Logout</span>
+              <LogOut size={15} /> <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </header>
         <main>{content}</main>
       </div>
+
+      {officerMobileMenu && (
+        <div className="officer-drawer-backdrop" onClick={() => setOfficerMobileMenu(false)}>
+          <nav className="officer-drawer" onClick={e => e.stopPropagation()}>
+            <div className="drawer-top">
+              <AppLogo />
+              <button
+                onClick={() => setOfficerMobileMenu(false)}
+                className="drawer-close-btn"
+                aria-label="Close officer navigation"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="drawer-role-banner">
+              <div className="officer-badge-pill">
+                <ShieldCheck size={14} />
+                <span>{(officerProfile?.role || "OFFICER CONSOLE").replaceAll("_", " ")}</span>
+              </div>
+              <small>{officerProfile?.name || "Mandi Officer"} • {officerProfile?.branch || "AP Central"}</small>
+            </div>
+
+            <div className="drawer-links">
+              <div className="drawer-section-label">OPERATIONS & WORKFLOW</div>
+              {officerMenuItems.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    setOfficerView(item.key as typeof officerView);
+                    navigate(item.target);
+                    setOfficerMobileMenu(false);
+                  }}
+                  className={officerView === item.key ? "active" : ""}
+                >
+                  <item.icon size={19}/>
+                  <span>{item.label}</span>
+                  {item.badge > 0 && <span className="drawer-badge">{item.badge}</span>}
+                </button>
+              ))}
+              
+              <div className="drawer-divider" />
+              <button
+                onClick={() => {
+                  navigate("landing");
+                  setOfficerMobileMenu(false);
+                }}
+                className="drawer-switch-portal"
+              >
+                <ArrowLeft size={18}/>
+                <span>Switch to Farmer Portal</span>
+              </button>
+            </div>
+
+            <div className="drawer-bottom">
+              <button onClick={logoutOfficer} className="drawer-logout">
+                <LogOut size={18} />
+                <span>Sign Out ({officerProfile?.name || "Officer"})</span>
+              </button>
+            </div>
+          </nav>
+        </div>
+      )}
 
       {/* Officer Notifications Modal */}
       {showOfficerNotifModal && (
