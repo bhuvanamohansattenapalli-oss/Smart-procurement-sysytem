@@ -94,6 +94,8 @@ import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { MapView } from "@/components/Map";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { MobileViewToggle } from "@/components/MobileViewToggle";
+import { MobileViewBanner } from "@/components/MobileViewBanner";
 
 import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, getLocalizedText, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
@@ -3947,6 +3949,7 @@ export default function Home() {
             <LanguageDropdown language={language} setLanguage={changeLanguage} />
           </div>
           <div className="header-right">
+            <MobileViewToggle compact={true} />
             <button
               className="notification-button"
               onClick={() => navigate("notifications")}
@@ -3966,6 +3969,7 @@ export default function Home() {
         <div className="desktop-status-bar">
           <div className="header-left">
             <LanguageDropdown language={language} setLanguage={changeLanguage} />
+            <MobileViewToggle />
           </div>
           <div className="header-right">
             <button
@@ -4040,6 +4044,16 @@ export default function Home() {
                 <UserCheck size={20} />
                 <span>My profile</span>
               </button>
+              <button
+                onClick={() => navigate("notifications")}
+                className={screen === "notifications" ? "active" : ""}
+              >
+                <Bell size={20} />
+                <span>{tUi("Notifications", language)}</span>
+                {apiNotifications.some(item => !item.isRead) && (
+                  <span className="drawer-badge-dot" />
+                )}
+              </button>
             </div>
             <div className="drawer-bottom">
               <button onClick={logoutFarmer} className="drawer-logout">
@@ -4064,10 +4078,12 @@ export default function Home() {
           <button className="officer-link" onClick={() => navigate("officerLogin")}>Officer console</button>
         </div>
         <div className="nav-end landing-desktop-end">
+          <MobileViewToggle />
           <LanguageDropdown language={language} setLanguage={changeLanguage} />
           <ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Register now</ActionButton>
         </div>
         <div className="landing-mobile-actions">
+          <MobileViewToggle compact={true} />
           <LanguageDropdown language={language} setLanguage={changeLanguage} />
           <button
             onClick={() => setLandingMobileMenu(true)}
@@ -4237,9 +4253,12 @@ export default function Home() {
         </div>
       </div>
       <main className="auth-panel">
-        <button className="back-link" onClick={() => navigate("landing")}>
-          <ArrowLeft size={16} /> Back to home
-        </button>
+        <div className="flex items-center justify-between mb-4">
+          <button className="back-link" onClick={() => navigate("landing")}>
+            <ArrowLeft size={16} /> Back to home
+          </button>
+          <MobileViewToggle />
+        </div>
         <div className="form-wrap">
           <p className="eyebrow">NEW FARMER REGISTRATION</p>
           <h2>{t.registrationTitle}</h2>
@@ -4420,7 +4439,10 @@ export default function Home() {
     <div className="pending-page">
       <header>
         <button onClick={() => navigate("landing")}><AppLogo /></button>
-        <LanguagePicker language={language} setLanguage={changeLanguage} />
+        <div className="flex items-center gap-2">
+          <MobileViewToggle />
+          <LanguagePicker language={language} setLanguage={changeLanguage} />
+        </div>
       </header>
       <main>
         <div className="approval-orbit"><span className="orbit-inner"><ClipboardCheck /></span><i /><i /><i /></div>
@@ -4485,7 +4507,10 @@ export default function Home() {
     <div className="login-page">
       <header>
         <button onClick={() => navigate("landing")}><AppLogo /></button>
-        <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16} /> Back</button>
+        <div className="flex items-center gap-2">
+          <MobileViewToggle />
+          <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16} /> Back</button>
+        </div>
       </header>
       <main>
         <section className="login-art">
@@ -7703,7 +7728,8 @@ export default function Home() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <MobileViewToggle />
             <LanguagePicker language={language} setLanguage={changeLanguage}/>
             <button
               className="notification-button relative"
@@ -7764,6 +7790,20 @@ export default function Home() {
                   {item.badge > 0 && <span className="drawer-badge">{item.badge}</span>}
                 </button>
               ))}
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOfficerNotifModal(true);
+                  setOfficerMobileMenu(false);
+                }}
+              >
+                <Bell size={19} />
+                <span>{tUi("Operational Alerts", language)}</span>
+                {officerNotificationsList.filter(n => !n.isRead).length > 0 && (
+                  <span className="drawer-badge">{officerNotificationsList.filter(n => !n.isRead).length}</span>
+                )}
+              </button>
               
               <div className="drawer-divider" />
               <button
@@ -7826,7 +7866,10 @@ export default function Home() {
     <div className="officer-login">
       <header>
         <button onClick={() => navigate("landing")}><AppLogo /></button>
-        <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16}/> Back to home</button>
+        <div className="flex items-center gap-2">
+          <MobileViewToggle />
+          <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16}/> Back to home</button>
+        </div>
       </header>
       <main>
         <section>
@@ -12533,6 +12576,7 @@ export default function Home() {
 
   return (
     <>
+      <MobileViewBanner />
       {renderCurrentScreen()}
 
       {/* Global Slot Booking Cancellation Confirmation Modal */}
