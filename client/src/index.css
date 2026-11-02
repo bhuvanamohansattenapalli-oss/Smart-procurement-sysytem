@@ -40,7 +40,7 @@
 @media (max-width:780px){.hero-section{min-height:0!important;padding-bottom:1px}.hero-copy{padding-bottom:0}.hero-live-card{position:relative;right:auto;bottom:auto;width:calc(100% - 36px);margin:20px 18px;z-index:3}.hero-journey-rail{display:flex}.hero-actions{margin-top:22px}}
 @keyframes pulse{50%{opacity:.45;box-shadow:0 0 0 5px transparent}}@keyframes spin-hint{to{transform:rotate(360deg)}}
 @media (max-width:1050px){.journey-rail{width:198px}.screen-area{width:calc(100% - 198px);margin-left:198px}.page-content,.officer-main main{padding:34px 28px}.dashboard-hero{grid-template-columns:1fr .6fr}.booking-layout{grid-template-columns:minmax(0,1fr) 230px}.officer-rail{width:205px}.officer-main{width:calc(100% - 205px);margin-left:205px}.hero-copy{padding-left:55px}.hero-live-card{right:32px}.landing-links{gap:17px;margin-right:17px}.booking-center-cards{grid-template-columns:repeat(2,1fr)}.landing-nav .app-logo img.brand-logo-img{height:46px;max-height:48px}.app-logo img.brand-logo-img{height:44px;max-height:46px}}
-@media (max-width:780px){.landing-nav{height:68px;padding:0 18px}.landing-nav .app-logo img.brand-logo-img{height:40px;max-height:42px}.app-logo img.brand-logo-img{height:36px;max-height:38px}.landing-links{display:none}.landing-right .language-picker{display:none}.landing-right .action-button{min-height:35px}.hero-section{min-height:650px;border-radius:0}.hero-tint{background:linear-gradient(180deg,rgba(247,243,231,.96) 0%,rgba(247,243,231,.84) 50%,rgba(247,243,231,.14) 100%)}.hero-copy{width:100%;padding:68px 23px 0}.hero-copy h1{max-width:470px;font-size:47px}.hero-copy>p{font-size:14px}.hero-journey-rail{gap:5px;padding:8px;overflow:auto}.hero-journey-rail>span{min-width:84px;font-size:7px}.hero-journey-rail>em{width:7px}.hero-copy .hero-trust{margin-top:17px}.hero-live-card{right:18px;bottom:22px;width:calc(100% - 36px)}.proof-strip{grid-template-columns:1fr 1fr;gap:10px;padding:16px;margin:0;border-radius:0;box-shadow:none}.proof-strip>div{padding:4px}.journey-section{grid-template-columns:1fr;gap:37px;padding:72px 25px}.closing-banner{align-items:flex-start;flex-direction:column;padding:35px 25px;margin:0;border-radius:0}.landing-page footer{align-items:flex-start;gap:15px;flex-direction:column;padding:27px 20px}.auth-page{grid-template-columns:1fr}.auth-side{min-height:330px;padding:28px}.auth-side h1{font-size:40px}.auth-side p{font-size:11px}.side-steps{font-size:10px}.auth-panel{padding:26px 22px 50px}.form-wrap{margin:45px auto 0}.field-row{grid-template-columns:1fr}.pending-page header{padding:18px}.pending-page main{margin:32px auto}.pending-page h1{font-size:34px}.pending-actions{flex-direction:column}.pending-actions .action-button{justify-content:center}.login-page main{grid-template-columns:1fr;min-height:0;margin:15px 16px 45px}.login-art{height:260px}.login-art>div{bottom:25px;left:25px}.login-art h2{font-size:27px}.login-card{padding:36px 25px}.journey-rail{display:none}.screen-area{width:100%;margin-left:0;padding-bottom:70px}.app-topbar{height:61px;padding:0 18px}.app-topbar p{display:none}.topbar-actions .language-picker,.profile-chip b{display:none}.mobile-menu{display:grid;place-items:center;width:32px;height:32px;color:var(--paddy);background:#e9f3eb;border-radius:8px}.mobile-dock{position:fixed;right:0;bottom:0;left:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);height:66px;padding:7px 10px;background:rgba(255,255,255,.95);border-top:1px solid #e0e7df;backdrop-filter:blur(12px)}.mobile-dock button{display:grid;justify-items:center;gap:3px;color:#829087;font-size:8px;font-weight:700}.mobile-dock button.active{color:var(--paddy)}.mobile-dock svg{width:18px}.mobile-menu-panel{position:fixed;z-index:40;top:0;bottom:0;left:0;display:flex;flex-direction:column;gap:6px;width:min(300px,88vw);padding:29px 19px;background:#fff;box-shadow:16px 0 50px rgba(27,67,43,.18)}.mobile-menu-panel .close-menu{align-self:flex-end;display:grid;place-items:center;width:31px;height:31px;margin-bottom:18px;background:#eff3ee;border-radius:50%}.mobile-menu-panel .app-logo{margin-bottom:28px}.mobile-menu-panel>button:not(.close-menu){display:flex;align-items:center;gap:11px;padding:11px;color:#547063;text-align:left;border-radius:9px;font-size:12px;font-weight:700}.mobile-menu-panel>button:not(.close-menu):hover{color:var(--paddy);background:#eff6f0}.page-content{padding:28px 17px}.section-heading{gap:15px;flex-direction:column;margin-bottom:23px}.section-heading h1{font-size:30px}.section-body{font-size:12px}.dashboard-hero{grid-template-columns:1fr}.dashboard-crop{min-height:195px}.booking-strip{grid-template-columns:1fr 1fr;gap:14px}.booking-strip .action-button{grid-column:1/-1;justify-content:center}.booking-route>i{width:22px}.booking-route>div{font-size:9px}.metric-grid,.officer-metrics{grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.metric-card{min-height:125px;padding:14px}.split-dashboard{grid-template-columns:1fr;gap:12px;margin-top:12px}.next-action-card{min-height:180px}.booking-layout,.confirmation-layout,.token-layout,.queue-layout,.status-layout,.profile-layout,.payment-layout,.assistant-layout{grid-template-columns:1fr;gap:15px}.booking-aside,.centre-detail>aside,.status-aside,.payment-summary{position:relative;top:auto}.booking-aside{padding:19px}.booking-aside h3{font-size:17px}.paddy-choice{gap:12px;padding:14px}.grain-art{width:48px;height:48px}.step-track{margin-bottom:20px}.centre-map{height:260px}.centre-list>button{grid-template-columns:auto 1fr auto}.centre-list>button>.status-pill{display:none}.centre-detail{grid-template-columns:1fr}.centre-detail>section{padding:20px}.centre-detail-head h1{font-size:25px}.centre-stat-row{gap:9px}.centre-stat-row strong{font-size:18px}.centre-route-preview{flex-wrap:wrap}.centre-route-preview button{margin-left:0}.slot-grid{grid-template-columns:1fr 1fr}.date-picker-row{gap:6px}.ticket-grid{gap:18px;padding:21px}.ticket-bottom{gap:12px;padding:12px 21px;flex-wrap:wrap}.token-card-head,.token-number,.token-card-details{padding-right:20px;padding-left:20px}.token-qr{margin-right:20px;margin-left:20px}.token-next{grid-template-columns:1fr;gap:10px}.your-position{gap:9px;padding:15px}.your-position>div:not(:first-child){padding-left:9px}.your-position strong{font-size:18px}.queue-alert{grid-template-columns:auto 1fr}.queue-alert>span{grid-column:2}.timeline-head{padding:20px}.timeline-head h2{font-size:17px}.timeline-head button{font-size:8px}.timeline{padding:8px 19px 16px}.status-summary{grid-template-columns:1fr;gap:9px}.payment-panel{padding:20px}.profile-card{padding:20px}.profile-main{align-items:flex-start}.profile-main>button{margin-left:auto}.profile-details{gap:17px}.notifications-list article{grid-template-columns:auto 1fr}.notifications-list small{grid-column:2}.chat-panel{min-height:540px}.chat-bubble{max-width:90%}.assistant-side{display:none}.officer-rail{display:none}.officer-main{width:100%;margin-left:0}.officer-main header{height:61px;padding:0 18px}.officer-main header>div:first-child{display:none}.officer-main main{padding:28px 17px 80px}.officer-grid{grid-template-columns:1fr;margin-top:12px}.officer-queue-summary{grid-template-columns:1fr;gap:16px}.arrival-bars{height:50px}.registration-alert{min-height:180px;align-items:flex-start;flex-direction:column}.registration-table{overflow:auto}.table-head,.registration-row{min-width:700px}.review-drawer{padding:22px}.review-data{gap:16px}.approved-list article{grid-template-columns:auto 1fr;gap:14px}.approved-list article>div:not(:nth-child(2)){grid-column:2}.approved-list button{grid-column:1/-1}.booking-center-cards{grid-template-columns:1fr 1fr}.officer-booking-list{padding:17px;overflow:auto}.officer-booking-list article{min-width:600px}.officer-login main{grid-template-columns:1fr;gap:18px;padding:20px 17px 55px}.officer-login main>section{padding:30px}.officer-login h1{font-size:32px}.officer-login-stat{margin-top:24px}.officer-login main>form{padding:18px;background:#fff;border-radius:14px}}
+@media (max-width:780px){.landing-nav{height:68px;padding:0 18px}.landing-nav .app-logo img.brand-logo-img{height:40px;max-height:42px}.app-logo img.brand-logo-img{height:36px;max-height:38px}.landing-links{display:none}.landing-right .language-picker{display:none}.landing-right .action-button{min-height:35px}.hero-section{min-height:650px;border-radius:0}.hero-tint{background:linear-gradient(180deg,rgba(247,243,231,.96) 0%,rgba(247,243,231,.84) 50%,rgba(247,243,231,.14) 100%)}.hero-copy{width:100%;padding:68px 23px 0}.hero-copy h1{max-width:470px;font-size:47px}.hero-copy>p{font-size:14px}.hero-journey-rail{gap:5px;padding:8px;overflow:auto}.hero-journey-rail>span{min-width:84px;font-size:7px}.hero-journey-rail>em{width:7px}.hero-copy .hero-trust{margin-top:17px}.hero-live-card{right:18px;bottom:22px;width:calc(100% - 36px)}.proof-strip{grid-template-columns:1fr 1fr;gap:10px;padding:16px;margin:0;border-radius:0;box-shadow:none}.proof-strip>div{padding:4px}.journey-section{grid-template-columns:1fr;gap:37px;padding:72px 25px}.closing-banner{align-items:flex-start;flex-direction:column;padding:35px 25px;margin:0;border-radius:0}.landing-page footer{align-items:flex-start;gap:15px;flex-direction:column;padding:27px 20px}.auth-page{grid-template-columns:1fr}.auth-side{min-height:330px;padding:28px}.auth-side h1{font-size:40px}.auth-side p{font-size:11px}.side-steps{font-size:10px}.auth-panel{padding:26px 22px 50px}.form-wrap{margin:45px auto 0}.field-row{grid-template-columns:1fr}.pending-page header{padding:18px}.pending-page main{margin:32px auto}.pending-page h1{font-size:34px}.pending-actions{flex-direction:column}.pending-actions .action-button{justify-content:center}.login-page main{grid-template-columns:1fr;min-height:0;margin:15px 16px 45px}.login-art{height:260px}.login-art>div{bottom:25px;left:25px}.login-art h2{font-size:27px}.login-card{padding:36px 25px}.journey-rail{display:none}.screen-area{width:100%;margin-left:0;padding-bottom:70px}.app-topbar{height:61px;padding:0 18px}.app-topbar p{display:none}.topbar-actions .language-picker,.profile-chip b{display:none}.mobile-menu{display:grid;place-items:center;width:32px;height:32px;color:var(--paddy);background:#e9f3eb;border-radius:8px}.mobile-dock{position:fixed;right:0;bottom:0;left:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);height:66px;padding:7px 10px;background:rgba(255,255,255,.95);border-top:1px solid #e0e7df;backdrop-filter:blur(12px)}.mobile-dock button{display:grid;justify-items:center;gap:3px;color:#829087;font-size:8px;font-weight:700}.mobile-dock button.active{color:var(--paddy)}.mobile-dock svg{width:18px}.mobile-menu-panel{position:fixed;z-index:40;top:0;bottom:0;left:0;display:flex;flex-direction:column;gap:6px;width:min(300px,88vw);padding:29px 19px;background:#fff;box-shadow:16px 0 50px rgba(27,67,43,.18)}.mobile-menu-panel .close-menu{align-self:flex-end;display:grid;place-items:center;width:31px;height:31px;margin-bottom:18px;background:#eff3ee;border-radius:50%}.mobile-menu-panel .app-logo{margin-bottom:28px}.mobile-menu-panel>button:not(.close-menu){display:flex;align-items:center;gap:11px;padding:11px;color:#547063;text-align:left;border-radius:9px;font-size:12px;font-weight:700}.mobile-menu-panel>button:not(.close-menu):hover{color:var(--paddy);background:#eff6f0}.page-content{padding:28px 17px}.section-heading{gap:15px;flex-direction:column;margin-bottom:23px}.section-heading h1{font-size:30px}.section-body{font-size:12px}.dashboard-hero{grid-template-columns:1fr}.dashboard-crop{min-height:195px}.booking-strip{grid-template-columns:1fr 1fr;gap:14px}.booking-strip .action-button{grid-column:1/-1;justify-content:center}.booking-route>i{width:22px}.booking-route>div{font-size:9px}.metric-grid,.officer-metrics{grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.metric-card{min-height:125px;padding:14px}.split-dashboard{grid-template-columns:1fr;gap:12px;margin-top:12px}.next-action-card{min-height:180px}.booking-layout,.confirmation-layout,.token-layout,.queue-layout,.status-layout,.profile-layout,.payment-layout,.assistant-layout,.weather-layout,.transport-layout,.crop-prices-layout{grid-template-columns:1fr!important;gap:15px}.booking-aside,.centre-detail>aside,.status-aside,.payment-summary{position:relative;top:auto}.booking-aside{padding:19px}.booking-aside h3{font-size:17px}.paddy-choice{gap:12px;padding:14px}.grain-art{width:48px;height:48px}.step-track{margin-bottom:20px}.centre-map{height:260px}.centre-list>button{grid-template-columns:auto 1fr auto}.centre-list>button>.status-pill{display:none}.centre-detail{grid-template-columns:1fr}.centre-detail>section{padding:20px}.centre-detail-head h1{font-size:25px}.centre-stat-row{gap:9px}.centre-stat-row strong{font-size:18px}.centre-route-preview{flex-wrap:wrap}.centre-route-preview button{margin-left:0}.slot-grid{grid-template-columns:1fr 1fr}.date-picker-row{gap:6px}.ticket-grid{gap:18px;padding:21px}.ticket-bottom{gap:12px;padding:12px 21px;flex-wrap:wrap}.token-card-head,.token-number,.token-card-details{padding-right:20px;padding-left:20px}.token-qr{margin-right:20px;margin-left:20px}.token-next{grid-template-columns:1fr;gap:10px}.your-position{gap:9px;padding:15px}.your-position>div:not(:first-child){padding-left:9px}.your-position strong{font-size:18px}.queue-alert{grid-template-columns:auto 1fr}.queue-alert>span{grid-column:2}.timeline-head{padding:20px}.timeline-head h2{font-size:17px}.timeline-head button{font-size:8px}.timeline{padding:8px 19px 16px}.status-summary{grid-template-columns:1fr;gap:9px}.payment-panel{padding:20px}.page-actions{display:flex!important;flex-direction:column-reverse!important;width:100%!important;gap:12px!important;margin-top:24px!important}.page-actions .action-button,.page-actions>*{width:100%!important;justify-content:center!important;white-space:normal!important;text-align:center!important;min-height:48px!important}.profile-card{padding:20px}.profile-main{align-items:flex-start}.profile-main>button{margin-left:auto}.profile-details{gap:17px}.notifications-list article{grid-template-columns:auto 1fr}.notifications-list small{grid-column:2}.chat-panel{min-height:540px}.chat-bubble{max-width:90%}.assistant-side{display:none}.officer-rail{display:none}.officer-main{width:100%;margin-left:0}.officer-main header{height:61px;padding:0 18px}.officer-main header>div:first-child{display:flex!important;align-items:center!important;gap:8px}.officer-main main{padding:28px 17px 80px}.officer-grid{grid-template-columns:1fr;margin-top:12px}.officer-queue-summary{grid-template-columns:1fr;gap:16px}.arrival-bars{height:50px}.registration-alert{min-height:180px;align-items:flex-start;flex-direction:column}.registration-table{overflow-x:auto;width:100%!important;-webkit-overflow-scrolling:touch}.table-head,.registration-row{min-width:640px}.review-drawer{padding:22px}.review-data{gap:16px}.approved-list article{grid-template-columns:auto 1fr;gap:14px}.approved-list article>div:not(:nth-child(2)){grid-column:2}.approved-list button{grid-column:1/-1}.booking-center-cards{grid-template-columns:1fr 1fr}.officer-booking-list{padding:17px 12px;overflow:auto}.officer-booking-list article{min-width:0!important;width:100%!important;flex-direction:column!important;align-items:stretch!important;gap:12px!important}.officer-login main{grid-template-columns:1fr;gap:18px;padding:20px 17px 55px}.officer-login main>section{padding:30px}.officer-login h1{font-size:32px}.officer-login-stat{margin-top:24px}.officer-login main>form{padding:18px;background:#fff;border-radius:14px}}
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 /* Brief integration: live map fallback and API-derived statistics */
@@ -1772,6 +1772,39 @@ html, body {
     line-height: 1.25 !important;
   }
 
+  .section-heading > .flex.items-center.gap-2.flex-wrap,
+  .section-heading > .flex.flex-wrap.items-center.gap-2 {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  .section-heading > .flex.items-center.gap-2.flex-wrap > *,
+  .section-heading > .flex.flex-wrap.items-center.gap-2 > * {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .district-selector-dropdown {
+    width: 100% !important;
+    min-height: 40px !important;
+  }
+
+  /* Weather Layout & Cards */
+  .weather-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .weather-hero-card {
+    padding: 18px 14px !important;
+    border-radius: 16px !important;
+  }
+
+  .weather-hero-card::after {
+    display: none !important;
+  }
+
   .dashboard-weather-banner {
     flex-direction: column;
     align-items: flex-start !important;
@@ -1791,12 +1824,223 @@ html, body {
     gap: 8px;
   }
 
+  .weather-temp-number {
+    font-size: clamp(34px, 8vw, 44px) !important;
+  }
+
   .weather-metrics-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 8px !important;
   }
 
+  .weather-advisory-card {
+    padding: 18px 14px !important;
+    margin-top: 14px !important;
+  }
+
+  .weather-advisory-card .flex.flex-wrap.gap-2,
+  .weather-advisory-card .flex {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  .weather-advisory-card .action-button,
+  .weather-advisory-card button {
+    width: 100% !important;
+    white-space: normal !important;
+    text-align: center !important;
+    justify-content: center !important;
+    min-height: 48px !important;
+    line-height: 1.35 !important;
+  }
+
+  .weather-selling-advisory button {
+    width: 100% !important;
+    white-space: normal !important;
+    text-align: center !important;
+    justify-content: center !important;
+    min-height: 46px !important;
+  }
+
   /* Booking & Token card responsiveness */
+  .page-actions {
+    display: flex !important;
+    flex-direction: column-reverse !important;
+    width: 100% !important;
+    gap: 12px !important;
+    margin-top: 24px !important;
+  }
+
+  .page-actions .action-button,
+  .page-actions > button,
+  .page-actions > * {
+    width: 100% !important;
+    justify-content: center !important;
+    white-space: normal !important;
+    text-align: center !important;
+    min-height: 48px !important;
+    padding: 12px 14px !important;
+  }
+
+  .booking-layout,
+  .confirmation-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .booking-aside {
+    position: relative !important;
+    top: auto !important;
+    width: 100% !important;
+    padding: 18px 14px !important;
+  }
+
+  .transport-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .vehicle-selector-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .transport-form-card {
+    padding: 18px 14px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .transport-form-card .grid.grid-cols-2,
+  .transport-form-card .grid.grid-cols-3,
+  .transport-form-card .grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .transport-form-card .action-button {
+    width: 100% !important;
+    justify-content: center !important;
+    white-space: normal !important;
+    min-height: 48px !important;
+  }
+
+  /* Officer Header & Navigation */
+  .officer-topbar {
+    height: 58px !important;
+    padding: 0 12px !important;
+    gap: 8px !important;
+  }
+
+  .officer-menu-toggle {
+    display: inline-grid !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 9px !important;
+    z-index: 10 !important;
+  }
+
+  .officer-queue-summary {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    padding: 18px 14px !important;
+  }
+
+  .officer-queue-summary > button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 14px !important;
+    background: #fff !important;
+    border-radius: 10px !important;
+  }
+
+  .arrival-bars {
+    height: 55px !important;
+    width: 100% !important;
+  }
+
+  .arrival-bars > div {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    height: 100% !important;
+  }
+
+  .arrival-bars span {
+    width: 100% !important;
+    max-width: 28px !important;
+    min-width: 8px !important;
+  }
+
+  .officer-booking-list {
+    padding: 16px 12px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+
+  .officer-booking-list article {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px 10px !important;
+  }
+
+  .officer-booking-list article > div {
+    width: 100% !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .officer-booking-list article > div button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+  }
+
+  .review-drawer {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: 18px 14px 40px !important;
+    box-sizing: border-box !important;
+  }
+
+  .review-data {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    padding: 18px 0 !important;
+  }
+
+  .drawer-actions {
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .drawer-actions .action-button {
+    width: 100% !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+  }
+
+  .stats-section {
+    padding: 16px 12px !important;
+    margin: 18px 0 !important;
+  }
+
+  .stats-heading {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
   .token-number {
     font-size: clamp(18px, 5.5vw, 28px) !important;
     word-break: break-all;
@@ -1846,6 +2090,15 @@ html, body {
   }
 }
 
+@media (max-width: 480px) {
+  .officer-badge-area {
+    display: none !important;
+  }
+  .mobile-toggle-text {
+    display: none !important;
+  }
+}
+
 @media (max-width: 390px) {
   /* Extra narrow screens: iPhone SE, Galaxy S compact (360px - 390px) */
   .landing-nav .app-logo img.brand-logo-img {
@@ -1861,7 +2114,8 @@ html, body {
   }
 
   .metric-grid,
-  .officer-metrics {
+  .officer-metrics,
+  .stats-grid {
     grid-template-columns: 1fr !important;
   }
 
@@ -2131,9 +2385,108 @@ html, body {
 [data-mobile-mode="true"] .status-layout,
 [data-mobile-mode="true"] .profile-layout,
 [data-mobile-mode="true"] .payment-layout,
-[data-mobile-mode="true"] .assistant-layout {
+[data-mobile-mode="true"] .assistant-layout,
+[data-mobile-mode="true"] .weather-layout,
+[data-mobile-mode="true"] .transport-layout,
+[data-mobile-mode="true"] .crop-prices-layout {
   grid-template-columns: 1fr !important;
   gap: 15px !important;
+}
+
+[data-mobile-mode="true"] .page-actions {
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  width: 100% !important;
+  gap: 12px !important;
+  margin-top: 24px !important;
+}
+
+[data-mobile-mode="true"] .page-actions .action-button,
+[data-mobile-mode="true"] .page-actions > button,
+[data-mobile-mode="true"] .page-actions > * {
+  width: 100% !important;
+  justify-content: center !important;
+  white-space: normal !important;
+  text-align: center !important;
+  min-height: 48px !important;
+  padding: 12px 14px !important;
+}
+
+[data-mobile-mode="true"] .weather-hero-card {
+  padding: 18px 14px !important;
+  border-radius: 16px !important;
+}
+
+[data-mobile-mode="true"] .weather-hero-card::after {
+  display: none !important;
+}
+
+[data-mobile-mode="true"] .weather-metrics-grid {
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 8px !important;
+}
+
+[data-mobile-mode="true"] .weather-advisory-card {
+  padding: 18px 14px !important;
+  margin-top: 14px !important;
+}
+
+[data-mobile-mode="true"] .weather-advisory-card .flex.flex-wrap.gap-2,
+[data-mobile-mode="true"] .weather-advisory-card .flex {
+  flex-direction: column !important;
+  width: 100% !important;
+  gap: 10px !important;
+}
+
+[data-mobile-mode="true"] .weather-advisory-card .action-button,
+[data-mobile-mode="true"] .weather-advisory-card button {
+  width: 100% !important;
+  white-space: normal !important;
+  text-align: center !important;
+  justify-content: center !important;
+  min-height: 48px !important;
+  line-height: 1.35 !important;
+}
+
+[data-mobile-mode="true"] .transport-form-card {
+  padding: 18px 14px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+[data-mobile-mode="true"] .transport-form-card .grid.grid-cols-2,
+[data-mobile-mode="true"] .transport-form-card .grid.grid-cols-3,
+[data-mobile-mode="true"] .transport-form-card .grid {
+  grid-template-columns: 1fr !important;
+  gap: 12px !important;
+}
+
+[data-mobile-mode="true"] .transport-form-card .action-button {
+  width: 100% !important;
+  justify-content: center !important;
+  white-space: normal !important;
+  min-height: 48px !important;
+}
+
+[data-mobile-mode="true"] .vehicle-selector-grid {
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+
+[data-mobile-mode="true"] .officer-topbar {
+  height: 58px !important;
+  padding: 0 12px !important;
+  gap: 8px !important;
+}
+
+[data-mobile-mode="true"] .officer-menu-toggle {
+  display: inline-grid !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  border-radius: 9px !important;
+  z-index: 10 !important;
 }
 
 [data-mobile-mode="true"] .booking-aside,
@@ -2278,6 +2631,79 @@ html, body {
 [data-mobile-mode="true"] .officer-booking-list article > div {
   width: 100% !important;
   justify-content: space-between !important;
+}
+
+[data-mobile-mode="true"] .officer-booking-list article > div button {
+  width: 100% !important;
+  justify-content: center !important;
+  min-height: 44px !important;
+}
+
+[data-mobile-mode="true"] .registration-table {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+[data-mobile-mode="true"] .table-head,
+[data-mobile-mode="true"] .registration-row {
+  min-width: 640px !important;
+}
+
+[data-mobile-mode="true"] .review-drawer {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  padding: 18px 14px 40px !important;
+  box-sizing: border-box !important;
+}
+
+[data-mobile-mode="true"] .review-data {
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+  padding: 18px 0 !important;
+}
+
+[data-mobile-mode="true"] .drawer-actions {
+  flex-direction: column !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+[data-mobile-mode="true"] .drawer-actions .action-button {
+  width: 100% !important;
+  min-height: 48px !important;
+  justify-content: center !important;
+}
+
+[data-mobile-mode="true"] .stats-section {
+  padding: 16px 12px !important;
+  margin: 18px 0 !important;
+}
+
+[data-mobile-mode="true"] .stats-heading {
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+[data-mobile-mode="true"] .arrival-bars {
+  height: 55px !important;
+  width: 100% !important;
+}
+
+[data-mobile-mode="true"] .arrival-bars > div {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  height: 100% !important;
+}
+
+[data-mobile-mode="true"] .arrival-bars span {
+  width: 100% !important;
+  max-width: 28px !important;
+  min-width: 8px !important;
 }
 
 [data-mobile-mode="true"] .hero-section {

@@ -411,7 +411,7 @@ function SectionTitle({ eyebrow, title, body, action }: { eyebrow?: string; titl
         <h1>{title}</h1>
         {body && <p className="section-body">{body}</p>}
       </div>
-      {action}
+      {action && <div className="section-title-action-wrap w-full sm:w-auto shrink-0">{action}</div>}
     </div>
   );
 }
@@ -599,9 +599,9 @@ function FarmerProfileDropdown({
   );
 }
 
-function ActionButton({ children, onClick, secondary = false, icon: Icon, disabled = false }: { children: React.ReactNode; onClick: () => void; secondary?: boolean; icon?: typeof ArrowRight; disabled?: boolean }) {
+function ActionButton({ children, onClick, secondary = false, icon: Icon, disabled = false, className = "" }: { children: React.ReactNode; onClick: () => void; secondary?: boolean; icon?: typeof ArrowRight; disabled?: boolean; className?: string }) {
   return (
-    <Button disabled={disabled} onClick={onClick} className={secondary ? "action-button secondary" : "action-button"}>
+    <Button disabled={disabled} onClick={onClick} className={`${secondary ? "action-button secondary" : "action-button"} ${className}`.trim()}>
       {children}{Icon && <Icon size={17} />}
     </Button>
   );
@@ -6503,16 +6503,16 @@ export default function Home() {
         title={t.weatherTitle}
         body={t.weatherBody}
         action={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             {/* GPS Location Button */}
             <button
               type="button"
               onClick={requestGpsWeather}
               disabled={weatherLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-bold hover:bg-emerald-100 transition shadow-xs"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-bold hover:bg-emerald-100 transition shadow-xs w-full sm:w-auto min-h-[40px]"
               title="Detect farm weather via GPS"
             >
-              <LocateFixed size={14} className="text-emerald-700" />
+              <LocateFixed size={14} className="text-emerald-700 shrink-0" />
               <span>Use Farm GPS</span>
             </button>
 
@@ -6527,17 +6527,17 @@ export default function Home() {
                   })
                 }
                 disabled={weatherLoading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 transition shadow-xs"
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 transition shadow-xs w-full sm:w-auto min-h-[40px]"
                 title={`Sync with registered village: ${profileRecord.village}`}
               >
-                <MapPin size={13} className="text-emerald-700" />
+                <MapPin size={13} className="text-emerald-700 shrink-0" />
                 <span>Farm: {profileRecord.village}</span>
               </button>
             )}
 
             {/* Complete AP & TS District Dropdown */}
             <select
-              className="district-selector-dropdown text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 text-foreground cursor-pointer"
+              className="district-selector-dropdown text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-foreground cursor-pointer w-full sm:w-auto min-h-[40px]"
               value={selectedWeatherDistrict}
               onChange={(e) => {
                 const d = e.target.value;
@@ -6589,6 +6589,7 @@ export default function Home() {
               onClick={() => void loadWeather(selectedWeatherDistrict)}
               icon={RefreshCw}
               disabled={weatherLoading}
+              className="w-full sm:w-auto justify-center min-h-[40px]"
             >
               <span className={weatherLoading ? "animate-spin inline-block" : ""}>Refresh</span>
             </ActionButton>
@@ -6718,19 +6719,19 @@ export default function Home() {
                 ? weatherData?.advisoryHi
                 : weatherData?.advisoryEn}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
               <Button
                 onClick={() => navigate("transportation")}
-                className="action-button"
+                className="action-button w-full sm:w-auto justify-center"
               >
-                <Truck size={16} className="mr-1.5" /> Book Subsidized Vehicle for Today's Weather
+                <Truck size={16} className="mr-1.5 shrink-0" /> <span className="whitespace-normal text-center">{tUi("Book Subsidized Vehicle for Today's Weather", language)}</span>
               </Button>
               <Button
                 variant="outline"
                 onClick={() => navigate("paddy")}
-                className="border-emerald-700/30 text-emerald-900"
+                className="border-emerald-700/30 text-emerald-900 w-full sm:w-auto justify-center min-h-[44px]"
               >
-                <CalendarDays size={16} className="mr-1.5" /> Book Procurement Slot
+                <CalendarDays size={16} className="mr-1.5 shrink-0" /> {tUi("Book Procurement Slot", language)}
               </Button>
             </div>
           </div>
@@ -8299,7 +8300,7 @@ export default function Home() {
         title="Procurement Operations Dashboard"
         body="Real-time operational metrics, capacity utilization, and arrival flow computed directly from the system database."
         action={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <ActionButton
               onClick={() => {
                 try {
@@ -8327,10 +8328,11 @@ export default function Home() {
               }}
               icon={Download}
               secondary
+              className="w-full sm:w-auto justify-center min-h-[44px]"
             >
               Export Report
             </ActionButton>
-            <ActionButton onClick={() => { setOfficerView("pending"); navigate("registrations"); }} icon={UserCheck}>Review pending ({pendingRegistrations.length})</ActionButton>
+            <ActionButton onClick={() => { setOfficerView("pending"); navigate("registrations"); }} icon={UserCheck} className="w-full sm:w-auto justify-center min-h-[44px]">Review pending ({pendingRegistrations.length})</ActionButton>
           </div>
         }
       />
@@ -10829,7 +10831,7 @@ export default function Home() {
 
           <div className="transport-form-card">
             <h3 className="text-base font-bold text-[#183d2e] mb-3">2. Pickup & Destination Details</h3>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <label className="text-xs font-bold">
                 Pickup Village
                 <Input
@@ -10852,7 +10854,7 @@ export default function Home() {
               </label>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               <label className="text-xs font-bold">
                 Scheduled Date
                 <Input
@@ -10909,6 +10911,7 @@ export default function Home() {
               disabled={transportBookingLoading}
               onClick={() => { void bookTransport(); }}
               icon={Truck}
+              className="w-full sm:w-auto justify-center min-h-[48px]"
             >
               {transportBookingLoading ? "Booking Subsidized Vehicle…" : "Book Subsidized Vehicle"}
             </ActionButton>

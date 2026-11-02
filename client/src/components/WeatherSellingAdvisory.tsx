@@ -317,24 +317,24 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2">
             {onNavigateToTransport && (
               <button
                 type="button"
                 onClick={onNavigateToTransport}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold shadow-xs transition"
+                className="inline-flex items-center justify-center text-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold shadow-xs transition w-full sm:w-auto min-h-[44px]"
               >
-                <Truck size={14} /> Book Subsidized Transport for This Window
+                <Truck size={14} className="shrink-0" /> <span>Book Subsidized Transport for This Window</span>
               </button>
             )}
             {onNavigateToBooking && (
               <button
                 type="button"
                 onClick={onNavigateToBooking}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-800 dark:text-slate-200 text-xs font-bold shadow-xs transition"
+                className="inline-flex items-center justify-center text-center gap-1.5 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-800 dark:text-slate-200 text-xs font-bold shadow-xs transition w-full sm:w-auto min-h-[44px]"
               >
-                <Calendar size={14} /> Book Mandi Procurement Slot
+                <Calendar size={14} className="shrink-0" /> <span>Book Mandi Procurement Slot</span>
               </button>
             )}
           </div>

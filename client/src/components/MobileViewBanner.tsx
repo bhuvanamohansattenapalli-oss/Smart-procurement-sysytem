@@ -58,3 +58,4 @@ export function MobileViewBanner() {
 }
 
 export default MobileViewBanner;
+
