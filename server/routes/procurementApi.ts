@@ -1451,6 +1451,11 @@ export function createProcurementApi() {
         name: farmer.name,
       });
       console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${maskPhone(cleanPhone)} code=${farmer.farmerCode}`);
+      const isProd = process.env.NODE_ENV === "production";
+      res.setHeader(
+        "Set-Cookie",
+        `procureflow_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${isProd ? "; Secure" : ""}`
+      );
       return res.json({
         accessToken: token,
         tokenType: "Bearer",
@@ -1533,6 +1538,11 @@ export function createProcurementApi() {
         name: officer.name,
         district: officer.district ?? undefined,
       });
+      const isProd = process.env.NODE_ENV === "production";
+      res.setHeader(
+        "Set-Cookie",
+        `procureflow_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${isProd ? "; Secure" : ""}`
+      );
       return res.json({
         accessToken: token,
         tokenType: "Bearer",
@@ -1552,6 +1562,148 @@ export function createProcurementApi() {
         message: "An unexpected error occurred during officer login. Please try again.",
       });
     }
+  });
+
+  // 4a. Farmer Session Profile Verification (/farmers/me)
+  api.get("/farmers/me", requireApiAuth, requireRole("farmer"), async (req: AuthenticatedRequest, res) => {
+    const principal = req.principal!;
+    const db = await getDb();
+    if (!db) {
+      // Graceful fallback to JWT claims if DB is temporarily unreachable so user is not logged out
+      return res.json({
+        status: "authenticated",
+        role: "farmer",
+        farmer: {
+          id: principal.id,
+          farmerCode: principal.code,
+          name: principal.name,
+          phone: "",
+          village: "",
+          district: principal.district || "Nizamabad",
+          primaryCrop: "Paddy",
+          status: "APPROVED",
+        },
+      });
+    }
+
+    try {
+      const farmer = (await db.select().from(farmers).where(eq(farmers.id, principal.id)).limit(1))[0];
+      if (!farmer) {
+        return res.status(401).json({
+          error: "FARMER_NOT_FOUND",
+          message: "Farmer account associated with this session no longer exists.",
+        });
+      }
+      if (farmer.status !== "APPROVED") {
+        return res.status(403).json({
+          error: "ACCOUNT_NOT_APPROVED",
+          message: `Farmer registration status is ${farmer.status}.`,
+        });
+      }
+      return res.json({
+        status: "authenticated",
+        role: "farmer",
+        farmer: formatFarmer(farmer),
+      });
+    } catch (err: any) {
+      console.warn(`[Auth Warning] /farmers/me DB lookup exception, falling back to session claims: ${err?.message || err}`);
+      return res.json({
+        status: "authenticated",
+        role: "farmer",
+        farmer: {
+          id: principal.id,
+          farmerCode: principal.code,
+          name: principal.name,
+          phone: "",
+          village: "",
+          district: principal.district || "Nizamabad",
+          primaryCrop: "Paddy",
+          status: "APPROVED",
+        },
+      });
+    }
+  });
+
+  // 4b. Officer Session Profile Verification (/officers/me)
+  api.get("/officers/me", requireApiAuth, requireRole("officer"), async (req: AuthenticatedRequest, res) => {
+    const principal = req.principal!;
+    const db = await getDb();
+    if (!db) {
+      // Graceful fallback to JWT claims if DB is temporarily unreachable
+      return res.json({
+        status: "authenticated",
+        role: "officer",
+        officer: {
+          id: principal.id,
+          officerCode: principal.code,
+          employeeId: principal.code,
+          name: principal.name,
+          email: null,
+          phone: null,
+          role: principal.staffRole || "HEAD_OFFICER",
+          department: principal.department || "Administration",
+          designation: principal.designation || "Procurement Officer",
+          branch: principal.branch || "Guntur",
+          centreId: principal.centreId ?? null,
+          centreName: principal.centreName ?? null,
+          status: "ACTIVE",
+        },
+      });
+    }
+
+    try {
+      const officer = (await db.select().from(officers).where(eq(officers.id, principal.id)).limit(1))[0];
+      if (!officer) {
+        return res.status(401).json({
+          error: "OFFICER_NOT_FOUND",
+          message: "Officer account associated with this session no longer exists.",
+        });
+      }
+      if (officer.status === "DISABLED" || officer.status === "REJECTED") {
+        return res.status(403).json({
+          error: "ACCOUNT_INACTIVE",
+          message: "Your officer account has been disabled or rejected.",
+        });
+      }
+      return res.json({
+        status: "authenticated",
+        role: "officer",
+        officer: formatOfficer(officer),
+      });
+    } catch (err: any) {
+      console.warn(`[Auth Warning] /officers/me DB lookup exception, falling back to session claims: ${err?.message || err}`);
+      return res.json({
+        status: "authenticated",
+        role: "officer",
+        officer: {
+          id: principal.id,
+          officerCode: principal.code,
+          employeeId: principal.code,
+          name: principal.name,
+          email: null,
+          phone: null,
+          role: principal.staffRole || "HEAD_OFFICER",
+          department: principal.department || "Administration",
+          designation: principal.designation || "Procurement Officer",
+          branch: principal.branch || "Guntur",
+          centreId: principal.centreId ?? null,
+          centreName: principal.centreName ?? null,
+          status: "ACTIVE",
+        },
+      });
+    }
+  });
+
+  // 4c. Unified / Farmers / Officers Logout (Clear Cookies & Revoke Client Session)
+  api.post(["/farmers/logout", "/officers/logout", "/auth/logout"], (_req, res) => {
+    res.setHeader(
+      "Set-Cookie",
+      "procureflow_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+    );
+    return res.json({
+      status: "logged_out",
+      message: "Authentication session successfully cleared.",
+    });
   });
 
   // Head Officer: Submit new staff onboarding request (Status: PENDING_VERIFICATION)

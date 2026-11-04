@@ -83836,15 +83836,29 @@ async function verifyAccessToken(token) {
 
 // server/middleware/apiAuth.ts
 async function requireApiAuth(req, res, next) {
+  let token;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+  }
+  if (!token && req.headers.cookie) {
+    const rawCookies = req.headers.cookie.split(";");
+    for (const cookieItem of rawCookies) {
+      const [rawKey, ...rawValParts] = cookieItem.trim().split("=");
+      const key = rawKey?.trim();
+      if (key === "procureflow_token" || key === "procureflow_farmer_token" || key === "procureflow_officer_token") {
+        token = decodeURIComponent(rawValParts.join("=").trim());
+        break;
+      }
+    }
+  }
+  if (!token) {
     res.status(401).json({
       error: "UNAUTHORIZED",
       message: "An active authentication session is required."
     });
     return;
   }
-  const token = authHeader.slice(7).trim();
   try {
     const principal = await verifyAccessToken(token);
     req.principal = principal;
@@ -113065,6 +113079,11 @@ Stack: ${err?.stack}`);
         name: farmer.name
       });
       console.info(`[Auth Audit] Farmer login success: id=${farmer.id} phone=${maskPhone(cleanPhone)} code=${farmer.farmerCode}`);
+      const isProd = process.env.NODE_ENV === "production";
+      res.setHeader(
+        "Set-Cookie",
+        `procureflow_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${isProd ? "; Secure" : ""}`
+      );
       return res.json({
         accessToken: token,
         tokenType: "Bearer",
@@ -113144,6 +113163,11 @@ Stack: ${err?.stack}`);
         name: officer.name,
         district: officer.district ?? void 0
       });
+      const isProd = process.env.NODE_ENV === "production";
+      res.setHeader(
+        "Set-Cookie",
+        `procureflow_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${isProd ? "; Secure" : ""}`
+      );
       return res.json({
         accessToken: token,
         tokenType: "Bearer",
@@ -113163,6 +113187,138 @@ Stack: ${err?.stack}`);
         message: "An unexpected error occurred during officer login. Please try again."
       });
     }
+  });
+  api.get("/farmers/me", requireApiAuth, requireRole("farmer"), async (req, res) => {
+    const principal = req.principal;
+    const db = await getDb();
+    if (!db) {
+      return res.json({
+        status: "authenticated",
+        role: "farmer",
+        farmer: {
+          id: principal.id,
+          farmerCode: principal.code,
+          name: principal.name,
+          phone: "",
+          village: "",
+          district: principal.district || "Nizamabad",
+          primaryCrop: "Paddy",
+          status: "APPROVED"
+        }
+      });
+    }
+    try {
+      const farmer = (await db.select().from(farmers).where(eq(farmers.id, principal.id)).limit(1))[0];
+      if (!farmer) {
+        return res.status(401).json({
+          error: "FARMER_NOT_FOUND",
+          message: "Farmer account associated with this session no longer exists."
+        });
+      }
+      if (farmer.status !== "APPROVED") {
+        return res.status(403).json({
+          error: "ACCOUNT_NOT_APPROVED",
+          message: `Farmer registration status is ${farmer.status}.`
+        });
+      }
+      return res.json({
+        status: "authenticated",
+        role: "farmer",
+        farmer: formatFarmer(farmer)
+      });
+    } catch (err) {
+      console.warn(`[Auth Warning] /farmers/me DB lookup exception, falling back to session claims: ${err?.message || err}`);
+      return res.json({
+        status: "authenticated",
+        role: "farmer",
+        farmer: {
+          id: principal.id,
+          farmerCode: principal.code,
+          name: principal.name,
+          phone: "",
+          village: "",
+          district: principal.district || "Nizamabad",
+          primaryCrop: "Paddy",
+          status: "APPROVED"
+        }
+      });
+    }
+  });
+  api.get("/officers/me", requireApiAuth, requireRole("officer"), async (req, res) => {
+    const principal = req.principal;
+    const db = await getDb();
+    if (!db) {
+      return res.json({
+        status: "authenticated",
+        role: "officer",
+        officer: {
+          id: principal.id,
+          officerCode: principal.code,
+          employeeId: principal.code,
+          name: principal.name,
+          email: null,
+          phone: null,
+          role: principal.staffRole || "HEAD_OFFICER",
+          department: principal.department || "Administration",
+          designation: principal.designation || "Procurement Officer",
+          branch: principal.branch || "Guntur",
+          centreId: principal.centreId ?? null,
+          centreName: principal.centreName ?? null,
+          status: "ACTIVE"
+        }
+      });
+    }
+    try {
+      const officer = (await db.select().from(officers).where(eq(officers.id, principal.id)).limit(1))[0];
+      if (!officer) {
+        return res.status(401).json({
+          error: "OFFICER_NOT_FOUND",
+          message: "Officer account associated with this session no longer exists."
+        });
+      }
+      if (officer.status === "DISABLED" || officer.status === "REJECTED") {
+        return res.status(403).json({
+          error: "ACCOUNT_INACTIVE",
+          message: "Your officer account has been disabled or rejected."
+        });
+      }
+      return res.json({
+        status: "authenticated",
+        role: "officer",
+        officer: formatOfficer(officer)
+      });
+    } catch (err) {
+      console.warn(`[Auth Warning] /officers/me DB lookup exception, falling back to session claims: ${err?.message || err}`);
+      return res.json({
+        status: "authenticated",
+        role: "officer",
+        officer: {
+          id: principal.id,
+          officerCode: principal.code,
+          employeeId: principal.code,
+          name: principal.name,
+          email: null,
+          phone: null,
+          role: principal.staffRole || "HEAD_OFFICER",
+          department: principal.department || "Administration",
+          designation: principal.designation || "Procurement Officer",
+          branch: principal.branch || "Guntur",
+          centreId: principal.centreId ?? null,
+          centreName: principal.centreName ?? null,
+          status: "ACTIVE"
+        }
+      });
+    }
+  });
+  api.post(["/farmers/logout", "/officers/logout", "/auth/logout"], (_req, res) => {
+    res.setHeader(
+      "Set-Cookie",
+      "procureflow_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+    );
+    return res.json({
+      status: "logged_out",
+      message: "Authentication session successfully cleared."
+    });
   });
   api.post("/officers/staff/register", requireApiAuth, requireRole("HEAD_OFFICER"), async (req, res) => {
     const input2 = respondValidation(res, staffRegistrationSchema, req.body);

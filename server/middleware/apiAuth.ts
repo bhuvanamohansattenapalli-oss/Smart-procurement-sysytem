@@ -7,8 +7,26 @@ export async function requireApiAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  let token: string | undefined;
+
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+  }
+
+  if (!token && req.headers.cookie) {
+    const rawCookies = req.headers.cookie.split(";");
+    for (const cookieItem of rawCookies) {
+      const [rawKey, ...rawValParts] = cookieItem.trim().split("=");
+      const key = rawKey?.trim();
+      if (key === "procureflow_token" || key === "procureflow_farmer_token" || key === "procureflow_officer_token") {
+        token = decodeURIComponent(rawValParts.join("=").trim());
+        break;
+      }
+    }
+  }
+
+  if (!token) {
     res.status(401).json({
       error: "UNAUTHORIZED",
       message: "An active authentication session is required.",
@@ -16,7 +34,6 @@ export async function requireApiAuth(
     return;
   }
 
-  const token = authHeader.slice(7).trim();
   try {
     const principal = await verifyAccessToken(token);
     req.principal = principal;

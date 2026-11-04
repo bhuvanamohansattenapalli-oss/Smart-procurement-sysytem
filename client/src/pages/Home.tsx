@@ -330,6 +330,87 @@ const farmerOnlyScreens: Screen[] = [
   "notifications",
 ];
 
+const officerOnlyScreens: Screen[] = [
+  "officerDashboard",
+  "staffManagement",
+  "registrations",
+  "farmerDetail",
+  "approved",
+  "bookings",
+  "quality",
+  "officerLogistics",
+  "officerPayments",
+  "officerAiCopilot",
+];
+
+const ALL_VALID_SCREENS: Screen[] = [
+  "landing",
+  "registration",
+  "pending",
+  "farmerLogin",
+  "dashboard",
+  "paddy",
+  "cropPrices",
+  "weather",
+  "farmerAnalytics",
+  "transportation",
+  "history",
+  "centres",
+  "centre",
+  "slot",
+  "confirmation",
+  "token",
+  "queue",
+  "status",
+  "payment",
+  "profile",
+  "assistant",
+  "notifications",
+  "officerLogin",
+  "officerDashboard",
+  "staffManagement",
+  "registrations",
+  "farmerDetail",
+  "approved",
+  "bookings",
+  "quality",
+  "officerLogistics",
+  "officerPayments",
+  "officerAiCopilot",
+];
+
+function getInitialScreen(): Screen {
+  if (typeof window === "undefined") return "landing";
+  const hash = window.location.hash.replace(/^#\/?/, "").trim();
+  if (hash && ALL_VALID_SCREENS.includes(hash as Screen)) {
+    return hash as Screen;
+  }
+  const searchParams = new URLSearchParams(window.location.search);
+  const screenParam = searchParams.get("screen")?.trim();
+  if (screenParam && ALL_VALID_SCREENS.includes(screenParam as Screen)) {
+    return screenParam as Screen;
+  }
+  const lastScreen = sessionStorage.getItem("procureflow.lastScreen")?.trim();
+  if (lastScreen && ALL_VALID_SCREENS.includes(lastScreen as Screen)) {
+    return lastScreen as Screen;
+  }
+  try {
+    const farmerRaw = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
+    if (farmerRaw) {
+      const parsed = JSON.parse(farmerRaw);
+      if (parsed?.token) return "dashboard";
+    }
+  } catch {}
+  try {
+    const officerRaw = localStorage.getItem("procureflow.officer.session") || sessionStorage.getItem("procureflow.officer.session");
+    if (officerRaw) {
+      const parsed = JSON.parse(officerRaw);
+      if (parsed?.token) return "officerDashboard";
+    }
+  } catch {}
+  return "landing";
+}
+
 const logoUrl = "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=120&q=80";
 const queueUrl = "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=1200&q=80";
 const statusUrl = "https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&w=1200&q=80";
@@ -704,7 +785,8 @@ function MetricCard({ label, value, hint, icon: Icon, tone = "green" }: { label:
 }
 
 export default function Home() {
-  const [screen, setScreen] = useState<Screen>("landing");
+  const [screen, setScreen] = useState<Screen>(getInitialScreen);
+  const [isAuthInitializing, setIsAuthInitializing] = useState(true);
   const { language, setLanguage } = useLanguage();
   const [mobileMenu, setMobileMenu] = useState(false);
   const [officerMobileMenu, setOfficerMobileMenu] = useState(false);
@@ -735,7 +817,17 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
   const [registered, setRegistered] = useState(false);
-  const [approved, setApproved] = useState(false);
+  const [approved, setApproved] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return parsed?.farmer?.status === "APPROVED";
+    } catch {
+      return false;
+    }
+  });
   const [selectedCentre, setSelectedCentre] = useState<Centre>(centres[0]);
   const [selectedPaddy, setSelectedPaddy] = useState("Common paddy — Grade A");
   const [selectedDate, setSelectedDate] = useState("Wednesday, 18 March");
@@ -799,7 +891,17 @@ export default function Home() {
     { role: "assistant", text: "Welcome to ProcureFlow AI Copilot. Ask any operational query regarding Fair Average Quality (FAQ) standards, weighbridge calibration, queue dispatch, or farmer document verification.", source: "gemini", model: "gemini-3.5-flash-lite" }
   ]);
   const [officerView, setOfficerView] = useState<"overview" | "staff" | "pending" | "approved" | "bookings" | "quality" | "logistics" | "payments" | "aiCopilot">("overview");
-  const [officerProfile, setOfficerProfile] = useState<StaffRecord | null>(null);
+  const [officerProfile, setOfficerProfile] = useState<StaffRecord | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("procureflow.officer.session") || sessionStorage.getItem("procureflow.officer.session");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.officer || null;
+    } catch {
+      return null;
+    }
+  });
   const [officerLoginForm, setOfficerLoginForm] = useState({ officerCode: "OFF-NZM-104", password: "Officer@2026" });
   const [staffList, setStaffList] = useState<StaffRecord[]>([]);
   const [staffTab, setStaffTab] = useState<"pending" | "active" | "disabled" | "audit" | "resets">("pending");
@@ -1161,9 +1263,39 @@ export default function Home() {
   };
   const [showRecord, setShowRecord] = useState(false);
   const [apiCentres, setApiCentres] = useState<Centre[]>(centres);
-  const [farmerToken, setFarmerToken] = useState<string | null>(null);
-  const [officerToken, setOfficerToken] = useState<string | null>(null);
-  const [farmerId, setFarmerId] = useState<number | null>(null);
+  const [farmerToken, setFarmerToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.token || null;
+    } catch {
+      return null;
+    }
+  });
+  const [officerToken, setOfficerToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("procureflow.officer.session") || sessionStorage.getItem("procureflow.officer.session");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.token || null;
+    } catch {
+      return null;
+    }
+  });
+  const [farmerId, setFarmerId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.farmer?.id ? Number(parsed.farmer.id) : null;
+    } catch {
+      return null;
+    }
+  });
   const [bookingId, setBookingId] = useState<number | null>(null);
   const [registrationId, setRegistrationId] = useState<number | null>(null);
   const [farmerCredentials, setFarmerCredentials] = useState({ phone: "", password: "" });
@@ -1195,7 +1327,17 @@ export default function Home() {
   const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
   const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
   const [bookingRecord, setBookingRecord] = useState<ApiBooking | null>(null);
-  const [profileRecord, setProfileRecord] = useState<ApiBooking["farmer"] | null>(null);
+  const [profileRecord, setProfileRecord] = useState<ApiBooking["farmer"] | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.farmer || null;
+    } catch {
+      return null;
+    }
+  });
   const [apiNotifications, setApiNotifications] = useState<Array<{ id: number; title: string; message: string; category: string; isRead: number; createdAt: string }>>([]);
   const [paymentRecord, setPaymentRecord] = useState<PaymentRecord | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<Array<PaymentRecord & { bookingCode: string; bookingId: number }>>([]);
@@ -1919,69 +2061,171 @@ export default function Home() {
     }
   }, [selectedCentre?.id, selectedDate]);
 
+  // Unified Authentication Session Restoration & Verification
   useEffect(() => {
-    const rawSession = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
-    if (!rawSession) return;
-    try {
-      const saved = JSON.parse(rawSession) as { token: string; farmer: FarmerProfile };
-      if (!saved.token || !saved.farmer?.id) throw new Error("Invalid session");
-      setFarmerToken(saved.token);
-      setFarmerId(saved.farmer.id);
-      setProfileRecord(saved.farmer);
-      setApproved(saved.farmer.status === "APPROVED");
-      void loadNotifications(saved.token, saved.farmer.id);
-      void loadFarmerStats(saved.token);
-      void loadFarmerAnalytics(saved.token);
-      void loadFarmerTransportBookings(saved.token, saved.farmer.id);
-      void fetch(apiUrl(`/farmers/${saved.farmer.id}/bookings`), {
-        headers: { Authorization: `Bearer ${saved.token}` },
-        cache: "no-store",
-      })
-        .then(response => {
-          if (response.status === 401) {
-            localStorage.removeItem("procureflow.farmer.session");
-            sessionStorage.removeItem("procureflow.farmer.session");
-            return;
-          }
-          if (!response.ok) return;
-          return response.json();
-        })
-        .then(data => {
-          const list: ApiBooking[] = data?.bookings || [];
-          const target = list.find(b => b.status === "ACTIVE" && b.procurement?.status !== "COMPLETED")
-            || list.find(b => b.status === "ACTIVE")
-            || list[0];
-          return target ? loadBooking(saved.token, target.id) : undefined;
-        })
-        .catch(() => undefined);
-    } catch {
-      localStorage.removeItem("procureflow.farmer.session");
-      sessionStorage.removeItem("procureflow.farmer.session");
-    }
-  }, []);
+    let isCancelled = false;
 
-  useEffect(() => {
-    const rawOfficerSession = localStorage.getItem("procureflow.officer.session") || sessionStorage.getItem("procureflow.officer.session");
-    if (!rawOfficerSession) return;
-    try {
-      const saved = JSON.parse(rawOfficerSession) as { token: string; officer?: StaffRecord };
-      if (saved.token) {
-        setOfficerToken(saved.token);
-        if (saved.officer) setOfficerProfile(saved.officer);
-        void loadPendingRegistrations(saved.token);
-        void loadOfficerFarmers(saved.token);
-        void loadOfficerBookings(saved.token);
-        void loadOfficerAnalytics(saved.token);
-        void loadOfficerStats(saved.token);
-        void loadOfficerTransport(saved.token);
-        void loadStaffList(saved.token);
-        void loadStaffAuditLogs(saved.token);
-        void loadOfficerNotifications(saved.token);
+    async function restoreSessions() {
+      const initialTarget = getInitialScreen();
+      let activeFarmerToken: string | null = null;
+      let activeOfficerToken: string | null = null;
+
+      // 1. Farmer Session Restoration & Validation
+      const rawFarmer = localStorage.getItem("procureflow.farmer.session") || sessionStorage.getItem("procureflow.farmer.session");
+      if (rawFarmer) {
+        try {
+          const saved = JSON.parse(rawFarmer) as { token: string; farmer: FarmerProfile };
+          if (saved.token && saved.farmer?.id) {
+            activeFarmerToken = saved.token;
+            setFarmerToken(saved.token);
+            setFarmerId(saved.farmer.id);
+            setProfileRecord(saved.farmer);
+            setApproved(saved.farmer.status === "APPROVED");
+
+            // Validate with backend /api/farmers/me
+            try {
+              const meRes = await fetch(apiUrl("/farmers/me"), {
+                headers: { Authorization: `Bearer ${saved.token}` },
+                cache: "no-store",
+              });
+              if (meRes.status === 401) {
+                // Token explicitly expired or invalid
+                console.warn("[Auth] Farmer token expired or invalid (401), clearing session");
+                localStorage.removeItem("procureflow.farmer.session");
+                sessionStorage.removeItem("procureflow.farmer.session");
+                setFarmerToken(null);
+                setFarmerId(null);
+                setApproved(false);
+                activeFarmerToken = null;
+              } else if (meRes.ok) {
+                const meData = await meRes.json();
+                if (meData?.farmer) {
+                  setProfileRecord(meData.farmer);
+                  setApproved(meData.farmer.status === "APPROVED");
+                  localStorage.setItem("procureflow.farmer.session", JSON.stringify({ token: saved.token, farmer: meData.farmer }));
+                  sessionStorage.setItem("procureflow.farmer.session", JSON.stringify({ token: saved.token, farmer: meData.farmer }));
+                }
+              }
+              // Note: If temporary network error or 503, retain session gracefully!
+            } catch (netErr) {
+              console.warn("[Auth] Network error reaching /farmers/me, retaining cached session:", netErr);
+            }
+
+            if (activeFarmerToken) {
+              void loadNotifications(saved.token, saved.farmer.id);
+              void loadFarmerStats(saved.token);
+              void loadFarmerAnalytics(saved.token);
+              void loadFarmerTransportBookings(saved.token, saved.farmer.id);
+              void fetch(apiUrl(`/farmers/${saved.farmer.id}/bookings`), {
+                headers: { Authorization: `Bearer ${saved.token}` },
+                cache: "no-store",
+              })
+                .then(res => (res.ok ? res.json() : null))
+                .then(data => {
+                  const list: ApiBooking[] = data?.bookings || [];
+                  const target = list.find(b => b.status === "ACTIVE" && b.procurement?.status !== "COMPLETED")
+                    || list.find(b => b.status === "ACTIVE")
+                    || list[0];
+                  if (target) void loadBooking(saved.token, target.id);
+                })
+                .catch(() => undefined);
+            }
+          }
+        } catch {
+          localStorage.removeItem("procureflow.farmer.session");
+          sessionStorage.removeItem("procureflow.farmer.session");
+        }
       }
-    } catch {
-      localStorage.removeItem("procureflow.officer.session");
-      sessionStorage.removeItem("procureflow.officer.session");
+
+      // 2. Officer Session Restoration & Validation
+      const rawOfficer = localStorage.getItem("procureflow.officer.session") || sessionStorage.getItem("procureflow.officer.session");
+      if (rawOfficer) {
+        try {
+          const saved = JSON.parse(rawOfficer) as { token: string; officer?: StaffRecord };
+          if (saved.token) {
+            activeOfficerToken = saved.token;
+            setOfficerToken(saved.token);
+            if (saved.officer) setOfficerProfile(saved.officer);
+
+            try {
+              const meRes = await fetch(apiUrl("/officers/me"), {
+                headers: { Authorization: `Bearer ${saved.token}` },
+                cache: "no-store",
+              });
+              if (meRes.status === 401 || meRes.status === 403) {
+                console.warn("[Auth] Officer token expired/rejected, clearing session");
+                localStorage.removeItem("procureflow.officer.session");
+                sessionStorage.removeItem("procureflow.officer.session");
+                setOfficerToken(null);
+                setOfficerProfile(null);
+                activeOfficerToken = null;
+              } else if (meRes.ok) {
+                const meData = await meRes.json();
+                if (meData?.officer) {
+                  setOfficerProfile(meData.officer);
+                  localStorage.setItem("procureflow.officer.session", JSON.stringify({ token: saved.token, officer: meData.officer }));
+                  sessionStorage.setItem("procureflow.officer.session", JSON.stringify({ token: saved.token, officer: meData.officer }));
+                }
+              }
+            } catch (netErr) {
+              console.warn("[Auth] Network error reaching /officers/me, retaining cached session:", netErr);
+            }
+
+            if (activeOfficerToken) {
+              void loadPendingRegistrations(saved.token);
+              void loadOfficerFarmers(saved.token);
+              void loadOfficerBookings(saved.token);
+              void loadOfficerAnalytics(saved.token);
+              void loadOfficerStats(saved.token);
+              void loadOfficerTransport(saved.token);
+              void loadStaffList(saved.token);
+              void loadStaffAuditLogs(saved.token);
+              void loadOfficerNotifications(saved.token);
+            }
+          }
+        } catch {
+          localStorage.removeItem("procureflow.officer.session");
+          sessionStorage.removeItem("procureflow.officer.session");
+        }
+      }
+
+      if (isCancelled) return;
+
+      // 3. Screen Routing Decision
+      let targetScreen: Screen = initialTarget;
+      if (activeFarmerToken) {
+        if (targetScreen === "landing" || targetScreen === "farmerLogin") {
+          targetScreen = "dashboard";
+        }
+      } else if (activeOfficerToken) {
+        if (targetScreen === "landing" || targetScreen === "officerLogin") {
+          targetScreen = "officerDashboard";
+        }
+      } else {
+        if (farmerOnlyScreens.includes(targetScreen)) {
+          targetScreen = "farmerLogin";
+        } else if (officerOnlyScreens.includes(targetScreen)) {
+          targetScreen = "officerLogin";
+        }
+      }
+
+      setScreen(targetScreen);
+      try {
+        const expectedHash = `#${targetScreen}`;
+        if (window.location.hash !== expectedHash) {
+          window.history.replaceState(null, "", expectedHash);
+        }
+        sessionStorage.setItem("procureflow.lastScreen", targetScreen);
+      } catch {}
+
+      setIsAuthInitializing(false);
     }
+
+    void restoreSessions();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // Live Ticking Clock (updates every 1s in Asia/Kolkata)
@@ -2082,6 +2326,22 @@ export default function Home() {
     if (farmerOnlyScreens.includes(next) && !farmerToken) {
       setAuthError("Please login with your approved farmer account to continue.");
       setScreen("farmerLogin");
+      try {
+        window.location.hash = "farmerLogin";
+        sessionStorage.setItem("procureflow.lastScreen", "farmerLogin");
+      } catch {}
+      setMobileMenu(false);
+      setOfficerMobileMenu(false);
+      setLandingMobileMenu(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (officerOnlyScreens.includes(next) && !officerToken) {
+      setScreen("officerLogin");
+      try {
+        window.location.hash = "officerLogin";
+        sessionStorage.setItem("procureflow.lastScreen", "officerLogin");
+      } catch {}
       setMobileMenu(false);
       setOfficerMobileMenu(false);
       setLandingMobileMenu(false);
@@ -2091,15 +2351,55 @@ export default function Home() {
     if (next === "status" && farmerToken) {
       void refreshProcurementStatus(farmerToken, farmerId, bookingId);
     }
+    try {
+      const expectedHash = `#${next}`;
+      if (window.location.hash !== expectedHash) {
+        window.history.pushState(null, "", expectedHash);
+      }
+      sessionStorage.setItem("procureflow.lastScreen", next);
+    } catch {}
     setScreen(next);
     setMobileMenu(false);
     setOfficerMobileMenu(false);
     setLandingMobileMenu(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  // Browser navigation (back/forward button hashchange sync)
   useEffect(() => {
-    if (farmerOnlyScreens.includes(screen) && !farmerToken) setScreen("farmerLogin");
-  }, [screen, farmerToken]);
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, "").trim();
+      if (hash && ALL_VALID_SCREENS.includes(hash as Screen)) {
+        const target = hash as Screen;
+        if (farmerOnlyScreens.includes(target) && !farmerToken) {
+          navigate("farmerLogin");
+        } else if (officerOnlyScreens.includes(target) && !officerToken) {
+          navigate("officerLogin");
+        } else {
+          setScreen(target);
+          sessionStorage.setItem("procureflow.lastScreen", target);
+        }
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [farmerToken, officerToken]);
+
+  // Protected route enforcement (runs only after auth initialization completes)
+  useEffect(() => {
+    if (isAuthInitializing) return;
+    if (farmerOnlyScreens.includes(screen) && !farmerToken) {
+      setScreen("farmerLogin");
+      try { window.location.hash = "farmerLogin"; } catch {}
+    } else if (officerOnlyScreens.includes(screen) && !officerToken) {
+      setScreen("officerLogin");
+      try { window.location.hash = "officerLogin"; } catch {}
+    } else if (screen === "farmerLogin" && farmerToken) {
+      navigate("dashboard");
+    } else if (screen === "officerLogin" && officerToken) {
+      navigate("officerDashboard");
+    }
+  }, [screen, farmerToken, officerToken, isAuthInitializing]);
   const loadNotifications = async (token: string, id?: number) => {
     if (!id) return;
     const response = await fetch(apiUrl(`/farmers/${id}/notifications`), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
@@ -3116,8 +3416,7 @@ export default function Home() {
       await loadNotifications(data.accessToken, data.farmer.id);
       await loadPaymentData(data.accessToken, data.farmer.id, activeBooking?.id);
       await loadFarmerStats(data.accessToken);
-      setScreen("dashboard");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      navigate("dashboard");
       toast.success(`Welcome back, ${data.farmer.name}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login could not be completed.";
@@ -3189,17 +3488,32 @@ export default function Home() {
   };
 
   const logoutFarmer = () => {
+    try {
+      void fetch(apiUrl("/farmers/logout"), { method: "POST" });
+    } catch {}
     localStorage.removeItem("procureflow.farmer.session");
     sessionStorage.removeItem("procureflow.farmer.session");
+    sessionStorage.removeItem("procureflow.lastScreen");
     setFarmerToken(null); setFarmerId(null); setBookingId(null); setBookingRecord(null); setProfileRecord(null); setApiNotifications([]); setPaymentRecord(null); setPaymentHistory([]); setReceipt(null); setPaymentDone(false); setApproved(false); setAuthError(null);
+    try {
+      window.location.hash = "landing";
+    } catch {}
     navigate("landing");
     toast.success("You have been logged out from Farmer Portal.");
   };
 
   const logoutOfficer = () => {
+    try {
+      void fetch(apiUrl("/officers/logout"), { method: "POST" });
+    } catch {}
     localStorage.removeItem("procureflow.officer.session");
     sessionStorage.removeItem("procureflow.officer.session");
+    sessionStorage.removeItem("procureflow.lastScreen");
     setOfficerToken(null);
+    setOfficerProfile(null);
+    try {
+      window.location.hash = "landing";
+    } catch {}
     navigate("landing");
     toast.success("Officer console session closed.");
   };
@@ -4074,8 +4388,12 @@ export default function Home() {
         <div className="nav-links landing-desktop-links">
           <a href="#how">How it works</a>
           <a href="#services">Features</a>
-          <button onClick={() => navigate("farmerLogin")}>Farmer login</button>
-          <button className="officer-link" onClick={() => navigate("officerLogin")}>Officer console</button>
+          <button onClick={() => navigate(farmerToken ? "dashboard" : "farmerLogin")}>
+            {farmerToken ? tUi("Farmer portal", language) : tUi("Farmer login", language)}
+          </button>
+          <button className="officer-link" onClick={() => navigate(officerToken ? "officerDashboard" : "officerLogin")}>
+            {officerToken ? tUi("Officer console", language) : tUi("Officer console", language)}
+          </button>
         </div>
         <div className="nav-end landing-desktop-end">
           <MobileViewToggle />
@@ -4112,12 +4430,12 @@ export default function Home() {
               <div className="drawer-section-label">PORTAL ACCESS</div>
               <button
                 onClick={() => {
-                  navigate("farmerLogin");
+                  navigate(farmerToken ? "dashboard" : "farmerLogin");
                   setLandingMobileMenu(false);
                 }}
               >
                 <LogIn size={19} />
-                <span>Farmer Sign In</span>
+                <span>{farmerToken ? tUi("Farmer portal", language) : tUi("Farmer Sign In", language)}</span>
               </button>
               <button
                 onClick={() => {
@@ -4131,12 +4449,12 @@ export default function Home() {
               </button>
               <button
                 onClick={() => {
-                  navigate("officerLogin");
+                  navigate(officerToken ? "officerDashboard" : "officerLogin");
                   setLandingMobileMenu(false);
                 }}
               >
                 <ShieldCheck size={19} />
-                <span>Officer Console</span>
+                <span>{officerToken ? tUi("Officer console", language) : tUi("Officer Console", language)}</span>
               </button>
 
               <div className="drawer-divider" />
