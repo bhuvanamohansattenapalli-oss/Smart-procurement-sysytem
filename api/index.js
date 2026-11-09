@@ -1480,6 +1480,7 @@ import { and as and2, asc as asc2, desc as desc2, eq as eq3, inArray, or } from 
 import { Router } from "express";
 import { z } from "zod";
 import crypto2 from "crypto";
+import https from "https";
 
 // server/services/tokenService.ts
 import { SignJWT, jwtVerify } from "jose";
@@ -7502,6 +7503,57 @@ Stack: ${err?.stack}`);
     } catch {
       return res.json({ sessionId, messages: [] });
     }
+  });
+  const handleTtsRequest = (rawText, rawLang, res) => {
+    const text2 = (rawText || "").trim();
+    const lang = (rawLang || "en").toLowerCase();
+    if (!text2) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "text parameter is required." });
+    }
+    const tl = lang.startsWith("te") ? "te" : lang.startsWith("hi") ? "hi" : "en";
+    const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(text2.slice(0, 200))}`;
+    const requestOptions = {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://translate.google.com/"
+      },
+      timeout: 1e4
+    };
+    const upstreamReq = https.get(googleTtsUrl, requestOptions, (upstreamRes) => {
+      if (upstreamRes.statusCode && upstreamRes.statusCode >= 400) {
+        return res.status(upstreamRes.statusCode).json({
+          error: "TTS_UPSTREAM_ERROR",
+          message: `Upstream TTS service returned status ${upstreamRes.statusCode}`
+        });
+      }
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+      res.setHeader("Accept-Ranges", "bytes");
+      upstreamRes.pipe(res);
+    });
+    upstreamReq.on("error", (err) => {
+      if (!res.headersSent) {
+        res.status(502).json({
+          error: "TTS_NETWORK_ERROR",
+          message: err instanceof Error ? err.message : "Failed to fetch speech audio stream."
+        });
+      }
+    });
+    upstreamReq.on("timeout", () => {
+      upstreamReq.destroy();
+      if (!res.headersSent) {
+        res.status(504).json({
+          error: "TTS_TIMEOUT",
+          message: "TTS request timed out."
+        });
+      }
+    });
+  };
+  api.get("/ai/tts", (req, res) => {
+    handleTtsRequest(req.query?.text, req.query?.lang, res);
+  });
+  api.post("/ai/tts", (req, res) => {
+    handleTtsRequest(req.body?.text, req.body?.lang, res);
   });
   api.post("/translate", async (req, res) => {
     try {

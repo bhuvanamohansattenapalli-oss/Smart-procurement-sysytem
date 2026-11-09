@@ -20,6 +20,7 @@ import {
   passwordResetRequests,
 } from "../../drizzle/schema";
 import crypto from "crypto";
+import https from "https";
 import { getDb, normalizePhone, isPostgresActive } from "../db";
 import { requireApiAuth, requireRole } from "../middleware/apiAuth";
 import { hashPassword, verifyPassword } from "../services/passwordService";
@@ -3275,6 +3276,72 @@ export function createProcurementApi() {
     } catch {
       return res.json({ sessionId, messages: [] });
     }
+  });
+
+  // ==========================================
+  // MULTILINGUAL TEXT-TO-SPEECH (TTS) PROXY
+  // Streams authentic Telugu, Hindi & English audio
+  // ==========================================
+  const handleTtsRequest = (rawText: string | undefined, rawLang: string | undefined, res: Response) => {
+    const text = (rawText || "").trim();
+    const lang = (rawLang || "en").toLowerCase();
+
+    if (!text) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "text parameter is required." });
+    }
+
+    const tl = lang.startsWith("te") ? "te" : lang.startsWith("hi") ? "hi" : "en";
+    const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(text.slice(0, 200))}`;
+
+    const requestOptions = {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://translate.google.com/",
+      },
+      timeout: 10000,
+    };
+
+    const upstreamReq = https.get(googleTtsUrl, requestOptions, (upstreamRes) => {
+      if (upstreamRes.statusCode && upstreamRes.statusCode >= 400) {
+        return res.status(upstreamRes.statusCode).json({
+          error: "TTS_UPSTREAM_ERROR",
+          message: `Upstream TTS service returned status ${upstreamRes.statusCode}`,
+        });
+      }
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+      res.setHeader("Accept-Ranges", "bytes");
+
+      upstreamRes.pipe(res);
+    });
+
+    upstreamReq.on("error", (err) => {
+      if (!res.headersSent) {
+        res.status(502).json({
+          error: "TTS_NETWORK_ERROR",
+          message: err instanceof Error ? err.message : "Failed to fetch speech audio stream.",
+        });
+      }
+    });
+
+    upstreamReq.on("timeout", () => {
+      upstreamReq.destroy();
+      if (!res.headersSent) {
+        res.status(504).json({
+          error: "TTS_TIMEOUT",
+          message: "TTS request timed out.",
+        });
+      }
+    });
+  };
+
+  api.get("/ai/tts", (req: Request, res: Response) => {
+    handleTtsRequest(req.query?.text as string, req.query?.lang as string, res);
+  });
+
+  api.post("/ai/tts", (req: Request, res: Response) => {
+    handleTtsRequest(req.body?.text as string, req.body?.lang as string, res);
   });
 
   // ==========================================

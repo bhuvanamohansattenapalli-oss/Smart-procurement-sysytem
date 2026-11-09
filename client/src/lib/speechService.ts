@@ -1,4 +1,5 @@
 import type { Language } from "./translations";
+import { apiUrl } from "./api";
 
 // Active audio tracking
 let currentAudioElement: HTMLAudioElement | null = null;
@@ -414,11 +415,11 @@ function playViaAudioStream(
     const currentText = chunks[chunkIndex];
     chunkIndex++;
 
-    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(
-      currentText
-    )}`;
+    const audioUrl = apiUrl(
+      `/ai/tts?lang=${tl}&text=${encodeURIComponent(currentText)}`
+    );
 
-    const audio = new Audio();
+    const audio = new Audio(audioUrl);
     currentAudioElement = audio;
 
     audio.onended = () => {
@@ -431,14 +432,16 @@ function playViaAudioStream(
       if (isCancelled) return;
       currentAudioElement = null;
       currentCancelCallback = null;
-      onError?.(e);
+      console.warn("Audio stream playback failed, falling back to transliterated speech:", e);
+      playViaTransliteratedSpeech(text, language, onEnd, onError);
     };
 
     audio.play().catch((playErr) => {
       if (isCancelled) return;
       currentAudioElement = null;
       currentCancelCallback = null;
-      onError?.(playErr);
+      console.warn("Audio play blocked or failed, falling back to transliterated speech:", playErr);
+      playViaTransliteratedSpeech(text, language, onEnd, onError);
     });
   };
 

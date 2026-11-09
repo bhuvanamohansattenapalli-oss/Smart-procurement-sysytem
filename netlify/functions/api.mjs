@@ -41479,7 +41479,7 @@ var require_helpers = __commonJS({
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.req = exports.json = exports.toBuffer = void 0;
     var http3 = __importStar(__require("http"));
-    var https2 = __importStar(__require("https"));
+    var https3 = __importStar(__require("https"));
     async function toBuffer(stream) {
       let length = 0;
       const chunks = [];
@@ -41504,7 +41504,7 @@ var require_helpers = __commonJS({
     exports.json = json4;
     function req(url2, opts = {}) {
       const href = typeof url2 === "string" ? url2 : url2.href;
-      const req2 = (href.startsWith("https:") ? https2 : http3).request(url2, opts);
+      const req2 = (href.startsWith("https:") ? https3 : http3).request(url2, opts);
       const promise2 = new Promise((resolve, reject) => {
         req2.once("response", resolve).once("error", reject).end();
       });
@@ -55705,7 +55705,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
     var util_1 = require_util2();
     var fs5 = __require("fs");
     var crypto_1 = __require("crypto");
-    var https2 = __require("https");
+    var https3 = __require("https");
     exports.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = "GOOGLE_API_CERTIFICATE_CONFIG";
     var CertificateSourceUnavailableError = class extends Error {
       constructor(message2) {
@@ -55748,7 +55748,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
         if (!this.key || !this.cert) {
           throw new InvalidConfigurationError("Cannot create mTLS Agent with missing certificate or key");
         }
-        return new https2.Agent({ key: this.key, cert: this.cert });
+        return new https3.Agent({ key: this.key, cert: this.cert });
       }
       /**
        * Constructs the subject token, which is the base64-encoded certificate chain.
@@ -57054,7 +57054,7 @@ var require_gdchclient = __commonJS({
     exports.GdchClient = exports.GDCH_SERVICE_ACCOUNT_TYPE = void 0;
     var crypto4 = __require("crypto");
     var fs5 = __require("fs");
-    var https2 = __require("https");
+    var https3 = __require("https");
     var oauth2client_1 = require_oauth2client();
     var DEFAULT_LIFETIME_IN_SECONDS = 3600;
     exports.GDCH_SERVICE_ACCOUNT_TYPE = "gdch_service_account";
@@ -57277,7 +57277,7 @@ var require_gdchclient = __commonJS({
         this.caAgentPromise = (async () => {
           try {
             const ca = await fs5.promises.readFile(currentPath);
-            return new https2.Agent({ ca });
+            return new https3.Agent({ ca });
           } catch (err) {
             if (this.cachedCaCertPath === currentPath) {
               this.caAgentPromise = void 0;
@@ -60787,7 +60787,7 @@ var require_websocket = __commonJS({
   "node_modules/ws/lib/websocket.js"(exports, module) {
     "use strict";
     var EventEmitter = __require("events");
-    var https2 = __require("https");
+    var https3 = __require("https");
     var http3 = __require("http");
     var net = __require("net");
     var tls = __require("tls");
@@ -61343,7 +61343,7 @@ var require_websocket = __commonJS({
       }
       const defaultPort = isSecure ? 443 : 80;
       const key = randomBytes2(16).toString("base64");
-      const request = isSecure ? https2.request : http3.request;
+      const request = isSecure ? https3.request : http3.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
       opts.createConnection = opts.createConnection || (isSecure ? tlsConnect : netConnect);
@@ -82444,6 +82444,7 @@ function date5(params) {
 init_schema2();
 init_db2();
 import crypto3 from "crypto";
+import https2 from "https";
 
 // node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
@@ -114701,6 +114702,57 @@ Stack: ${err?.stack}`);
     } catch {
       return res.json({ sessionId, messages: [] });
     }
+  });
+  const handleTtsRequest = (rawText, rawLang, res) => {
+    const text2 = (rawText || "").trim();
+    const lang = (rawLang || "en").toLowerCase();
+    if (!text2) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "text parameter is required." });
+    }
+    const tl = lang.startsWith("te") ? "te" : lang.startsWith("hi") ? "hi" : "en";
+    const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(text2.slice(0, 200))}`;
+    const requestOptions = {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://translate.google.com/"
+      },
+      timeout: 1e4
+    };
+    const upstreamReq = https2.get(googleTtsUrl, requestOptions, (upstreamRes) => {
+      if (upstreamRes.statusCode && upstreamRes.statusCode >= 400) {
+        return res.status(upstreamRes.statusCode).json({
+          error: "TTS_UPSTREAM_ERROR",
+          message: `Upstream TTS service returned status ${upstreamRes.statusCode}`
+        });
+      }
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+      res.setHeader("Accept-Ranges", "bytes");
+      upstreamRes.pipe(res);
+    });
+    upstreamReq.on("error", (err) => {
+      if (!res.headersSent) {
+        res.status(502).json({
+          error: "TTS_NETWORK_ERROR",
+          message: err instanceof Error ? err.message : "Failed to fetch speech audio stream."
+        });
+      }
+    });
+    upstreamReq.on("timeout", () => {
+      upstreamReq.destroy();
+      if (!res.headersSent) {
+        res.status(504).json({
+          error: "TTS_TIMEOUT",
+          message: "TTS request timed out."
+        });
+      }
+    });
+  };
+  api.get("/ai/tts", (req, res) => {
+    handleTtsRequest(req.query?.text, req.query?.lang, res);
+  });
+  api.post("/ai/tts", (req, res) => {
+    handleTtsRequest(req.body?.text, req.body?.lang, res);
   });
   api.post("/translate", async (req, res) => {
     try {
