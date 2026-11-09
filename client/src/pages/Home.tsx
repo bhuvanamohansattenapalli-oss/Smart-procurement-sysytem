@@ -110,6 +110,7 @@ import {
 import { WeatherSellingAdvisory } from "@/components/WeatherSellingAdvisory";
 import { MandiMarketPrices } from "@/components/MandiMarketPrices";
 import { openGoogleMapsDirections, generateGoogleMapsDirectionsUrl } from "@/lib/googleMaps";
+import { speakText, stopSpeaking } from "@/lib/speechService";
 
 function getInitials(name?: string | null, fallback = "SO"): string {
   if (!name || typeof name !== "string") return fallback;
@@ -1607,6 +1608,17 @@ export default function Home() {
       });
     }
   }, [chat]);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
+
+  useEffect(() => {
+    stopSpeaking();
+    setSpeakingText(null);
+  }, [screen]);
 
   const [officerBookings, setOfficerBookings] = useState<ApiBooking[]>([]);
   const [selectedOfficerBooking, setSelectedOfficerBooking] = useState<ApiBooking | null>(null);
@@ -4043,6 +4055,8 @@ export default function Home() {
   };
 
   const clearChat = async () => {
+    stopSpeaking();
+    setSpeakingText(null);
     try {
       await fetch(apiUrl("/ai/chat/clear"), {
         method: "POST",
@@ -4126,6 +4140,8 @@ export default function Home() {
   };
 
   const clearOfficerChat = async () => {
+    stopSpeaking();
+    setSpeakingText(null);
     try {
       await fetch(apiUrl("/ai/chat/clear"), {
         method: "POST",
@@ -4232,22 +4248,28 @@ export default function Home() {
   };
 
   const speak = (text: string) => {
-    if (isMuted) return;
-    if (!("speechSynthesis" in window)) {
-      toast.message("Voice response is not available in this browser. You can read the answer on screen.");
+    if (isMuted || !text) return;
+
+    // Toggle stop if user clicks while the same message is already speaking
+    if (speakingText === text) {
+      stopSpeaking();
+      setSpeakingText(null);
       return;
     }
-    window.speechSynthesis.cancel();
+
+    stopSpeaking();
     setSpeakingText(text);
-    const targetLocale = language === "TE" ? "te-IN" : language === "HI" ? "hi-IN" : "en-IN";
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(candidate => candidate.lang.toLowerCase().startsWith(targetLocale.slice(0, 2)));
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = targetLocale;
-    if (voice) utterance.voice = voice;
-    utterance.onend = () => setSpeakingText(null);
-    utterance.onerror = () => setSpeakingText(null);
-    window.speechSynthesis.speak(utterance);
+
+    speakText({
+      text,
+      language,
+      onStart: () => setSpeakingText(text),
+      onEnd: () => setSpeakingText(null),
+      onError: (err) => {
+        console.warn("TTS error:", err);
+        setSpeakingText(null);
+      },
+    });
   };
 
   const farmerShell = (content: React.ReactNode) => (
@@ -7402,16 +7424,16 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => speak(message.text)}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer border shrink-0 ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer border shrink-0 ${
                             speakingText === message.text
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse"
-                              : "text-slate-500 hover:text-emerald-800 hover:bg-slate-50 border-slate-200"
+                              ? "bg-rose-50 text-rose-700 border-rose-300 animate-pulse hover:bg-rose-100"
+                              : "text-slate-600 hover:text-emerald-800 hover:bg-slate-50 border-slate-200"
                           }`}
-                          title={speakingText === message.text ? "Reading aloud..." : "Read answer aloud"}
-                          aria-label="Read answer aloud"
+                          title={speakingText === message.text ? tUi("Stop", language) : tUi("Listen", language)}
+                          aria-label={speakingText === message.text ? tUi("Stop", language) : tUi("Listen", language)}
                         >
-                          <Volume2 size={13} />
-                          <span className="hidden sm:inline">{speakingText === message.text ? "Playing..." : "Listen"}</span>
+                          {speakingText === message.text ? <VolumeX size={13} className="text-rose-600" /> : <Volume2 size={13} />}
+                          <span className="hidden sm:inline">{speakingText === message.text ? tUi("Stop", language) : tUi("Listen", language)}</span>
                         </button>
                       </div>
 
@@ -12762,10 +12784,11 @@ export default function Home() {
                         </span>
                         <button
                           onClick={() => speak(msg.text)}
-                          className={`assistant-audio-btn ${speakingText === msg.text ? "text-emerald-600 animate-pulse" : ""}`}
-                          title={tUi("Read aloud", language)}
+                          className={`assistant-audio-btn ${speakingText === msg.text ? "text-rose-600 bg-rose-50 border-rose-300 animate-pulse hover:bg-rose-100" : ""}`}
+                          title={speakingText === msg.text ? tUi("Stop", language) : tUi("Listen", language)}
                         >
-                          <Volume2 size={14} /> Listen
+                          {speakingText === msg.text ? <VolumeX size={14} className="text-rose-600" /> : <Volume2 size={14} />}{" "}
+                          {speakingText === msg.text ? tUi("Stop", language) : tUi("Listen", language)}
                         </button>
                       </div>
                     </div>

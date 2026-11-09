@@ -1422,5 +1422,13 @@ module.exports = { SHORT_TRANSLATIONS: {
   "Payments' tab.": {
     "TE": "'చెల్లింపులు' ట్యాబ్.",
     "HI": "'भुगतान' टैब।"
+  },
+  "Stop": {
+    "TE": "ఆపండి",
+    "HI": "रोकें"
+  },
+  "stop": {
+    "TE": "ఆపండి",
+    "HI": "रोकें"
   }
 } };
