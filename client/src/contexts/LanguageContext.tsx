@@ -4,7 +4,7 @@ import { Language, getLocalizedText, getStatusLabel } from "@/lib/translations";
 export interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (text: string, defaultText?: string) => string;
+  t: (text: string, varsOrDefault?: Record<string, string | number> | string, defaultText?: string) => string;
   tStatus: (code: string) => string;
 }
 
@@ -34,10 +34,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const t = useCallback((key: string, defaultText?: string): string => {
+  const t = useCallback((key: string, varsOrDefault?: Record<string, string | number> | string, defaultText?: string): string => {
     if (!key) return "";
-    const localized = getLocalizedText(key, language);
-    return localized || defaultText || key;
+    let vars: Record<string, string | number> | undefined;
+    let fallback = defaultText;
+    if (typeof varsOrDefault === "object" && varsOrDefault !== null) {
+      vars = varsOrDefault;
+    } else if (typeof varsOrDefault === "string") {
+      fallback = varsOrDefault;
+    }
+    const localized = getLocalizedText(key, language, vars);
+    return localized || fallback || key;
   }, [language]);
 
   const tStatus = useCallback((code: string): string => {
@@ -67,7 +74,16 @@ export function useLanguage(): LanguageContextType {
     return {
       language: saved,
       setLanguage: () => {},
-      t: (key: string, defaultText?: string) => getLocalizedText(key, saved) || defaultText || key,
+      t: (key: string, varsOrDefault?: Record<string, string | number> | string, defaultText?: string) => {
+        let vars: Record<string, string | number> | undefined;
+        let fallback = defaultText;
+        if (typeof varsOrDefault === "object" && varsOrDefault !== null) {
+          vars = varsOrDefault;
+        } else if (typeof varsOrDefault === "string") {
+          fallback = varsOrDefault;
+        }
+        return getLocalizedText(key, saved, vars) || fallback || key;
+      },
       tStatus: (code: string) => getStatusLabel(code, saved),
     };
   }

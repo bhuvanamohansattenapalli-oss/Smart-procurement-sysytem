@@ -481,16 +481,18 @@ const navItems: { screen: Screen; label: string; icon: typeof Sprout }[] = [
   { screen: "assistant", label: "AI Help Centre", icon: Bot },
 ];
 function Pill({ children, kind = "green" }: { children: React.ReactNode; kind?: "green" | "blue" | "yellow" | "gray" }) {
-  return <span className={`status-pill status-${kind}`}>{children}</span>;
+  const { language } = useLanguage();
+  return <span className={`status-pill status-${kind}`}>{typeof children === "string" ? tUi(children, language) : children}</span>;
 }
 
 function SectionTitle({ eyebrow, title, body, action }: { eyebrow?: string; title: string; body?: string; action?: React.ReactNode }) {
+  const { language } = useLanguage();
   return (
     <div className="section-heading">
       <div>
-        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
-        <h1>{title}</h1>
-        {body && <p className="section-body">{body}</p>}
+        {eyebrow && <p className="eyebrow">{typeof eyebrow === "string" ? tUi(eyebrow, language) : eyebrow}</p>}
+        <h1>{typeof title === "string" ? tUi(title, language) : title}</h1>
+        {body && <p className="section-body">{typeof body === "string" ? tUi(body, language) : body}</p>}
       </div>
       {action && <div className="section-title-action-wrap w-full sm:w-auto shrink-0">{action}</div>}
     </div>
@@ -598,6 +600,7 @@ function FarmerProfileDropdown({
   onViewProfile: () => void;
   onLogout: () => void;
 }) {
+  const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -659,7 +662,7 @@ function FarmerProfileDropdown({
             role="menuitem"
           >
             <UserCheck size={16} />
-            <span>My Profile</span>
+            <span>{tUi("My Profile", language)}</span>
           </button>
           <hr className="profile-panel-divider" />
           <button
@@ -672,7 +675,7 @@ function FarmerProfileDropdown({
             role="menuitem"
           >
             <LogOut size={16} />
-            <span>Logout</span>
+            <span>{tUi("Logout", language)}</span>
           </button>
         </div>
       )}
@@ -781,7 +784,8 @@ function QRCodeSvg({ value, size = 140 }: { value: string; size?: number }) {
 }
 
 function MetricCard({ label, value, hint, icon: Icon, tone = "green" }: { label: string; value: string; hint: string; icon: typeof Ticket; tone?: "green" | "blue" | "yellow" }) {
-  return <article className={`metric-card ${tone}`}><span className="metric-icon"><Icon size={20} /></span><p>{label}</p><strong>{value}</strong><small>{hint}</small></article>;
+  const { language } = useLanguage();
+  return <article className={`metric-card ${tone}`}><span className="metric-icon"><Icon size={20} /></span><p>{typeof label === "string" ? tUi(label, language) : label}</p><strong>{value}</strong><small>{typeof hint === "string" ? tUi(hint, language) : hint}</small></article>;
 }
 
 export default function Home() {
@@ -1195,7 +1199,7 @@ export default function Home() {
 
   const cancelFarmerBooking = async () => {
     if (!farmerToken || !bookingRecord?.id) {
-      toast.error("No active booking to cancel.");
+      toast.error(tUi("No active booking to cancel.", language));
       return;
     }
     setCancellingBooking(true);
@@ -1208,7 +1212,7 @@ export default function Home() {
       if (!response.ok) {
         throw new Error(data.message || "Failed to cancel booking.");
       }
-      toast.success("Booking cancelled successfully.");
+      toast.success(tUi("Booking cancelled successfully.", language));
       setShowCancelBookingModal(false);
       if (data.booking) {
         setBookingRecord(data.booking);
@@ -1242,7 +1246,7 @@ export default function Home() {
       if (!response.ok) {
         throw new Error(data.message || "Failed to cancel transportation.");
       }
-      toast.success("Transportation booking cancelled successfully.");
+      toast.success(tUi("Transportation booking cancelled successfully.", language));
       setShowCancelTransportModal(false);
       setTargetCancelTransport(null);
       setTransportBookingsList(prev => prev.map(t => t.id === cancelledId ? { ...t, status: "CANCELLED" } : t));
@@ -1854,7 +1858,7 @@ export default function Home() {
 
   const requestGpsWeather = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      toast.error("Geolocation is not supported by your browser");
+      toast.error(tUi("Geolocation is not supported by your browser", language));
       return;
     }
     setWeatherLoading(true);
@@ -1868,7 +1872,7 @@ export default function Home() {
       },
       (err) => {
         setWeatherLoading(false);
-        toast.error("Location permission denied or unavailable. Using registered farm district.");
+        toast.error(tUi("Location permission denied or unavailable. Using registered farm district.", language));
         void loadWeather({ district: selectedWeatherDistrict });
       },
       { timeout: 8000 }
@@ -2672,7 +2676,7 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Failed to submit staff onboarding request.");
-      toast.success("Staff Registration Submitted — Pending Head Officer Verification");
+      toast.success(tUi("Staff Registration Submitted — Pending Head Officer Verification", language));
       setShowAddStaffModal(false);
       setAddStaffForm({
         name: "",
@@ -2811,7 +2815,7 @@ export default function Home() {
   }, [officerToken, officerView]);
 
   const approveFarmer = async () => {
-    if (!officerToken) { toast.error("Login as an officer before approving a registration."); navigate("officerLogin"); return; }
+    if (!officerToken) { toast.error(tUi("Login as an officer before approving a registration.", language)); navigate("officerLogin"); return; }
     try {
       const targetId = selectedRegistrationId ?? pendingRegistrations[0]?.id;
       if (!targetId) throw new Error("No pending registration found.");
@@ -2842,7 +2846,7 @@ export default function Home() {
   };
 
   const rejectFarmer = async () => {
-    if (!officerToken) { toast.error("Login as an officer before rejecting a registration."); return; }
+    if (!officerToken) { toast.error(tUi("Login as an officer before rejecting a registration.", language)); return; }
     try {
       const targetId = selectedRegistrationId ?? pendingRegistrations[0]?.id;
       if (!targetId) throw new Error("No pending registration selected.");
@@ -3201,7 +3205,7 @@ export default function Home() {
       }
       setForgotStep("SUCCESS");
       setFarmerCredentials(prev => ({ ...prev, phone: forgotPhone.replace(/\D/g, ""), password: "" }));
-      toast.success("Password reset successfully! You can now log in.");
+      toast.success(tUi("Password reset successfully! You can now log in.", language));
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to reset password.";
       setForgotError(msg);
@@ -3316,7 +3320,7 @@ export default function Home() {
       }
       setOfficerForgotStep("SUCCESS");
       setOfficerLoginForm(prev => ({ ...prev, officerCode: code, password: "" }));
-      toast.success("Officer password updated successfully! You can now log in.");
+      toast.success(tUi("Officer password updated successfully! You can now log in.", language));
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to reset officer password.";
       setOfficerForgotError(msg);
@@ -3499,7 +3503,7 @@ export default function Home() {
       window.location.hash = "landing";
     } catch {}
     navigate("landing");
-    toast.success("You have been logged out from Farmer Portal.");
+    toast.success(tUi("You have been logged out from Farmer Portal.", language));
   };
 
   const logoutOfficer = () => {
@@ -3515,10 +3519,10 @@ export default function Home() {
       window.location.hash = "landing";
     } catch {}
     navigate("landing");
-    toast.success("Officer console session closed.");
+    toast.success(tUi("Officer console session closed.", language));
   };
   const processPayment = async () => {
-    if (!farmerToken || !bookingId || !farmerId) { toast.error("Login as an approved farmer with an active booking before paying."); return; }
+    if (!farmerToken || !bookingId || !farmerId) { toast.error(tUi("Login as an approved farmer with an active booking before paying.", language)); return; }
     setPaymentProcessing(true);
     try {
       const method = paymentMode === "Card" ? "CARD" : paymentMode === "Net Banking" ? "NET_BANKING" : "UPI";
@@ -3542,7 +3546,7 @@ export default function Home() {
               setPaymentRecord(verified.payment); setPaymentDone(true);
               const receiptResponse = await fetch(apiUrl(`/payments/${created.payment.paymentId}/receipt`), { headers: { Authorization: `Bearer ${farmerToken}` } });
               if (receiptResponse.ok) setReceipt((await receiptResponse.json()).receipt);
-              toast.success("Payment successful. Your receipt is ready."); resolve();
+              toast.success(tUi("Payment successful. Your receipt is ready.", language)); resolve();
             } catch (error) { reject(error); }
           }});
 
@@ -3562,14 +3566,14 @@ export default function Home() {
       if (completed.payment.status === "SUCCESS") {
         const receiptResponse = await fetch(apiUrl(`/payments/${completed.payment.paymentId}/receipt`), { headers: { Authorization: `Bearer ${farmerToken}` } });
         if (receiptResponse.ok) setReceipt((await receiptResponse.json()).receipt);
-        toast.success("Payment successful. Your receipt is ready.");
+        toast.success(tUi("Payment successful. Your receipt is ready.", language));
       } else toast.error(completed.payment.failureReason ?? "Payment failed. Please try another method.");
       await Promise.all([loadPaymentData(farmerToken, farmerId, bookingId), loadNotifications(farmerToken, farmerId)]);
     } catch (error) { setPaymentRecord(record => record ? { ...record, status: "FAILED", failureReason: error instanceof Error ? error.message : "Payment failed." } : record); toast.error(error instanceof Error ? error.message : "Payment failed. Please try again."); }
     finally { setPaymentProcessing(false); }
   };
   const confirmBooking = async () => {
-    if (!farmerToken) { toast.error("Login as an approved farmer before confirming a booking."); navigate("farmerLogin"); return; }
+    if (!farmerToken) { toast.error(tUi("Login as an approved farmer before confirming a booking.", language)); navigate("farmerLogin"); return; }
     const chosenSlot = backendSlots.find(s => s.id === selectedSlotId || `${s.startTime} – ${s.endTime}` === selectedSlot) ?? backendSlots[0];
     const slotIdToUse = chosenSlot?.id ?? (selectedCentre.id === 1 ? 3 : ((selectedCentre.id - 1) * 6) + 3);
 
@@ -3599,7 +3603,7 @@ export default function Home() {
       await loadFarmerStats(farmerToken);
       if (farmerId) void loadFarmerHistory(farmerId);
       navigate("token");
-      toast.success("Booking confirmed and real API token generated.");
+      toast.success(tUi("Booking confirmed and real API token generated.", language));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Booking could not be confirmed.");
     }
@@ -3723,13 +3727,13 @@ export default function Home() {
 
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
     if (!allowedTypes.includes(file.type.toLowerCase())) {
-      toast.error("Please select a valid JPG, PNG, or WebP photograph.");
+      toast.error(tUi("Please select a valid JPG, PNG, or WebP photograph.", language));
       return;
     }
 
     // Enforce 10MB pre-compression browser limit
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("Original photo is too large (>10MB). Please choose a smaller photo.");
+      toast.error(tUi("Original photo is too large (>10MB). Please choose a smaller photo.", language));
       return;
     }
 
@@ -3786,10 +3790,10 @@ export default function Home() {
         base64: base64Data,
         mimeType: targetMime,
       });
-      toast.success("Photo attached ready for AI inspection.");
+      toast.success(tUi("Photo attached ready for AI inspection.", language));
     } catch (err: any) {
       console.error("Image processing error:", err);
-      toast.error("Could not process the selected image. Please try another photo.");
+      toast.error(tUi("Could not process the selected image. Please try another photo.", language));
     } finally {
       setImageCompressing(false);
       setIsCameraMenuOpen(false);
@@ -3871,7 +3875,7 @@ export default function Home() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(blob => {
       if (!blob) {
-        toast.error("Failed to capture photo.");
+        toast.error(tUi("Failed to capture photo.", language));
         return;
       }
       const file = new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
@@ -4048,7 +4052,7 @@ export default function Home() {
     } catch {}
     removeAttachedImage();
     setChat([]);
-    toast.success("Chat history cleared.");
+    toast.success(tUi("Chat history cleared.", language));
   };
 
   const officerAssistantReply = async (question: string) => {
@@ -4130,7 +4134,7 @@ export default function Home() {
       });
     } catch {}
     setOfficerChat([]);
-    toast.success("Officer Copilot conversation cleared.");
+    toast.success(tUi("Officer Copilot conversation cleared.", language));
   };
 
   const stopListening = () => {
@@ -4206,7 +4210,7 @@ export default function Home() {
         if (e?.error === "not-allowed") {
           const err = tUi("Microphone access was denied. Please allow microphone permissions.", language);
           setSpeechError(err);
-          toast.error("Microphone permission denied.");
+          toast.error(tUi("Microphone permission denied.", language));
         } else if (e?.error && e.error !== "no-speech" && e.error !== "aborted") {
           const err = tUi("Could not hear speech clearly. Please try again or type your question.", language);
           setSpeechError(err);
@@ -4250,9 +4254,9 @@ export default function Home() {
     <div className="app-shell">
       <aside className="journey-rail">
         <button className="logo-button" onClick={() => navigate("dashboard")}><AppLogo /></button>
-        <div className="rail-label">FARMER SPACE</div>
+        <div className="rail-label">{tUi("FARMER SPACE", language)}</div>
         <nav>{navItems.map(({ screen: target, label, icon: Icon }) => <button key={target} onClick={() => navigate(target)} className={screen === target ? "active" : ""}><Icon size={19} /><span>{t.nav[label as keyof typeof t.nav] ?? label}</span></button>)}</nav>
-        <div className="rail-bottom"><button onClick={() => navigate("assistant")}><Bot size={19} /><span>Farmer assistant</span></button><button onClick={() => navigate("profile")}><UserCheck size={19} /><span>My profile</span></button></div>
+        <div className="rail-bottom"><button onClick={() => navigate("assistant")}><Bot size={19} /><span>{tUi("Farmer assistant", language)}</span></button><button onClick={() => navigate("profile")}><UserCheck size={19} /><span>{tUi("My profile", language)}</span></button></div>
       </aside>
       <div className="screen-area">
         <header className="mobile-header">
@@ -4267,7 +4271,7 @@ export default function Home() {
             <button
               className="notification-button"
               onClick={() => navigate("notifications")}
-              title="Notifications"
+              title={tUi("Notifications", language)}
               aria-label="Notifications"
             >
               <Bell size={18} />
@@ -4289,7 +4293,7 @@ export default function Home() {
             <button
               className="notification-button"
               onClick={() => navigate("notifications")}
-              title="Notifications"
+              title={tUi("Notifications", language)}
               aria-label="Notifications"
             >
               <Bell size={18} />
@@ -4331,7 +4335,7 @@ export default function Home() {
               </div>
             )}
             <div className="drawer-links">
-              <div className="drawer-section-label">MY HARVEST LIFECYCLE</div>
+              <div className="drawer-section-label">{tUi("MY HARVEST LIFECYCLE", language)}</div>
               {navItems.map(({ screen: target, label, icon: Icon }) => (
                 <button
                   key={target}
@@ -4343,20 +4347,20 @@ export default function Home() {
                 </button>
               ))}
               <div className="drawer-divider" />
-              <div className="drawer-section-label">ASSISTANCE & PROFILE</div>
+              <div className="drawer-section-label">{tUi("ASSISTANCE & PROFILE", language)}</div>
               <button
                 onClick={() => navigate("assistant")}
                 className={screen === "assistant" ? "active" : ""}
               >
                 <Bot size={20} />
-                <span>Farmer assistant</span>
+                <span>{tUi("Farmer assistant", language)}</span>
               </button>
               <button
                 onClick={() => navigate("profile")}
                 className={screen === "profile" ? "active" : ""}
               >
                 <UserCheck size={20} />
-                <span>My profile</span>
+                <span>{tUi("My profile", language)}</span>
               </button>
               <button
                 onClick={() => navigate("notifications")}
@@ -4372,7 +4376,7 @@ export default function Home() {
             <div className="drawer-bottom">
               <button onClick={logoutFarmer} className="drawer-logout">
                 <LogOut size={18} />
-                <span>Sign Out Farmer Account</span>
+                <span>{tUi("Sign Out Farmer Account", language)}</span>
               </button>
             </div>
           </nav>
@@ -4386,8 +4390,8 @@ export default function Home() {
       <header className="landing-nav">
         <AppLogo />
         <div className="nav-links landing-desktop-links">
-          <a href="#how">How it works</a>
-          <a href="#services">Features</a>
+          <a href="#how">{tUi("How it works", language)}</a>
+          <a href="#services">{tUi("Features", language)}</a>
           <button onClick={() => navigate(farmerToken ? "dashboard" : "farmerLogin")}>
             {farmerToken ? tUi("Farmer portal", language) : tUi("Farmer login", language)}
           </button>
@@ -4398,7 +4402,7 @@ export default function Home() {
         <div className="nav-end landing-desktop-end">
           <MobileViewToggle />
           <LanguageDropdown language={language} setLanguage={changeLanguage} />
-          <ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Register now</ActionButton>
+          <ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>{tUi("Register now", language)}</ActionButton>
         </div>
         <div className="landing-mobile-actions">
           <MobileViewToggle compact={true} />
@@ -4427,7 +4431,7 @@ export default function Home() {
               </button>
             </div>
             <div className="drawer-links">
-              <div className="drawer-section-label">PORTAL ACCESS</div>
+              <div className="drawer-section-label">{tUi("PORTAL ACCESS", language)}</div>
               <button
                 onClick={() => {
                   navigate(farmerToken ? "dashboard" : "farmerLogin");
@@ -4445,7 +4449,7 @@ export default function Home() {
                 className="active"
               >
                 <UserCheck size={19} />
-                <span>New Farmer Registration</span>
+                <span>{tUi("New Farmer Registration", language)}</span>
               </button>
               <button
                 onClick={() => {
@@ -4458,20 +4462,20 @@ export default function Home() {
               </button>
 
               <div className="drawer-divider" />
-              <div className="drawer-section-label">EXPLORE PROCUREFLOW</div>
+              <div className="drawer-section-label">{tUi("EXPLORE PROCUREFLOW", language)}</div>
               <a
                 href="#how"
                 onClick={() => setLandingMobileMenu(false)}
               >
                 <Clock3 size={19} />
-                <span>How It Works</span>
+                <span>{tUi("How It Works", language)}</span>
               </a>
               <a
                 href="#services"
                 onClick={() => setLandingMobileMenu(false)}
               >
                 <Sprout size={19} />
-                <span>Features & Services</span>
+                <span>{tUi("Features & Services", language)}</span>
               </a>
               <button
                 onClick={() => {
@@ -4480,7 +4484,7 @@ export default function Home() {
                 }}
               >
                 <MapPin size={19} />
-                <span>Live Mandis & Centres</span>
+                <span>{tUi("Live Mandis & Centres", language)}</span>
               </button>
             </div>
             <div className="drawer-bottom">
@@ -4491,7 +4495,7 @@ export default function Home() {
                 }}
                 className="action-button w-full justify-center"
               >
-                <span>Register as farmer</span>
+                <span>{tUi("Register as farmer", language)}</span>
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -4504,46 +4508,46 @@ export default function Home() {
           <div className="hero-tint" />
           <div className="field-contours hero-contours" />
           <div className="hero-copy">
-            <Pill kind="green">SMART PROCUREMENT PLATFORM</Pill>
-            <h1>A calm, transparent way to bring your paddy to market.</h1>
-            <p>Check live centre capacity, reserve a comfortable arrival window, receive a verified token, and follow your harvest all the way to payment.</p>
+            <Pill kind="green">{tUi("SMART PROCUREMENT PLATFORM", language)}</Pill>
+            <h1>{tUi("A calm, transparent way to bring your paddy to market.", language)}</h1>
+            <p>{tUi("Check live centre capacity, reserve a comfortable arrival window, receive a verified token, and follow your harvest all the way to payment.", language)}</p>
             <div className="hero-actions">
-              <ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Register as farmer</ActionButton>
-              <ActionButton onClick={() => navigate("farmerLogin")} secondary icon={LogIn}>Farmer login</ActionButton>
+              <ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>{tUi("Register as farmer", language)}</ActionButton>
+              <ActionButton onClick={() => navigate("farmerLogin")} secondary icon={LogIn}>{tUi("Farmer login", language)}</ActionButton>
             </div>
             <div className="hero-trust">
-              <span><ShieldCheck size={16} /> Verified farmer registration</span>
-              <span><MapPin size={16} /> Real-time centre queues</span>
-              <span><Clock3 size={16} /> Dedicated arrival windows</span>
+              <span><ShieldCheck size={16} /> {tUi("Verified farmer registration", language)}</span>
+              <span><MapPin size={16} /> {tUi("Real-time centre queues", language)}</span>
+              <span><Clock3 size={16} /> {tUi("Dedicated arrival windows", language)}</span>
             </div>
           </div>
           <div className="hero-live-card">
             <div className="live-card-header">
-              <span className="status-pill status-green"><span className="pulse-dot" /> LIVE MANDI</span>
-              <span className="text-[10px] text-emerald-200 font-bold">AP Network</span>
+              <span className="status-pill status-green"><span className="pulse-dot" /> {tUi("LIVE MANDI", language)}</span>
+              <span className="text-[10px] text-emerald-200 font-bold">{tUi("AP Network", language)}</span>
             </div>
             <div className="mini-route">
               <i />
               <span className="route-pin one" />
               <span className="route-pin two" />
             </div>
-            <p className="muted">Guntur Agricultural Market Yard</p>
-            <strong>18 farmers in queue</strong>
+            <p className="muted">{tUi("Guntur Agricultural Market Yard", language)}</p>
+            <strong>{tUi("18 farmers in queue", language)}</strong>
             <div className="live-metrics">
-              <div><span>Avg wait</span><b>~35 min</b></div>
-              <div><span>Status</span><b className="text-emerald-300">Open now</b></div>
+              <div><span>{tUi("Avg wait", language)}</span><b>{tUi("~35 min", language)}</b></div>
+              <div><span>{tUi("Status", language)}</span><b className="text-emerald-300">{tUi("Open now", language)}</b></div>
             </div>
             <button onClick={() => navigate("centres")}>
-              <span>View all mandis</span>
+              <span>{tUi("View all mandis", language)}</span>
               <ArrowRight size={13} />
             </button>
           </div>
         </section>
-        <section className="proof-strip" id="services"><div><span className="token-disc small"><Wheat /></span><b>Clear slots</b><p>Select the time that works for your farm.</p></div><div><span className="token-disc small blue"><Ticket /></span><b>Live token</b><p>See your place before you travel.</p></div><div><span className="token-disc small yellow"><ClipboardCheck /></span><b>Tracked status</b><p>Follow every procurement stage.</p></div><div><span className="token-disc small blue"><Bot /></span><b>Farmer helper</b><p>Ask in English, Telugu, or Hindi.</p></div></section>
-        <section className="journey-section" id="how"><div className="journey-copy"><p className="eyebrow">ONE CALM JOURNEY</p><h2>From paddy selection to payment, nothing is hidden.</h2><p>ProcureFlow turns scattered information into a single, farmer-friendly journey. There is always a next step, an expected time, and a record to check.</p><ActionButton onClick={() => navigate("registration")} secondary icon={ArrowRight}>Begin registration</ActionButton></div><div className="journey-stages">{[["01", "Register", "Your application stays pending until an officer approves it."], ["02", "Book a slot", "Choose paddy, centre, date, and time from available capacity."], ["03", "Track the day", "Carry your token and follow queue, quality check, and payment status."]].map(([num, title, copy]) => <article key={num}><span>{num}</span><div><h3>{title}</h3><p>{copy}</p></div><ChevronRight /></article>)}</div></section>
-        <section className="closing-banner"><div><Pill kind="green">BUILT FOR THE FIELD</Pill><h2>Less waiting. More certainty.</h2><p>A connected smart procurement management system with live database synchronization.</p></div><ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>Start farmer flow</ActionButton></section>
+        <section className="proof-strip" id="services"><div><span className="token-disc small"><Wheat /></span><b>{tUi("Clear slots", language)}</b><p>{tUi("Select the time that works for your farm.", language)}</p></div><div><span className="token-disc small blue"><Ticket /></span><b>{tUi("Live token", language)}</b><p>{tUi("See your place before you travel.", language)}</p></div><div><span className="token-disc small yellow"><ClipboardCheck /></span><b>{tUi("Tracked status", language)}</b><p>{tUi("Follow every procurement stage.", language)}</p></div><div><span className="token-disc small blue"><Bot /></span><b>{tUi("Farmer helper", language)}</b><p>{tUi("Ask in English, Telugu, or Hindi.", language)}</p></div></section>
+        <section className="journey-section" id="how"><div className="journey-copy"><p className="eyebrow">{tUi("ONE CALM JOURNEY", language)}</p><h2>{tUi("From paddy selection to payment, nothing is hidden.", language)}</h2><p>{tUi("ProcureFlow turns scattered information into a single, farmer-friendly journey. There is always a next step, an expected time, and a record to check.", language)}</p><ActionButton onClick={() => navigate("registration")} secondary icon={ArrowRight}>{tUi("Begin registration", language)}</ActionButton></div><div className="journey-stages">{[["01", "Register", "Your application stays pending until an officer approves it."], ["02", "Book a slot", "Choose paddy, centre, date, and time from available capacity."], ["03", "Track the day", "Carry your token and follow queue, quality check, and payment status."]].map(([num, title, copy]) => <article key={num}><span>{num}</span><div><h3>{title}</h3><p>{copy}</p></div><ChevronRight /></article>)}</div></section>
+        <section className="closing-banner"><div><Pill kind="green">{tUi("BUILT FOR THE FIELD", language)}</Pill><h2>{tUi("Less waiting. More certainty.", language)}</h2><p>{tUi("A connected smart procurement management system with live database synchronization.", language)}</p></div><ActionButton onClick={() => navigate("registration")} icon={ArrowRight}>{tUi("Start farmer flow", language)}</ActionButton></section>
       </main>
-      <footer><AppLogo /><p>Smart Procurement Management System · SIH 2026 Prototype</p><button onClick={() => navigate("officerLogin")}>Officer access</button></footer>
+      <footer><AppLogo /><p>{tUi("Smart Procurement Management System · SIH 2026 Prototype", language)}</p><button onClick={() => navigate("officerLogin")}>{tUi("Officer access", language)}</button></footer>
     </div>
   );
 
@@ -4554,7 +4558,7 @@ export default function Home() {
           <AppLogo inverse />
         </button>
         <div>
-          <Pill kind="yellow">FARMER ONBOARDING</Pill>
+          <Pill kind="yellow">{tUi("FARMER ONBOARDING", language)}</Pill>
           <h1>
             Your harvest
             <br />
@@ -4565,9 +4569,9 @@ export default function Home() {
           </p>
         </div>
         <div className="side-steps">
-          <span><b style={{ background: "#107e4a" }}>1</b> Farmer Details & Credentials</span>
-          <span><b>2</b> Officer Review & Approval</span>
-          <span><b>3</b> Direct Portal Access</span>
+          <span><b style={{ background: "#107e4a" }}>1</b> {tUi("Farmer Details & Credentials", language)}</span>
+          <span><b>2</b> {tUi("Officer Review & Approval", language)}</span>
+          <span><b>3</b> {tUi("Direct Portal Access", language)}</span>
         </div>
       </div>
       <main className="auth-panel">
@@ -4578,7 +4582,7 @@ export default function Home() {
           <MobileViewToggle />
         </div>
         <div className="form-wrap">
-          <p className="eyebrow">NEW FARMER REGISTRATION</p>
+          <p className="eyebrow">{tUi("NEW FARMER REGISTRATION", language)}</p>
           <h2>{t.registrationTitle}</h2>
           <p>
             {t.registrationIntro} Your account remains <b>{tUi("pending", language)}</b> until officer approval.
@@ -4588,12 +4592,12 @@ export default function Home() {
           <div className="auth-step-tracker">
             <div className="auth-step-item active">
               <span className="auth-step-num">1</span>
-              <span>Registration Form</span>
+              <span>{tUi("Registration Form", language)}</span>
             </div>
             <div className="auth-step-separator" />
             <div className="auth-step-item">
               <span className="auth-step-num">2</span>
-              <span>Officer Verification</span>
+              <span>{tUi("Officer Verification", language)}</span>
             </div>
           </div>
 
@@ -4611,7 +4615,7 @@ export default function Home() {
               <Input
                 value={registrationForm.name}
                 onChange={e => setRegistrationForm(form => ({ ...form, name: e.target.value }))}
-                placeholder="e.g. Ramesh Kumar"
+                placeholder={tUi("e.g. Ramesh Kumar", language)}
                 required
               />
             </label>
@@ -4620,7 +4624,7 @@ export default function Home() {
               Mobile number (10-digit)
               <Input
                 inputMode="numeric"
-                placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
+                placeholder={tUi("Enter 10-digit mobile number (e.g. 9876543210)", language)}
                 value={registrationForm.phone}
                 maxLength={10}
                 onChange={e => setRegistrationForm(form => ({ ...form, phone: e.target.value.replace(/\D/g, "") }))}
@@ -4634,7 +4638,7 @@ export default function Home() {
                 <div className="relative">
                   <Input
                     type={showRegPassword ? "text" : "password"}
-                    placeholder="At least 8 characters"
+                    placeholder={tUi("At least 8 characters", language)}
                     value={registrationForm.password}
                     onChange={e => setRegistrationForm(form => ({ ...form, password: e.target.value }))}
                     minLength={8}
@@ -4655,7 +4659,7 @@ export default function Home() {
                 <div className="relative">
                   <Input
                     type={showRegConfirmPassword ? "text" : "password"}
-                    placeholder="Re-enter password"
+                    placeholder={tUi("Re-enter password", language)}
                     value={regConfirmPassword}
                     onChange={e => setRegConfirmPassword(e.target.value)}
                     minLength={8}
@@ -4684,7 +4688,7 @@ export default function Home() {
               <Input
                 value={registrationForm.aadhaarMasked}
                 onChange={e => setRegistrationForm(form => ({ ...form, aadhaarMasked: e.target.value }))}
-                placeholder="XXXX XXXX 1234"
+                placeholder={tUi("XXXX XXXX 1234", language)}
                 required
               />
             </label>
@@ -4695,7 +4699,7 @@ export default function Home() {
                 <Input
                   value={registrationForm.village}
                   onChange={e => setRegistrationForm(form => ({ ...form, village: e.target.value }))}
-                  placeholder="e.g. Rampur"
+                  placeholder={tUi("e.g. Rampur", language)}
                   required
                 />
               </label>
@@ -4704,7 +4708,7 @@ export default function Home() {
                 <Input
                   value={registrationForm.district}
                   onChange={e => setRegistrationForm(form => ({ ...form, district: e.target.value }))}
-                  placeholder="e.g. Nizamabad"
+                  placeholder={tUi("e.g. Nizamabad", language)}
                   required
                 />
               </label>
@@ -4716,15 +4720,15 @@ export default function Home() {
                 value={registrationForm.primaryCrop}
                 onChange={e => setRegistrationForm(form => ({ ...form, primaryCrop: e.target.value }))}
               >
-                <option>Paddy</option>
-                <option>Maize</option>
-                <option>Cotton</option>
+                <option>{tUi("Paddy", language)}</option>
+                <option>{tUi("Maize", language)}</option>
+                <option>{tUi("Cotton", language)}</option>
               </select>
             </label>
 
             <label className="check-line">
               <input type="checkbox" required defaultChecked />
-              <span>I confirm these details are correct for this procurement request.</span>
+              <span>{tUi("I confirm these details are correct for this procurement request.", language)}</span>
             </label>
 
             <Button disabled={authLoading || registrationForm.password.length < 8 || registrationForm.password !== regConfirmPassword} type="submit" className="action-button">
@@ -4739,7 +4743,7 @@ export default function Home() {
               )}
             </Button>
 
-            <div className="login-divider mt-4"><span>or</span></div>
+            <div className="login-divider mt-4"><span>{tUi("or", language)}</span></div>
             <button type="button" className="inline-action w-full justify-center" onClick={() => navigate("farmerLogin")}>
               Already registered? Sign in <ArrowRight size={14} />
             </button>
@@ -4808,7 +4812,7 @@ export default function Home() {
               <ShieldCheck size={15} className="text-emerald-700" /> Officer Verification Workflow
             </div>
             <p className="text-xs text-emerald-800 mb-3 leading-relaxed">
-              New farmer registrations strictly remain <b>PENDING</b> until verified by the Mandal Procurement Officer. You can switch to the Officer Console to review and approve this farmer.
+              New farmer registrations strictly remain <b>{tUi("PENDING", language)}</b> until verified by the Mandal Procurement Officer. You can switch to the Officer Console to review and approve this farmer.
             </p>
             <ActionButton onClick={() => { void loginOfficer(); }} icon={ArrowRight}>
               Open Officer Console (Approve Farmer)
@@ -4827,24 +4831,24 @@ export default function Home() {
         <button onClick={() => navigate("landing")}><AppLogo /></button>
         <div className="flex items-center gap-2">
           <MobileViewToggle />
-          <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16} /> Back</button>
+          <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16} /> {tUi("Back", language)}</button>
         </div>
       </header>
       <main>
         <section className="login-art">
           <img src={statusUrl} alt="Paddy sample and procurement work materials" />
           <div>
-            <Pill kind="green">FARMER PORTAL</Pill>
-            <h2>Know your visit before you travel.</h2>
-            <p>Token, live queue, procurement progress and payment status in one place.</p>
+            <Pill kind="green">{tUi("FARMER PORTAL", language)}</Pill>
+            <h2>{tUi("Know your visit before you travel.", language)}</h2>
+            <p>{tUi("Token, live queue, procurement progress and payment status in one place.", language)}</p>
           </div>
         </section>
 
         {/* FORGOT PASSWORD WORKFLOW (IDENTITY-VERIFIED RECOVERY) */}
         {forgotStep !== "INACTIVE" ? (
           <section className="login-card">
-            <p className="eyebrow">IDENTITY-VERIFIED PASSWORD RECOVERY</p>
-            <h1>Reset Password</h1>
+            <p className="eyebrow">{tUi("IDENTITY-VERIFIED PASSWORD RECOVERY", language)}</p>
+            <h1>{tUi("Reset Password", language)}</h1>
             <p>
               {forgotStep === "VERIFY"
                 ? "Verify your registered mobile number and identity details to reset your password."
@@ -4867,7 +4871,7 @@ export default function Home() {
                   Registered mobile number
                   <Input
                     inputMode="numeric"
-                    placeholder="Enter 10-digit registered mobile"
+                    placeholder={tUi("Enter 10-digit registered mobile", language)}
                     maxLength={10}
                     value={forgotPhone}
                     onChange={e => setForgotPhone(e.target.value.replace(/\D/g, ""))}
@@ -4981,7 +4985,7 @@ export default function Home() {
                     <div className="relative">
                       <Input
                         type={showForgotNewPassword ? "text" : "password"}
-                        placeholder="Enter at least 8 characters"
+                        placeholder={tUi("Enter at least 8 characters", language)}
                         value={forgotNewPassword}
                         onChange={e => setForgotNewPassword(e.target.value)}
                         minLength={8}
@@ -5002,7 +5006,7 @@ export default function Home() {
                     <div className="relative">
                       <Input
                         type={showForgotConfirmPassword ? "text" : "password"}
-                        placeholder="Re-enter new password"
+                        placeholder={tUi("Re-enter new password", language)}
                         value={forgotConfirmPassword}
                         onChange={e => setForgotConfirmPassword(e.target.value)}
                         minLength={8}
@@ -5058,7 +5062,7 @@ export default function Home() {
                 <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-3">
                   <CheckCircle2 size={32} />
                 </div>
-                <h3 className="text-lg font-bold text-emerald-950 mb-1">Password Updated!</h3>
+                <h3 className="text-lg font-bold text-emerald-950 mb-1">{tUi("Password Updated!", language)}</h3>
                 <p className="text-xs text-muted-foreground mb-4">
                   Your password has been reset successfully. You can now login to your farmer account using your new credentials.
                 </p>
@@ -5083,7 +5087,7 @@ export default function Home() {
         ) : (
           /* STANDARD FARMER LOGIN CARD */
           <section className="login-card">
-            <p className="eyebrow">FARMER LOGIN</p>
+            <p className="eyebrow">{tUi("FARMER LOGIN", language)}</p>
             <h1>{t.loginTitle}</h1>
             <p>{t.loginIntro} Officer approval is required before access is granted.</p>
 
@@ -5092,7 +5096,7 @@ export default function Home() {
                 Mobile number
                 <Input
                   inputMode="numeric"
-                  placeholder="Enter 10-digit mobile number"
+                  placeholder={tUi("Enter 10-digit mobile number", language)}
                   maxLength={10}
                   value={farmerCredentials.phone}
                   onChange={event => setFarmerCredentials(credentials => ({ ...credentials, phone: event.target.value.replace(/\s/g, "") }))}
@@ -5122,7 +5126,7 @@ export default function Home() {
                   <Input
                     id="farmer-login-password"
                     type={showLoginPassword ? "text" : "password"}
-                    placeholder="Enter your password"
+                    placeholder={tUi("Enter your password", language)}
                     value={farmerCredentials.password}
                     onChange={event => setFarmerCredentials(credentials => ({ ...credentials, password: event.target.value }))}
                     required
@@ -5146,7 +5150,7 @@ export default function Home() {
               </ActionButton>
             </form>
 
-            <div className="login-divider"><span>or</span></div>
+            <div className="login-divider"><span>{tUi("or", language)}</span></div>
             <button className="inline-action" onClick={() => navigate("registration")}>
               New farmer? Register first <ArrowRight size={15}/>
             </button>
@@ -5168,7 +5172,7 @@ export default function Home() {
         eyebrow={`GOOD MORNING, ${profileRecord?.name?.split(" ")[0]?.toUpperCase() ?? "RAMESH"}`}
         title={t.dashboardTitle}
         body={t.dashboardBody}
-        action={<ActionButton onClick={() => navigate("paddy")} icon={ArrowRight}>Book another slot</ActionButton>}
+        action={<ActionButton onClick={() => navigate("paddy")} icon={ArrowRight}>{tUi("Book another slot", language)}</ActionButton>}
       />
 
       {/* Live Agricultural Weather Banner */}
@@ -5183,7 +5187,7 @@ export default function Home() {
               <strong className="text-sm font-extrabold text-emerald-950">{weatherData?.temperature ?? 31}°C · {weatherData?.condition ?? "Sunny & Clear"}</strong>
             </div>
             <p className="text-xs text-emerald-800 m-0">
-              💧 Humidity: <b>{weatherData?.humidity ?? 62}%</b> · 🌾 Harvesting Index: <b className="text-emerald-950 uppercase">{weatherData?.safeHarvestingIndex ?? "OPTIMAL"}</b> · 💨 Wind: <b>{weatherData?.windSpeedKmH ?? 14} km/h</b>
+              💧 Humidity: <b>{weatherData?.humidity ?? 62}%</b> {tUi("· 🌾 Harvesting Index:", language)} <b className="text-emerald-950 uppercase">{weatherData?.safeHarvestingIndex ?? "OPTIMAL"}</b> {tUi("· 💨 Wind:", language)} <b>{weatherData?.windSpeedKmH ?? 14} km/h</b>
             </p>
           </div>
         </div>
@@ -5204,16 +5208,16 @@ export default function Home() {
           </div>
           <div className="booking-strip">
             <div>
-              <small>YOUR DATE</small>
+              <small>{tUi("YOUR DATE", language)}</small>
               <strong>{bookingRecord?.slot.date ?? "Wed, 18 Mar"}</strong>
               <span>{bookingRecord ? `${bookingRecord.slot.startTime} – ${bookingRecord.slot.endTime}` : "10:30 – 11:00 AM"}</span>
             </div>
             <div>
-              <small>YOUR TOKEN</small>
+              <small>{tUi("YOUR TOKEN", language)}</small>
               <strong className="token-text">{bookingRecord?.tokenNumber ?? "P-042"}</strong>
               <span>Queue position {bookingRecord?.queue?.position ?? 18}</span>
             </div>
-            <ActionButton onClick={() => navigate("token")} secondary icon={Ticket}>View token</ActionButton>
+            <ActionButton onClick={() => navigate("token")} secondary icon={Ticket}>{tUi("View token", language)}</ActionButton>
           </div>
           <div className="booking-route">
             <span className="route-node complete"><Check /></span>
@@ -5225,7 +5229,7 @@ export default function Home() {
             <span className="route-node"><WalletCards /></span>
             <div>
               <b>{(bookingRecord?.procurement?.status || "Ready for your arrival").replaceAll("_", " ")}</b>
-              <p>Live record loaded from your connected booking when available.</p>
+              <p>{tUi("Live record loaded from your connected booking when available.", language)}</p>
             </div>
           </div>
         </div>
@@ -5233,10 +5237,10 @@ export default function Home() {
           <img src={queueUrl} alt="Farmers waiting at procurement centre"/>
           <div className="image-shade"/>
           <div>
-            <Pill kind="yellow">TODAY’S SIGNAL</Pill>
-            <strong>Queue update</strong>
+            <Pill kind="yellow">{tUi("TODAY’S SIGNAL", language)}</Pill>
+            <strong>{tUi("Queue update", language)}</strong>
             <p>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min expected wait</p>
-            <button onClick={() => navigate("queue")}>See live queue <ArrowRight size={14}/></button>
+            <button onClick={() => navigate("queue")}>{tUi("See live queue", language)} <ArrowRight size={14}/></button>
           </div>
         </aside>
       </section>
@@ -5249,10 +5253,10 @@ export default function Home() {
       <section className="stats-section">
         <div className="stats-heading">
           <div>
-            <p className="eyebrow">YOUR STATS</p>
-            <h2>Harvest history at a glance.</h2>
+            <p className="eyebrow">{tUi("YOUR STATS", language)}</p>
+            <h2>{tUi("Harvest history at a glance.", language)}</h2>
           </div>
-          <Pill kind="blue">LIVE API DATA</Pill>
+          <Pill kind="blue">{tUi("LIVE API DATA", language)}</Pill>
         </div>
         <div className="metric-grid stats-grid">
           <MetricCard icon={CalendarDays} label="Total bookings" value={`${farmerStats?.totalBookings ?? 0}`} hint="Your recorded bookings" tone="blue"/>
@@ -5264,25 +5268,25 @@ export default function Home() {
       <section className="split-dashboard">
         <article className="next-action-card">
           <div>
-            <Pill kind="blue">WHAT’S NEXT</Pill>
-            <h2>Bring the right documents.</h2>
-            <p>Keep your farmer ID, bank passbook, and paddy receipt ready for a fast verification.</p>
+            <Pill kind="blue">{tUi("WHAT’S NEXT", language)}</Pill>
+            <h2>{tUi("Bring the right documents.", language)}</h2>
+            <p>{tUi("Keep your farmer ID, bank passbook, and paddy receipt ready for a fast verification.", language)}</p>
           </div>
           <div className="document-checklist">
-            <span><Check /> Farmer ID</span>
-            <span><Check /> Bank passbook</span>
-            <span><Check /> Paddy receipt</span>
+            <span><Check /> {tUi("Farmer ID", language)}</span>
+            <span><Check /> {tUi("Bank passbook", language)}</span>
+            <span><Check /> {tUi("Paddy receipt", language)}</span>
           </div>
-          <button onClick={() => navigate("status")}>See full procurement timeline <ArrowRight size={15}/></button>
+          <button onClick={() => navigate("status")}>{tUi("See full procurement timeline", language)} <ArrowRight size={15}/></button>
         </article>
         <article className="assistant-teaser">
           <span className="assistant-bot"><Bot /></span>
           <div>
-            <Pill kind="green">AI FARMER ASSISTANT</Pill>
-            <h3>Ask the practical question.</h3>
-            <p>“How many people are ahead of me?”</p>
+            <Pill kind="green">{tUi("AI FARMER ASSISTANT", language)}</Pill>
+            <h3>{tUi("Ask the practical question.", language)}</h3>
+            <p>{tUi("“How many people are ahead of me?”", language)}</p>
           </div>
-          <button onClick={() => navigate("assistant")}><MessageCircle /> Ask now</button>
+          <button onClick={() => navigate("assistant")}><MessageCircle /> {tUi("Ask now", language)}</button>
         </article>
       </section>
     </>
@@ -5335,7 +5339,7 @@ export default function Home() {
                 type="text"
                 value={bookingCropSearch}
                 onChange={e => setBookingCropSearch(e.target.value)}
-                placeholder="Search crop by name (e.g. Tomato, Mango, Rice, Wheat, Cotton)..."
+                placeholder={tUi("Search crop by name (e.g. Tomato, Mango, Rice, Wheat, Cotton)...", language)}
                 className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent shadow-xs transition-all"
               />
               {bookingCropSearch && (
@@ -5343,7 +5347,7 @@ export default function Home() {
                   type="button"
                   onClick={() => setBookingCropSearch("")}
                   className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  title="Clear search"
+                  title={tUi("Clear search", language)}
                 >
                   <X size={16} />
                 </button>
@@ -5351,13 +5355,13 @@ export default function Home() {
             </div>
             {bookingCropSearch && (
               <div className="flex items-center justify-between mt-1.5 px-1 text-xs text-slate-500">
-                <span>Showing results for "<b>{bookingCropSearch}</b>" ({bookingCrops.length} {bookingCrops.length === 1 ? "crop" : "crops"} found)</span>
+                <span>{tUi("Showing results for", language)} "<b>{bookingCropSearch}</b>" ({bookingCrops.length} {bookingCrops.length === 1 ? tUi("crop", language) : tUi("crops", language)} {tUi("found", language)})</span>
                 <button
                   type="button"
                   onClick={() => setBookingCropSearch("")}
                   className="text-emerald-700 font-semibold hover:underline"
                 >
-                  Clear filter
+                  {tUi("Clear filter", language)}
                 </button>
               </div>
             )}
@@ -5446,7 +5450,7 @@ export default function Home() {
                         <p className="text-xs text-slate-500 truncate mt-0.5">{crop.variety}</p>
                         <div className="flex items-baseline justify-between mt-1.5">
                           <b className="text-emerald-800 dark:text-emerald-400 font-extrabold text-sm">
-                            ₹{crop.effectiveRatePerQuintal.toLocaleString("en-IN")} <span className="text-[10px] font-normal text-slate-500">/ quintal</span>
+                            ₹{crop.effectiveRatePerQuintal.toLocaleString("en-IN")} <span className="text-[10px] font-normal text-slate-500">{tUi("/ quintal", language)}</span>
                           </b>
                           <span className="text-[10px] text-slate-400 font-medium">Max {crop.maxMoisturePercent}% moist</span>
                         </div>
@@ -5470,8 +5474,8 @@ export default function Home() {
             <div>
               <span><Tractor /></span>
               <div>
-                <h3>Expected harvest quantity</h3>
-                <p>Used by the mandi to plan daily weighing and yard storage capacity.</p>
+                <h3>{tUi("Expected harvest quantity", language)}</h3>
+                <p>{tUi("Used by the mandi to plan daily weighing and yard storage capacity.", language)}</p>
               </div>
             </div>
             <div className="quantity-control">
@@ -5481,7 +5485,7 @@ export default function Home() {
               >
                 −
               </button>
-              <b>{expectedQuantity} <small>quintals</small></b>
+              <b>{expectedQuantity} <small>{tUi("quintals", language)}</small></b>
               <button
                 type="button"
                 onClick={() => setExpectedQuantity(q => q + 2)}
@@ -5502,14 +5506,14 @@ export default function Home() {
         </div>
 
         <aside className="booking-aside">
-          <Pill kind="yellow">MSP PROCUREMENT POLICY</Pill>
-          <h3>100% Guaranteed MSP Rates.</h3>
-          <p>Government declared MSP with state bonus credited directly to your bank account via Aadhaar DBT.</p>
-          <div className="tip-line"><ShieldCheck /> Direct Benefit Transfer (DBT) enabled.</div>
-          <div className="tip-line"><MapPin /> Centre availability updates live from server.</div>
+          <Pill kind="yellow">{tUi("MSP PROCUREMENT POLICY", language)}</Pill>
+          <h3>{tUi("100% Guaranteed MSP Rates.", language)}</h3>
+          <p>{tUi("Government declared MSP with state bonus credited directly to your bank account via Aadhaar DBT.", language)}</p>
+          <div className="tip-line"><ShieldCheck /> {tUi("Direct Benefit Transfer (DBT) enabled.", language)}</div>
+          <div className="tip-line"><MapPin /> {tUi("Centre availability updates live from server.", language)}</div>
           {selectedCropRecord && (
             <div className="mt-4 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Selected Crop Summary</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">{tUi("Selected Crop Summary", language)}</span>
               <div className="flex items-center gap-2">
                 <img
                   src={(selectedCropRecord as any).imageUrl || getCatalogueCropImage(selectedCropRecord.cropName)}
@@ -5522,7 +5526,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex justify-between items-baseline pt-1 border-t border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Government Rate:</span>
+                <span className="text-slate-500">{tUi("Government Rate:", language)}</span>
                 <span className="font-bold text-slate-900 dark:text-slate-100">₹{selectedCropRecord.effectiveRatePerQuintal}/qtl</span>
               </div>
               <div className="flex justify-between text-slate-500 text-[11px]">
@@ -5542,7 +5546,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="CHOOSE ANDHRA PRADESH PROCUREMENT CENTRE"
-        title="Find a calmer route to procurement."
+        title={tUi("Find a calmer route to procurement.", language)}
         body="Compare live queue signals, waiting time, slots, and distance from the connected API across Andhra Pradesh."
       />
       <div className="booking-layout centres-layout">
@@ -5557,7 +5561,7 @@ export default function Home() {
                 type="text"
                 value={centreSearchQuery}
                 onChange={e => setCentreSearchQuery(e.target.value)}
-                placeholder="Search procurement centre by name, district, place, or code (e.g. Vijayawada, Guntur, KNL, VJA)..."
+                placeholder={tUi("Search procurement centre by name, district, place, or code (e.g. Vijayawada, Guntur, KNL, VJA)...", language)}
                 className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent shadow-xs transition-all"
               />
               {centreSearchQuery && (
@@ -5565,7 +5569,7 @@ export default function Home() {
                   type="button"
                   onClick={() => setCentreSearchQuery("")}
                   className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  title="Clear search"
+                  title={tUi("Clear search", language)}
                 >
                   <X size={16} />
                 </button>
@@ -5573,13 +5577,13 @@ export default function Home() {
             </div>
             {centreSearchQuery && (
               <div className="flex items-center justify-between mt-1.5 px-1 text-xs text-slate-500">
-                <span>Showing results for "<b>{centreSearchQuery}</b>" ({filteredCentres.length} {filteredCentres.length === 1 ? "centre" : "centres"} found)</span>
+                <span>{tUi("Showing results for", language)} "<b>{centreSearchQuery}</b>" ({filteredCentres.length} {filteredCentres.length === 1 ? tUi("centre", language) : tUi("centres", language)} {tUi("found", language)})</span>
                 <button
                   type="button"
                   onClick={() => setCentreSearchQuery("")}
                   className="text-emerald-700 font-semibold hover:underline"
                 >
-                  Clear filter
+                  {tUi("Clear filter", language)}
                 </button>
               </div>
             )}
@@ -5588,7 +5592,7 @@ export default function Home() {
           <div className="map-toolbar">
             <div>
               <LocateFixed size={17}/>
-              <span>Andhra Pradesh Procurement Network</span>
+              <span>{tUi("Andhra Pradesh Procurement Network", language)}</span>
             </div>
             <button onClick={() => void fetch(apiUrl("/centres")).then(response => response.ok ? response.json() : Promise.reject()).then(({ centres: responseCentres }) => {
               const statusMap: Record<string, Centre["status"]> = { OPEN: "Open", BUSY: "Busy", LIMITED: "Limited", CLOSED: "Limited" };
@@ -5605,8 +5609,8 @@ export default function Home() {
                 latitude: centre.latitude,
                 longitude: centre.longitude,
               })).sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })));
-              toast.success("Andhra Pradesh centre availability refreshed from the API.");
-            }).catch(() => toast.error("Centre availability is unavailable."))}>
+              toast.success(tUi("Andhra Pradesh centre availability refreshed from the API.", language));
+            }).catch(() => toast.error(tUi("Centre availability is unavailable.", language)))}>
               Refresh availability
             </button>
           </div>
@@ -5621,7 +5625,7 @@ export default function Home() {
             />
           </div>
           <div className="list-heading">
-            <h2>Andhra Pradesh Centres</h2>
+            <h2>{tUi("Andhra Pradesh Centres", language)}</h2>
             <span>{filteredCentres.length} available</span>
           </div>
           <div className="centre-list">
@@ -5668,13 +5672,13 @@ export default function Home() {
           </div>
         </div>
         <aside className="booking-aside availability-aside">
-          <Pill kind="green">WHY THIS MATTERS</Pill>
-          <h3>Choose time, not just distance.</h3>
-          <p>A centre with a shorter queue may save you more than a nearby centre on a busy day.</p>
+          <Pill kind="green">{tUi("WHY THIS MATTERS", language)}</Pill>
+          <h3>{tUi("Choose time, not just distance.", language)}</h3>
+          <p>{tUi("A centre with a shorter queue may save you more than a nearby centre on a busy day.", language)}</p>
           <div className="availability-callout">
             <UsersRound />
-            <strong>Vijayawada is calmest now</strong>
-            <span>Connected data shown in the list</span>
+            <strong>{tUi("Vijayawada is calmest now", language)}</strong>
+            <span>{tUi("Connected data shown in the list", language)}</span>
           </div>
           <button onClick={() => {
             const chosen = apiCentres[1] ?? centres[1];
@@ -5688,13 +5692,13 @@ export default function Home() {
     </>
   );
 
-  const centreDetail = farmerShell(<><button className="back-link" onClick={() => navigate("centres")}><ArrowLeft size={16}/> All centres</button><div className="centre-detail"><section><div className="centre-detail-head"><div><Pill kind={selectedCentre.status === "Open" ? "green" : "yellow"}><span className="pulse-dot" /> {selectedCentre.status}</Pill><h1>{selectedCentre.name}</h1><p><MapPin size={16}/> {selectedCentre.place} · {selectedCentre.distance} from your village</p></div><span className="large-location"><MapPin/></span></div><div className="centre-stat-row"><div><small>CURRENT QUEUE</small><strong>{selectedCentre.queue}</strong><span>farmers waiting</span></div><div><small>ESTIMATED WAIT</small><strong>{selectedCentre.wait}</strong><span>at current speed</span></div><div><small>SLOTS OPEN</small><strong>{selectedCentre.slots}</strong><span>available slots</span></div></div><div className="centre-route-preview"><div className="route-map"><span className="route-source"><Sprout /></span><span className="route-destination"><MapPin /></span><i /></div><div><b>From Muppalapally</b><p>2.4 km · approximately 8 minutes</p></div><button onClick={() => toast.message("Routing map view ready.")}><LocateFixed size={17}/> Route</button></div><section className="centre-notes"><h2>At this centre</h2><div><span><Check /> Weighing facility ready</span><span><Check /> Quality check queue available</span><span><Check /> Document desk open</span></div></section></section><aside><StepTrack current={2}/><Pill kind="blue">YOUR SELECTION</Pill><h3>{selectedPaddy}</h3><p>18 quintals expected</p><hr/><p>Choose a date and slot to hold this centre in your booking.</p><ActionButton onClick={() => navigate("slot")} icon={ArrowRight}>Choose a slot</ActionButton><button onClick={() => navigate("centres")}>Compare another centre</button></aside></div></>);
+  const centreDetail = farmerShell(<><button className="back-link" onClick={() => navigate("centres")}><ArrowLeft size={16}/> {tUi("All centres", language)}</button><div className="centre-detail"><section><div className="centre-detail-head"><div><Pill kind={selectedCentre.status === "Open" ? "green" : "yellow"}><span className="pulse-dot" /> {selectedCentre.status}</Pill><h1>{selectedCentre.name}</h1><p><MapPin size={16}/> {selectedCentre.place} · {selectedCentre.distance} from your village</p></div><span className="large-location"><MapPin/></span></div><div className="centre-stat-row"><div><small>{tUi("CURRENT QUEUE", language)}</small><strong>{selectedCentre.queue}</strong><span>{tUi("farmers waiting", language)}</span></div><div><small>{tUi("ESTIMATED WAIT", language)}</small><strong>{selectedCentre.wait}</strong><span>{tUi("at current speed", language)}</span></div><div><small>{tUi("SLOTS OPEN", language)}</small><strong>{selectedCentre.slots}</strong><span>{tUi("available slots", language)}</span></div></div><div className="centre-route-preview"><div className="route-map"><span className="route-source"><Sprout /></span><span className="route-destination"><MapPin /></span><i /></div><div><b>{tUi("From Muppalapally", language)}</b><p>{tUi("2.4 km · approximately 8 minutes", language)}</p></div><button onClick={() => toast.message("Routing map view ready.")}><LocateFixed size={17}/> {tUi("Route", language)}</button></div><section className="centre-notes"><h2>{tUi("At this centre", language)}</h2><div><span><Check /> {tUi("Weighing facility ready", language)}</span><span><Check /> {tUi("Quality check queue available", language)}</span><span><Check /> {tUi("Document desk open", language)}</span></div></section></section><aside><StepTrack current={2}/><Pill kind="blue">{tUi("YOUR SELECTION", language)}</Pill><h3>{selectedPaddy}</h3><p>{tUi("18 quintals expected", language)}</p><hr/><p>{tUi("Choose a date and slot to hold this centre in your booking.", language)}</p><ActionButton onClick={() => navigate("slot")} icon={ArrowRight}>{tUi("Choose a slot", language)}</ActionButton><button onClick={() => navigate("centres")}>{tUi("Compare another centre", language)}</button></aside></div></>);
 
   const slot = farmerShell(
     <>
       <SectionTitle
         eyebrow="RESERVE A TIME"
-        title="Pick the window that fits your day."
+        title={tUi("Pick the window that fits your day.", language)}
         body={`At ${selectedCentre.name}, these slot capacities are loaded live from the procurement database.`}
       />
       <div className="booking-layout">
@@ -5718,13 +5722,13 @@ export default function Home() {
               >
                 <span>{d.sub}</span>
                 <b>{d.day}</b>
-                <small>March</small>
+                <small>{tUi("March", language)}</small>
               </button>
             ))}
           </div>
 
           <h2 className="slot-heading flex items-center justify-between">
-            <span>Available Windows</span>
+            <span>{tUi("Available Windows", language)}</span>
             <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
               ● Live Centre Capacity
             </span>
@@ -5734,7 +5738,7 @@ export default function Home() {
             {slotsLoading ? (
               <div className="col-span-full py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <div className="inline-block animate-spin rounded-full h-7 w-7 border-2 border-emerald-600 border-t-transparent mb-2" />
-                <p className="text-xs font-bold text-emerald-800">Loading slot availability from server…</p>
+                <p className="text-xs font-bold text-emerald-800">{tUi("Loading slot availability from server…", language)}</p>
               </div>
             ) : backendSlots.length > 0 ? (
               backendSlots.map(slotItem => {
@@ -5758,11 +5762,11 @@ export default function Home() {
                     <b className="text-xs">{slotItem.available} / {slotItem.capacity} slots available</b>
                     <div className="mt-1">
                       {slotItem.isFull ? (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-800 uppercase">FULL</span>
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-800 uppercase">{tUi("FULL", language)}</span>
                       ) : isLimited ? (
                         <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 uppercase">LIMITED ({slotItem.available} LEFT)</span>
                       ) : (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800 uppercase">AVAILABLE</span>
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800 uppercase">{tUi("AVAILABLE", language)}</span>
                       )}
                     </div>
                     {isSelected && <i><Check /></i>}
@@ -5771,20 +5775,20 @@ export default function Home() {
               })
             ) : (
               <div className="col-span-full py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                <p className="text-xs font-bold text-slate-700">No active operational slots for this date.</p>
-                <small className="text-[11px] text-slate-400">Please choose another date or procurement centre.</small>
+                <p className="text-xs font-bold text-slate-700">{tUi("No active operational slots for this date.", language)}</p>
+                <small className="text-[11px] text-slate-400">{tUi("Please choose another date or procurement centre.", language)}</small>
               </div>
             )}
           </div>
 
           <div className="page-actions">
-            <ActionButton onClick={() => navigate("centre")} secondary icon={ArrowLeft}>Change centre</ActionButton>
-            <ActionButton onClick={() => navigate("confirmation")} icon={ArrowRight}>Review booking</ActionButton>
+            <ActionButton onClick={() => navigate("centre")} secondary icon={ArrowLeft}>{tUi("Change centre", language)}</ActionButton>
+            <ActionButton onClick={() => navigate("confirmation")} icon={ArrowRight}>{tUi("Review booking", language)}</ActionButton>
           </div>
         </div>
 
         <aside className="booking-aside slot-summary">
-          <Pill kind="green">YOUR BOOKING</Pill>
+          <Pill kind="green">{tUi("YOUR BOOKING", language)}</Pill>
           <h3>{selectedCentre.name}</h3>
           <p>{selectedCentre.distance} from Muppalapally</p>
           <hr />
@@ -5792,7 +5796,7 @@ export default function Home() {
           <span><Tractor /> {expectedQuantity} quintals</span>
           <span><CalendarDays /> {selectedDate}</span>
           <span><Clock3 /> {selectedSlot}</span>
-          <p className="tip-line"><Clock3 /> Arrive 10 minutes early for document verification.</p>
+          <p className="tip-line"><Clock3 /> {tUi("Arrive 10 minutes early for document verification.", language)}</p>
         </aside>
       </div>
     </>
@@ -5802,7 +5806,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="REVIEW AND CONFIRM"
-        title="Your procurement slot is ready."
+        title={tUi("Your procurement slot is ready.", language)}
         body="Check these details once. Generating a token will confirm your place in the connected database queue."
       />
       <div className="confirmation-layout">
@@ -5811,61 +5815,61 @@ export default function Home() {
           <article className="booking-ticket">
             <div className="ticket-top">
               <AppLogo />
-              <Pill kind="green">READY TO CONFIRM</Pill>
+              <Pill kind="green">{tUi("READY TO CONFIRM", language)}</Pill>
             </div>
             <div className="ticket-grid">
               <div>
-                <small>CENTRE</small>
+                <small>{tUi("CENTRE", language)}</small>
                 <b>{selectedCentre.name}</b>
                 <p><MapPin /> {selectedCentre.place}</p>
               </div>
               <div>
-                <small>DATE & TIME</small>
+                <small>{tUi("DATE & TIME", language)}</small>
                 <b>{selectedDate}</b>
                 <p><Clock3 /> {selectedSlot}</p>
               </div>
               <div>
-                <small>PADDY</small>
+                <small>{tUi("PADDY", language)}</small>
                 <b>{selectedPaddy}</b>
-                <p><Wheat /> Approx. 18 quintals</p>
+                <p><Wheat /> {tUi("Approx. 18 quintals", language)}</p>
               </div>
               <div>
-                <small>BOOKING ID</small>
+                <small>{tUi("BOOKING ID", language)}</small>
                 <b>{bookingRecord?.bookingCode ?? "Generated on confirmation"}</b>
-                <p><ShieldCheck /> Database synced record</p>
+                <p><ShieldCheck /> {tUi("Database synced record", language)}</p>
               </div>
             </div>
 
             <div className="slot-fee-banner">
               <div className="fee-line">
-                <span className="fee-text">Procurement Slot Booking Fee:</span>
-                <b className="fee-free-text">₹0 (Free Govt Service)</b>
+                <span className="fee-text">{tUi("Procurement Slot Booking Fee:", language)}</span>
+                <b className="fee-free-text">{tUi("₹0 (Free Govt Service)", language)}</b>
               </div>
               <div className="fee-line fee-total-line">
-                <span className="fee-text">Amount Payable:</span>
+                <span className="fee-text">{tUi("Amount Payable:", language)}</span>
                 <b className="fee-zero-text">₹0</b>
               </div>
             </div>
 
             <div className="ticket-bottom">
-              <span>Expected queue <b>{selectedCentre.queue} farmers</b></span>
-              <span>Estimated wait <b>{selectedCentre.wait}</b></span>
+              <span>{tUi("Expected queue", language)} <b>{selectedCentre.queue} farmers</b></span>
+              <span>{tUi("Estimated wait", language)} <b>{selectedCentre.wait}</b></span>
             </div>
           </article>
           <div className="consent-box">
             <input type="checkbox" defaultChecked />
-            <p>I confirm my visit to the procurement centre with the stated paddy load and documents. (Slot reservation is 100% free of charge).</p>
+            <p>{tUi("I confirm my visit to the procurement centre with the stated paddy load and documents. (Slot reservation is 100% free of charge).", language)}</p>
           </div>
           <div className="page-actions">
-            <ActionButton onClick={() => navigate("slot")} secondary icon={ArrowLeft}>Change time</ActionButton>
-            <ActionButton onClick={() => { void confirmBooking(); }} icon={Ticket}>Confirm & generate token</ActionButton>
+            <ActionButton onClick={() => navigate("slot")} secondary icon={ArrowLeft}>{tUi("Change time", language)}</ActionButton>
+            <ActionButton onClick={() => { void confirmBooking(); }} icon={Ticket}>{tUi("Confirm & generate token", language)}</ActionButton>
           </div>
         </div>
         <aside className="booking-aside confirmation-help">
           <span className="token-disc"><Phone /></span>
-          <h3>Need a hand?</h3>
-          <p>The centre help desk is available from 9:00 AM to 5:00 PM.</p>
-          <button onClick={() => toast.message("Helpline: 1800-000-2026")}>Call support <Phone size={15} /></button>
+          <h3>{tUi("Need a hand?", language)}</h3>
+          <p>{tUi("The centre help desk is available from 9:00 AM to 5:00 PM.", language)}</p>
+          <button onClick={() => toast.message("Helpline: 1800-000-2026")}>{tUi("Call support", language)} <Phone size={15} /></button>
         </aside>
       </div>
     </>
@@ -5908,7 +5912,7 @@ export default function Home() {
                       <div className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200">
                         GOVERNMENT MSP PROCUREMENT PASS
                       </div>
-                      <h2 className="text-lg font-bold text-white m-0">ProcureFlow Digital Token Pass</h2>
+                      <h2 className="text-lg font-bold text-white m-0">{tUi("ProcureFlow Digital Token Pass", language)}</h2>
                     </div>
                   </div>
 
@@ -5987,7 +5991,7 @@ export default function Home() {
                 {/* Core Verification Details Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">PROCUREMENT CENTRE</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{tUi("PROCUREMENT CENTRE", language)}</span>
                     <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5 leading-snug">
                       {bookingRecord?.centre?.name ?? selectedCentre.name}
                     </strong>
@@ -5995,7 +5999,7 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">FARMER DETAILS</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{tUi("FARMER DETAILS", language)}</span>
                     <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
                       {bookingRecord?.farmer?.name ?? profileRecord?.name ?? "Ramesh Kumar"}
                     </strong>
@@ -6005,7 +6009,7 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">CROP & VARIETY</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{tUi("CROP & VARIETY", language)}</span>
                     <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
                       {bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}
                     </strong>
@@ -6015,7 +6019,7 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LIVE QUEUE STATUS</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{tUi("LIVE QUEUE STATUS", language)}</span>
                     <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
                       Position #{bookingRecord?.queue?.position ?? 1}
                     </strong>
@@ -6038,7 +6042,7 @@ export default function Home() {
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-200/80 text-emerald-900">
                       <ShieldCheck size={14} /> Official Verified Gate Pass
                     </div>
-                    <h3 className="text-base font-extrabold text-[#153e2a] m-0">Scan at Entry Gate & Weighbridge</h3>
+                    <h3 className="text-base font-extrabold text-[#153e2a] m-0">{tUi("Scan at Entry Gate & Weighbridge", language)}</h3>
                     <p className="text-xs text-slate-600 m-0 leading-relaxed">
                       Present this digital QR code to the procurement officer upon mandi arrival. Keep your original Aadhaar card and bank passbook handy for instant biometric confirmation.
                     </p>
@@ -6052,8 +6056,8 @@ export default function Home() {
                       <Clock3 size={15} />
                     </div>
                     <div>
-                      <b className="text-xs text-[#153e2a] block">Arrive 10 Mins Early</b>
-                      <span className="text-[11px] text-slate-500">Report prior to slot window for orderly gate entry.</span>
+                      <b className="text-xs text-[#153e2a] block">{tUi("Arrive 10 Mins Early", language)}</b>
+                      <span className="text-[11px] text-slate-500">{tUi("Report prior to slot window for orderly gate entry.", language)}</span>
                     </div>
                   </div>
 
@@ -6062,8 +6066,8 @@ export default function Home() {
                       <Scale size={15} />
                     </div>
                     <div>
-                      <b className="text-xs text-[#153e2a] block">Moisture Standard</b>
-                      <span className="text-[11px] text-slate-500">Moisture must be tested below 17% for 100% MSP payout.</span>
+                      <b className="text-xs text-[#153e2a] block">{tUi("Moisture Standard", language)}</b>
+                      <span className="text-[11px] text-slate-500">{tUi("Moisture must be tested below 17% for 100% MSP payout.", language)}</span>
                     </div>
                   </div>
 
@@ -6072,8 +6076,8 @@ export default function Home() {
                       <Coins size={15} />
                     </div>
                     <div>
-                      <b className="text-xs text-[#153e2a] block">Direct Bank DBT</b>
-                      <span className="text-[11px] text-slate-500">Disbursed directly to Aadhaar-linked bank within 24-48h.</span>
+                      <b className="text-xs text-[#153e2a] block">{tUi("Direct Bank DBT", language)}</b>
+                      <span className="text-[11px] text-slate-500">{tUi("Disbursed directly to Aadhaar-linked bank within 24-48h.", language)}</span>
                     </div>
                   </div>
                 </div>
@@ -6096,7 +6100,7 @@ export default function Home() {
                       onClick={() => {
                         const copy = `ProcureFlow Token: ${displayToken}, Booking ID: ${bookingRecord?.bookingCode ?? "BK-2026-7294"}, Centre: ${bookingRecord?.centre?.name ?? selectedCentre.name}, Slot: ${bookingRecord?.slot?.date ?? ""} (${bookingRecord?.slot?.startTime ?? ""})`;
                         navigator.clipboard?.writeText(copy);
-                        toast.success("Token details copied to clipboard.");
+                        toast.success(tUi("Token details copied to clipboard.", language));
                       }}
                       className="h-9"
                     >
@@ -6124,7 +6128,7 @@ export default function Home() {
                             vehicleNumber: bookingRecord?.transport?.vehicleNumber || "AP 07 TJ 4821",
                             farmerAadhaarMasked: "XXXX-XXXX-1234",
                           });
-                          toast.success("Gate pass PDF downloaded successfully");
+                          toast.success(tUi("Gate pass PDF downloaded successfully", language));
                         } catch (err) {
                           console.error("PDF generation failed:", err);
                           window.print();
@@ -6141,7 +6145,7 @@ export default function Home() {
                     {isCancelled ? (
                       <div className="px-3.5 py-1.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
                         <AlertTriangle size={14} />
-                        <span className="font-bold">Booking Cancelled</span>
+                        <span className="font-bold">{tUi("Booking Cancelled", language)}</span>
                         <button onClick={() => navigate("paddy")} className="text-emerald-800 underline font-extrabold ml-1">
                           Book New Slot
                         </button>
@@ -6197,7 +6201,7 @@ export default function Home() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
             </span>
-            <span>LIVE CLOCK (IST)</span>
+            <span>{tUi("LIVE CLOCK (IST)", language)}</span>
           </div>
 
           <div className="text-sm sm:text-base font-black tracking-tight text-[#0f2d1e] dark:text-emerald-100 font-mono tabular-nums">
@@ -6223,7 +6227,7 @@ export default function Home() {
         <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 font-medium">
           <RefreshCw size={13} className="text-emerald-600 dark:text-emerald-400 animate-spin-slow shrink-0" />
           <span>
-            <b>Queue Records Synced:</b>{" "}
+            <b>{tUi("Queue Records Synced:", language)}</b>{" "}
             <span className="text-slate-900 dark:text-white font-bold font-mono">
               {queueLastSynced
                 ? queueLastSynced.toLocaleTimeString("en-IN", {
@@ -6249,23 +6253,23 @@ export default function Home() {
             <div className="image-shade"/>
             <div className="queue-overlay">
               <Pill kind="yellow">{bookingRecord?.centre.name ?? "NIZAMABAD MARKET YARD"}</Pill>
-              <h2>Current token <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2>
-              <p>Processing is moving steadily today.</p>
+              <h2>{tUi("Current token", language)} <strong>{bookingRecord?.queue?.currentToken ?? "P-024"}</strong></h2>
+              <p>{tUi("Processing is moving steadily today.", language)}</p>
             </div>
           </div>
           <div className="your-position">
             <div>
-              <small>YOUR TOKEN</small>
+              <small>{tUi("YOUR TOKEN", language)}</small>
               <strong>{bookingRecord?.tokenNumber ?? "P-042"}</strong>
               <span>Booking {bookingRecord?.bookingCode ?? "BK-2026-7294"}</span>
             </div>
             <div>
-              <small>PEOPLE AHEAD</small>
+              <small>{tUi("PEOPLE AHEAD", language)}</small>
               <strong>{bookingRecord?.queue?.peopleAhead ?? queueAhead}</strong>
-              <span>Updated from the API</span>
+              <span>{tUi("Updated from the API", language)}</span>
             </div>
             <div>
-              <small>ESTIMATED WAIT</small>
+              <small>{tUi("ESTIMATED WAIT", language)}</small>
               <strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong>
               <span>{bookingRecord?.queue?.status ?? "WAITING"}</span>
             </div>
@@ -6281,37 +6285,37 @@ export default function Home() {
             </div>
             <div className="queue-scale">
               <span>{bookingRecord?.queue?.currentToken ?? "P-024"}</span>
-              <span>Queue</span>
+              <span>{tUi("Queue", language)}</span>
               <span>Position {bookingRecord?.queue?.position ?? 18}</span>
               <span>{bookingRecord?.tokenNumber ?? "P-042"}</span>
             </div>
           </div>
         </section>
         <aside className="queue-side">
-          <Pill kind="blue">CENTRE RHYTHM</Pill>
-          <h3>Connected estimate.</h3>
-          <p>The current token and waiting estimate are derived from live database records.</p>
+          <Pill kind="blue">{tUi("CENTRE RHYTHM", language)}</Pill>
+          <h3>{tUi("Connected estimate.", language)}</h3>
+          <p>{tUi("The current token and waiting estimate are derived from live database records.", language)}</p>
           <div className="rhythm-metrics">
-            <span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> position</span>
-            <span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> min wait</span>
+            <span><UsersRound/><b>{bookingRecord?.queue?.position ?? 18}</b> {tUi("position", language)}</span>
+            <span><Clock3/><b>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35}</b> {tUi("min wait", language)}</span>
           </div>
           <hr/>
-          <h4>What to do now</h4>
+          <h4>{tUi("What to do now", language)}</h4>
           <ul>
-            <li><Check/> Keep your documents ready.</li>
-            <li><Check/> Avoid joining early.</li>
-            <li><Check/> Check again before leaving.</li>
+            <li><Check/> {tUi("Keep your documents ready.", language)}</li>
+            <li><Check/> {tUi("Avoid joining early.", language)}</li>
+            <li><Check/> {tUi("Check again before leaving.", language)}</li>
           </ul>
-          <button onClick={() => navigate("assistant")}>Ask farmer assistant <Bot size={15}/></button>
+          <button onClick={() => navigate("assistant")}>{tUi("Ask farmer assistant", language)} <Bot size={15}/></button>
         </aside>
       </div>
       <section className="queue-alert">
         <Bell/>
         <div>
-          <b>Queue notifications are active.</b>
-          <p>The backend creates a notification when your token is close to the front.</p>
+          <b>{tUi("Queue notifications are active.", language)}</b>
+          <p>{tUi("The backend creates a notification when your token is close to the front.", language)}</p>
         </div>
-        <span><Check/> Active</span>
+        <span><Check/> {tUi("Active", language)}</span>
       </section>
     </>
   );
@@ -6340,7 +6344,7 @@ export default function Home() {
               {/* Prominent Current Stage Card */}
               <div className="p-4 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 mb-4 flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Current Stage</span>
+                  <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">{tUi("Current Stage", language)}</span>
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">{stageDetails.currentStageLabel}</h3>
                   <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{stageDetails.currentStageDesc}</p>
                 </div>
@@ -6364,9 +6368,9 @@ export default function Home() {
             <aside className="status-aside">
               <img src={statusUrl} alt="Paddy sample in tray, clipboard and weighing equipment"/><div className="image-shade"/>
               <div>
-                <Pill kind="yellow">QUALITY SIGNAL</Pill>
+                <Pill kind="yellow">{tUi("QUALITY SIGNAL", language)}</Pill>
                 <h3>{bookingRecord?.procurement?.qualityGrade ? `Grade ${bookingRecord.procurement.qualityGrade}` : "Quality assessment pending"}</h3>
-                <p>The displayed signal is pulled from the live procurement record in the database.</p>
+                <p>{tUi("The displayed signal is pulled from the live procurement record in the database.", language)}</p>
               </div>
 
               {/* 30-Minute Cancellation Card on Procurement Status screen */}
@@ -6376,9 +6380,9 @@ export default function Home() {
                 if (isCancelled) {
                   return (
                     <div className="mt-4 p-3 bg-white/95 text-rose-800 rounded-xl text-xs border border-rose-200">
-                      <span className="font-bold flex items-center gap-1.5"><AlertTriangle size={15} /> Booking Cancelled</span>
-                      <p className="mt-1 text-[11px] text-slate-600">This slot booking was cancelled. Your slot capacity has been released.</p>
-                      <button onClick={() => navigate("paddy")} className="mt-2 text-xs text-emerald-800 underline font-bold">Book New Slot</button>
+                      <span className="font-bold flex items-center gap-1.5"><AlertTriangle size={15} /> {tUi("Booking Cancelled", language)}</span>
+                      <p className="mt-1 text-[11px] text-slate-600">{tUi("This slot booking was cancelled. Your slot capacity has been released.", language)}</p>
+                      <button onClick={() => navigate("paddy")} className="mt-2 text-xs text-emerald-800 underline font-bold">{tUi("Book New Slot", language)}</button>
                     </div>
                   );
                 }
@@ -6393,7 +6397,7 @@ export default function Home() {
                         {cStatus.expired ? (
                           <b className="text-slate-500">Cancellation window expired (deadline was {cStatus.deadlineFormatted})</b>
                         ) : (
-                          <>Time remaining: <b className="text-amber-700 font-bold">{cStatus.text}</b> (until {cStatus.deadlineFormatted})</>
+                          <>{tUi("Time remaining:", language)} <b className="text-amber-700 font-bold">{cStatus.text}</b> (until {cStatus.deadlineFormatted})</>
                         )}
                       </span>
                     </div>
@@ -6427,7 +6431,7 @@ export default function Home() {
                 {paymentDone ? "DBT transfer completed to account." : "Explore payment details anytime."}
               </p>
             </div>
-            <ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>View payment</ActionButton>
+            <ActionButton onClick={() => navigate("payment")} secondary icon={ArrowRight}>{tUi("View payment", language)}</ActionButton>
           </section>
         </>
       );
@@ -6438,7 +6442,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="DIRECT BENEFIT TRANSFER (DBT) · CROP SETTLEMENT"
-        title="Procurement Payment & Farmer Settlement"
+        title={tUi("Procurement Payment & Farmer Settlement", language)}
         body="Official government DBT payout for your procured harvest credited directly to your bank account."
       />
 
@@ -6467,7 +6471,7 @@ export default function Home() {
           <div className="payment-credit-highlight-card">
             <div className="credit-highlight-main">
               <div className="credit-badge-row">
-                <span className="payout-type-tag">Government DBT Payout</span>
+                <span className="payout-type-tag">{tUi("Government DBT Payout", language)}</span>
                 <Pill kind={pillKind}>
                   {isPaymentCredited ? <Check size={13} /> : <Clock3 size={13} />}
                   Payment Status: {paymentStatusLabel}
@@ -6481,34 +6485,34 @@ export default function Home() {
               </strong>
               <p className="credit-bank-note">
                 {isPaymentCredited ? (
-                  <>Credited to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Ref: <b className="font-mono">{paymentRecord?.transactionReference ?? ""}</b> · Direct DBT Bank Credit</>
+                  <>{tUi("Credited to Farmer:", language)} <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> {tUi("· Ref:", language)} <b className="font-mono">{paymentRecord?.transactionReference ?? ""}</b> {tUi("· Direct DBT Bank Credit", language)}</>
                 ) : isPaymentInitiated ? (
-                  <>Initiated by Head Officer · Ref: <b className="font-mono">{paymentRecord?.transactionReference ?? ""}</b> · Direct Aadhaar DBT Payout Queued for Crediting</>
+                  <>{tUi("Initiated by Head Officer · Ref:", language)} <b className="font-mono">{paymentRecord?.transactionReference ?? ""}</b> {tUi("· Direct Aadhaar DBT Payout Queued for Crediting", language)}</>
                 ) : isPaymentProcessing ? (
-                  <>Processing Direct Bank Transfer to: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b></>
+                  <>{tUi("Processing Direct Bank Transfer to:", language)} <b>{profileRecord?.name ?? "Ramesh Kumar"}</b></>
                 ) : (
-                  <>Payable to Farmer: <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> · Linked Bank A/C (Aadhaar DBT Enabled upon Officer Initiation)</>
+                  <>{tUi("Payable to Farmer:", language)} <b>{profileRecord?.name ?? "Ramesh Kumar"}</b> {tUi("· Linked Bank A/C (Aadhaar DBT Enabled upon Officer Initiation)", language)}</>
                 )}
               </p>
             </div>
 
             <div className="credit-details-strip">
               <div>
-                <small>PROCUREMENT ID</small>
+                <small>{tUi("PROCUREMENT ID", language)}</small>
                 <b>{bookingRecord?.bookingCode ? `PR-${bookingRecord.bookingCode.replace("BK-", "")}` : "PR-2026-7294"}</b>
               </div>
               <div>
-                <small>SETTLEMENT STATUS</small>
+                <small>{tUi("SETTLEMENT STATUS", language)}</small>
                 <b className={isPaymentCredited ? "text-emerald-700" : isPaymentProcessing ? "text-amber-700" : isPaymentInitiated ? "text-blue-700" : isPaymentFailed ? "text-rose-700" : "text-slate-600"}>
                   {paymentStatusLabel} {isPaymentCredited && "(Bank Transfer)"}
                 </b>
               </div>
               <div>
-                <small>CROP & VARIETY</small>
+                <small>{tUi("CROP & VARIETY", language)}</small>
                 <b>{bookingRecord?.paddyVariety ?? "Common paddy"} ({bookingRecord?.expectedQuantityQuintals ?? 18} Quintals)</b>
               </div>
               <div>
-                <small>SETTLEMENT DATE</small>
+                <small>{tUi("SETTLEMENT DATE", language)}</small>
                 <b>{isPaymentCredited && paymentRecord?.completedAt ? new Date(paymentRecord.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Pending Officer Initiation"}</b>
               </div>
             </div>
@@ -6521,19 +6525,19 @@ export default function Home() {
           {paymentRecord?.status === "SUCCESS" ? (
             <div className="payment-success">
               <span><Check /></span>
-              <Pill kind="green">PAYMENT RECEIVED</Pill>
-              <h2>Amount Credited to Farmer Account</h2>
-              <p>Government DBT procurement payout has been credited to your verified bank account.</p>
+              <Pill kind="green">{tUi("PAYMENT RECEIVED", language)}</Pill>
+              <h2>{tUi("Amount Credited to Farmer Account", language)}</h2>
+              <p>{tUi("Government DBT procurement payout has been credited to your verified bank account.", language)}</p>
               <div>
-                <b>Amount Credited</b>
+                <b>{tUi("Amount Credited", language)}</b>
                 <span>₹{Number(paymentRecord.amount).toLocaleString("en-IN")}</span>
               </div>
               <div>
-                <b>Payment ID</b>
+                <b>{tUi("Payment ID", language)}</b>
                 <span>{paymentRecord.paymentId}</span>
               </div>
               <div>
-                <b>Transaction Reference</b>
+                <b>{tUi("Transaction Reference", language)}</b>
                 <span>{paymentRecord.transactionReference}</span>
               </div>
               <ActionButton onClick={() => navigate("dashboard")} icon={ArrowRight}>
@@ -6545,13 +6549,13 @@ export default function Home() {
               <div className="demo-warning">
                 <ShieldCheck />
                 <p>
-                  <b>Direct Benefit Transfer (DBT) Payout Settlement</b>
+                  <b>{tUi("Direct Benefit Transfer (DBT) Payout Settlement", language)}</b>
                   <br />
                   Govt procurement payment verification with bank gateway.
                 </p>
               </div>
 
-              <h2>Procurement Payment Payout Method</h2>
+              <h2>{tUi("Procurement Payment Payout Method", language)}</h2>
               <p className="text-xs text-muted-foreground mb-3">
                 Select your linked bank account or preferred payout gateway to receive procurement proceeds:
               </p>
@@ -6581,18 +6585,18 @@ export default function Home() {
               <div className="demo-payment-form">
                 {paymentRecord?.status === "PROCESSING" ? (
                   <div>
-                    <Pill kind="yellow">PROCESSING</Pill>
-                    <p>Bank network is confirming the DBT transfer. Do not close this screen.</p>
+                    <Pill kind="yellow">{tUi("PROCESSING", language)}</Pill>
+                    <p>{tUi("Bank network is confirming the DBT transfer. Do not close this screen.", language)}</p>
                   </div>
                 ) : paymentRecord?.status === "FAILED" ? (
                   <div>
-                    <Pill kind="yellow">NEEDS ATTENTION</Pill>
+                    <Pill kind="yellow">{tUi("NEEDS ATTENTION", language)}</Pill>
                     <p>{paymentRecord.failureReason ?? "This disbursement could not be processed. Please retry."}</p>
                   </div>
                 ) : (
                   <div>
-                    <Pill kind="blue">PAYOUT READY</Pill>
-                    <p>Proceed to verify payout credentials and receive payment receipt.</p>
+                    <Pill kind="blue">{tUi("PAYOUT READY", language)}</Pill>
+                    <p>{tUi("Proceed to verify payout credentials and receive payment receipt.", language)}</p>
                   </div>
                 )}
               </div>
@@ -6605,8 +6609,8 @@ export default function Home() {
                 >
                   <span><CheckCircle2 size={20} /></span>
                   <div>
-                    <b>Provider response: Payout Success</b>
-                    <p>Simulate successful bank DBT credit to farmer.</p>
+                    <b>{tUi("Provider response: Payout Success", language)}</b>
+                    <p>{tUi("Simulate successful bank DBT credit to farmer.", language)}</p>
                   </div>
                 </button>
                 <button
@@ -6616,8 +6620,8 @@ export default function Home() {
                 >
                   <span><X size={20} /></span>
                   <div>
-                    <b>Provider response: Payout Error</b>
-                    <p>Simulate bank network delay or authorization retry.</p>
+                    <b>{tUi("Provider response: Payout Error", language)}</b>
+                    <p>{tUi("Simulate bank network delay or authorization retry.", language)}</p>
                   </div>
                 </button>
               </div>
@@ -6644,21 +6648,21 @@ export default function Home() {
             const isPaymentFailed = paymentRecord?.status === "FAILED";
             return (
               <>
-                <Pill kind={isPaymentCredited ? "green" : "blue"}>PROCUREMENT SETTLEMENT</Pill>
+                <Pill kind={isPaymentCredited ? "green" : "blue"}>{tUi("PROCUREMENT SETTLEMENT", language)}</Pill>
                 <h3>{isPaymentCredited ? "Amount Credited to Farmer" : "Estimated Settlement Payout"}</h3>
                 {bookingRecord ? (
                   <>
                     <div>
-                      <span>Paddy / Crop quantity</span>
+                      <span>{tUi("Paddy / Crop quantity", language)}</span>
                       <b>{bookingRecord.expectedQuantityQuintals} quintals</b>
                     </div>
                     <div>
-                      <span>Govt MSP Rate</span>
+                      <span>{tUi("Govt MSP Rate", language)}</span>
                       <b>₹{bookingRecord.paymentQuote.unitPrice} / quintal</b>
                     </div>
                     {bookingRecord.paymentQuote.govtBonus ? (
                       <div>
-                        <span>Govt Incentive Bonus</span>
+                        <span>{tUi("Govt Incentive Bonus", language)}</span>
                         <b className="positive">+₹{bookingRecord.paymentQuote.govtBonus}</b>
                       </div>
                     ) : null}
@@ -6682,7 +6686,7 @@ export default function Home() {
                     </small>
                   </>
                 ) : (
-                  <p className="section-body">Sign in and load an active booking to view its procurement settlement.</p>
+                  <p className="section-body">{tUi("Sign in and load an active booking to view its procurement settlement.", language)}</p>
                 )}
               </>
             );
@@ -6724,7 +6728,7 @@ export default function Home() {
                   accountNumberMasked: "XXXX-XXXX-9821",
                   issuedAt: new Date().toLocaleDateString("en-IN"),
                 });
-                toast.success("Procurement Payment Receipt PDF downloaded.");
+                toast.success(tUi("Procurement Payment Receipt PDF downloaded.", language));
               }}
               icon={Download}
             >
@@ -6745,7 +6749,7 @@ export default function Home() {
         <div>
           <span className="token-disc small"><WalletCards /></span>
           <div>
-            <b>Farmer Transaction & Payment Ledger</b>
+            <b>{tUi("Farmer Transaction & Payment Ledger", language)}</b>
             <p className="text-xs text-muted-foreground mt-0.5">
               Clear distinction between ₹0 slot reservations and harvest procurement payouts.
             </p>
@@ -6758,15 +6762,15 @@ export default function Home() {
         <div>
           <span className="token-disc small green"><Ticket /></span>
           <div>
-            <b>1. Procurement Slot Booking Fee: ₹0</b>
+            <b>{tUi("1. Procurement Slot Booking Fee: ₹0", language)}</b>
             <p>
               Official Government Procurement Service · 100% Free Slot Reservation
               <br />
-              Booking: {bookingRecord?.bookingCode ?? "BK-2026-7294"} · Status: <b>FREE / NO CHARGE (₹0)</b>
+              Booking: {bookingRecord?.bookingCode ?? "BK-2026-7294"} · Status: <b>{tUi("FREE / NO CHARGE (₹0)", language)}</b>
             </p>
           </div>
         </div>
-        <Pill kind="green">₹0 FREE</Pill>
+        <Pill kind="green">{tUi("₹0 FREE", language)}</Pill>
       </section>
 
       {/* 2. Procurement Payments: Amount Credited TO Farmer */}
@@ -6798,19 +6802,19 @@ export default function Home() {
             <div>
               <b>2. Procurement Payment: ₹{((bookingRecord?.paymentQuote?.demoPayable ?? 41400)).toLocaleString("en-IN")} Credited TO Farmer</b>
               <p>
-                Payment Status: <b>Credited (DBT Direct Bank Transfer)</b> · Linked Bank A/C ****4821
+                Payment Status: <b>{tUi("Credited (DBT Direct Bank Transfer)", language)}</b> · Linked Bank A/C ****4821
                 <br />
                 Procurement ID: {bookingRecord?.bookingCode ? `PR-${bookingRecord.bookingCode.replace("BK-", "")}` : "PR-2026-7294"} · Booking: {bookingRecord?.bookingCode ?? "BK-2026-7294"}
               </p>
             </div>
           </div>
-          <Pill kind="green">CREDITED</Pill>
+          <Pill kind="green">{tUi("CREDITED", language)}</Pill>
         </section>
       )}
     </>
   );
 
-  const profile = farmerShell(<><SectionTitle eyebrow="FARMER PROFILE" title={t.profileTitle} body="Your current profile is loaded from the authenticated backend session."/><div className="profile-layout"><section className="profile-card"><div className="profile-main"><span className="profile-avatar">{getInitials(profileRecord?.name, "RK")}</span><div><Pill kind="green"><Check/> {profileRecord?.status ?? "APPROVED"} FARMER</Pill><h2>{profileRecord?.name ?? "Ramesh Kumar"}</h2><p>Farmer ID · {profileRecord?.farmerCode ?? "FMR-2026-11842"}</p></div><button onClick={() => toast.message("Profile details verified by officer.")}>Verified profile</button></div><div className="profile-details"><div><small>MOBILE NUMBER</small><b>+91 {profileRecord?.phone ?? "98765 43210"}</b></div><div><small>VILLAGE</small><b>{profileRecord?.village ?? "Muppalapally"}</b></div><div><small>DISTRICT</small><b>{profileRecord?.district ?? "Nizamabad"}, Telangana</b></div><div><small>PRIMARY CROP</small><b>{profileRecord?.primaryCrop ?? "Paddy"}</b></div></div><div className="profile-data-note"><ShieldCheck/><p>This profile is delivered from the protected database API after login.</p></div></section><aside className="profile-aside"><Pill kind="yellow">PROCUREMENT READY</Pill><h3>Profile status: {profileRecord?.status ?? "APPROVED"}</h3><p>Your authenticated profile is eligible to make bookings.</p><button onClick={() => navigate("paddy")}>Start a new booking <ArrowRight size={15}/></button></aside></div></>);
+  const profile = farmerShell(<><SectionTitle eyebrow="FARMER PROFILE" title={t.profileTitle} body="Your current profile is loaded from the authenticated backend session."/><div className="profile-layout"><section className="profile-card"><div className="profile-main"><span className="profile-avatar">{getInitials(profileRecord?.name, "RK")}</span><div><Pill kind="green"><Check/> {profileRecord?.status ?? "APPROVED"} FARMER</Pill><h2>{profileRecord?.name ?? "Ramesh Kumar"}</h2><p>Farmer ID · {profileRecord?.farmerCode ?? "FMR-2026-11842"}</p></div><button onClick={() => toast.message("Profile details verified by officer.")}>{tUi("Verified profile", language)}</button></div><div className="profile-details"><div><small>{tUi("MOBILE NUMBER", language)}</small><b>+91 {profileRecord?.phone ?? "98765 43210"}</b></div><div><small>{tUi("VILLAGE", language)}</small><b>{profileRecord?.village ?? "Muppalapally"}</b></div><div><small>{tUi("DISTRICT", language)}</small><b>{profileRecord?.district ?? "Nizamabad"}, Telangana</b></div><div><small>{tUi("PRIMARY CROP", language)}</small><b>{profileRecord?.primaryCrop ?? "Paddy"}</b></div></div><div className="profile-data-note"><ShieldCheck/><p>{tUi("This profile is delivered from the protected database API after login.", language)}</p></div></section><aside className="profile-aside"><Pill kind="yellow">{tUi("PROCUREMENT READY", language)}</Pill><h3>Profile status: {profileRecord?.status ?? "APPROVED"}</h3><p>{tUi("Your authenticated profile is eligible to make bookings.", language)}</p><button onClick={() => navigate("paddy")}>{tUi("Start a new booking", language)} <ArrowRight size={15}/></button></aside></div></>);
 
   const notifications = farmerShell(<><SectionTitle eyebrow="NOTIFICATIONS" title={t.notificationTitle} body="Booking, queue, procurement, and payment signals are loaded from your database records."/><div className="notifications-list">{(apiNotifications.length ? apiNotifications.map(notification => ({ icon: notification.category === "PAYMENT" ? WalletCards : notification.category === "PROCUREMENT" ? ClipboardCheck : notification.category === "QUEUE" ? UsersRound : Ticket, tone: notification.category === "QUEUE" ? "yellow" : notification.category === "PROCUREMENT" ? "blue" : "green", title: notification.title, copy: notification.message, time: new Date(notification.createdAt).toLocaleString() })) : [{ icon: Ticket, tone: "green", title: "Sign in to see API notifications", copy: "Your booking and status updates will appear here after an authenticated login.", time: "Live" }]).map(({ icon: Icon, tone, title, copy, time }) => <article key={`${title}-${time}`}><span className={`notice-icon ${tone}`}><Icon/></span><div><h3>{title}</h3><p>{copy}</p></div><small>{time}</small></article>)}</div></>);
 
@@ -6828,10 +6832,10 @@ export default function Home() {
               onClick={requestGpsWeather}
               disabled={weatherLoading}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-bold hover:bg-emerald-100 transition shadow-xs w-full sm:w-auto min-h-[40px]"
-              title="Detect farm weather via GPS"
+              title={tUi("Detect farm weather via GPS", language)}
             >
               <LocateFixed size={14} className="text-emerald-700 shrink-0" />
-              <span>Use Farm GPS</span>
+              <span>{tUi("Use Farm GPS", language)}</span>
             </button>
 
             {/* Registered Farm Location Button if available */}
@@ -6865,41 +6869,41 @@ export default function Home() {
               aria-label="Select Agricultural District"
             >
               <optgroup label="Andhra Pradesh Districts">
-                <option value="Guntur">Guntur District</option>
-                <option value="Tenali">Tenali (Guntur)</option>
-                <option value="Bapatla">Bapatla District</option>
-                <option value="Palnadu">Palnadu (Narasaraopet)</option>
-                <option value="Vijayawada">Vijayawada (NTR)</option>
-                <option value="Krishna">Krishna (Machilipatnam)</option>
-                <option value="Kurnool">Kurnool District</option>
-                <option value="Nandyal">Nandyal District</option>
-                <option value="Rajahmundry">Rajahmundry (East Godavari)</option>
-                <option value="Kakinada">Kakinada District</option>
-                <option value="Konaseema">Konaseema (Amalapuram)</option>
-                <option value="Eluru">Eluru District</option>
-                <option value="Bhimavaram">West Godavari (Bhimavaram)</option>
-                <option value="Nellore">Nellore (SPSR)</option>
-                <option value="Tirupati">Tirupati District</option>
-                <option value="Chittoor">Chittoor District</option>
-                <option value="Kadapa">YSR Kadapa District</option>
-                <option value="Anantapur">Anantapur District</option>
-                <option value="Sri Sathya Sai">Sri Sathya Sai (Puttaparthi)</option>
-                <option value="Visakhapatnam">Visakhapatnam</option>
-                <option value="Anakapalli">Anakapalli District</option>
-                <option value="Srikakulam">Srikakulam District</option>
-                <option value="Vizianagaram">Vizianagaram District</option>
-                <option value="Prakasam">Prakasam (Ongole)</option>
+                <option value="Guntur">{tUi("Guntur District", language)}</option>
+                <option value="Tenali">{tUi("Tenali (Guntur)", language)}</option>
+                <option value="Bapatla">{tUi("Bapatla District", language)}</option>
+                <option value="Palnadu">{tUi("Palnadu (Narasaraopet)", language)}</option>
+                <option value="Vijayawada">{tUi("Vijayawada (NTR)", language)}</option>
+                <option value="Krishna">{tUi("Krishna (Machilipatnam)", language)}</option>
+                <option value="Kurnool">{tUi("Kurnool District", language)}</option>
+                <option value="Nandyal">{tUi("Nandyal District", language)}</option>
+                <option value="Rajahmundry">{tUi("Rajahmundry (East Godavari)", language)}</option>
+                <option value="Kakinada">{tUi("Kakinada District", language)}</option>
+                <option value="Konaseema">{tUi("Konaseema (Amalapuram)", language)}</option>
+                <option value="Eluru">{tUi("Eluru District", language)}</option>
+                <option value="Bhimavaram">{tUi("West Godavari (Bhimavaram)", language)}</option>
+                <option value="Nellore">{tUi("Nellore (SPSR)", language)}</option>
+                <option value="Tirupati">{tUi("Tirupati District", language)}</option>
+                <option value="Chittoor">{tUi("Chittoor District", language)}</option>
+                <option value="Kadapa">{tUi("YSR Kadapa District", language)}</option>
+                <option value="Anantapur">{tUi("Anantapur District", language)}</option>
+                <option value="Sri Sathya Sai">{tUi("Sri Sathya Sai (Puttaparthi)", language)}</option>
+                <option value="Visakhapatnam">{tUi("Visakhapatnam", language)}</option>
+                <option value="Anakapalli">{tUi("Anakapalli District", language)}</option>
+                <option value="Srikakulam">{tUi("Srikakulam District", language)}</option>
+                <option value="Vizianagaram">{tUi("Vizianagaram District", language)}</option>
+                <option value="Prakasam">{tUi("Prakasam (Ongole)", language)}</option>
               </optgroup>
               <optgroup label="Telangana Districts">
-                <option value="Nizamabad">Nizamabad District</option>
-                <option value="Karimnagar">Karimnagar District</option>
-                <option value="Warangal">Warangal District</option>
-                <option value="Khammam">Khammam District</option>
-                <option value="Nalgonda">Nalgonda District</option>
-                <option value="Miryalaguda">Miryalaguda Mandi</option>
-                <option value="Suryapet">Suryapet District</option>
-                <option value="Mahabubnagar">Mahabubnagar District</option>
-                <option value="Hyderabad">Hyderabad</option>
+                <option value="Nizamabad">{tUi("Nizamabad District", language)}</option>
+                <option value="Karimnagar">{tUi("Karimnagar District", language)}</option>
+                <option value="Warangal">{tUi("Warangal District", language)}</option>
+                <option value="Khammam">{tUi("Khammam District", language)}</option>
+                <option value="Nalgonda">{tUi("Nalgonda District", language)}</option>
+                <option value="Miryalaguda">{tUi("Miryalaguda Mandi", language)}</option>
+                <option value="Suryapet">{tUi("Suryapet District", language)}</option>
+                <option value="Mahabubnagar">{tUi("Mahabubnagar District", language)}</option>
+                <option value="Hyderabad">{tUi("Hyderabad", language)}</option>
               </optgroup>
             </select>
 
@@ -6909,7 +6913,7 @@ export default function Home() {
               disabled={weatherLoading}
               className="w-full sm:w-auto justify-center min-h-[40px]"
             >
-              <span className={weatherLoading ? "animate-spin inline-block" : ""}>Refresh</span>
+              <span className={weatherLoading ? "animate-spin inline-block" : ""}>{tUi("Refresh", language)}</span>
             </ActionButton>
           </div>
         }
@@ -6959,7 +6963,7 @@ export default function Home() {
         <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
           <AlertCircle size={16} className="shrink-0 text-amber-600" />
           <span>
-            <b>Offline Meteorological Cache:</b> Live Open-Meteo server is temporarily unreachable. Displaying verified regional agricultural baseline. Values will automatically update once network connectivity is restored.
+            <b>{tUi("Offline Meteorological Cache:", language)}</b> Live Open-Meteo server is temporarily unreachable. Displaying verified regional agricultural baseline. Values will automatically update once network connectivity is restored.
           </span>
         </div>
       )}
@@ -6975,7 +6979,7 @@ export default function Home() {
                   <MapPin size={12} /> {weatherData?.locationName || `${weatherData?.district ?? selectedWeatherDistrict}, Andhra Pradesh`}
                 </span>
                 <h2>{weatherData?.condition ?? "Sunny & Clear"}</h2>
-                <p>Real-time Open-Meteo Agricultural Forecast</p>
+                <p>{tUi("Real-time Open-Meteo Agricultural Forecast", language)}</p>
               </div>
               <span className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
                 {weatherData?.conditionCode === "LIGHT_RAIN" || weatherData?.conditionCode === "HEAVY_RAIN" ? (
@@ -6998,24 +7002,24 @@ export default function Home() {
 
             <div className="weather-metrics-grid">
               <div className="weather-metric-item">
-                <small>Humidity</small>
+                <small>{tUi("Humidity", language)}</small>
                 <strong>{weatherData?.humidity ?? 62}%</strong>
                 <span>Paddy target: {"<"} 17%</span>
               </div>
               <div className="weather-metric-item">
-                <small>Wind Velocity</small>
+                <small>{tUi("Wind Velocity", language)}</small>
                 <strong>{weatherData?.windSpeedKmH ?? 14} km/h</strong>
-                <span>Smooth transport</span>
+                <span>{tUi("Smooth transport", language)}</span>
               </div>
               <div className="weather-metric-item">
-                <small>Precipitation</small>
+                <small>{tUi("Precipitation", language)}</small>
                 <strong>{weatherData?.hourlyPrecipitationProbability ?? weatherData?.precipitationChance ?? 10}%</strong>
                 <span>{weatherData?.rainfallMm ? `${weatherData.rainfallMm} mm rain` : "Low rain risk"}</span>
               </div>
               <div className="weather-metric-item">
-                <small>Harvest Status</small>
+                <small>{tUi("Harvest Status", language)}</small>
                 <strong className="text-emerald-300">{weatherData?.safeHarvestingIndex ?? "OPTIMAL"}</strong>
-                <span>Safe for transit</span>
+                <span>{tUi("Safe for transit", language)}</span>
               </div>
             </div>
           </div>
@@ -7059,7 +7063,7 @@ export default function Home() {
           {/* 7-Day Agriculture Forecast Panel */}
           <div className="forecast-panel">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-base font-bold text-[#143d2c]">7-Day Agriculture Forecast</h3>
+              <h3 className="text-base font-bold text-[#143d2c]">{tUi("7-Day Agriculture Forecast", language)}</h3>
               <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200">
                 Open-Meteo High-Res
               </Badge>
@@ -7104,8 +7108,8 @@ export default function Home() {
             <div className="mt-5 p-4 bg-emerald-50/90 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700/80 rounded-xl text-xs flex items-start gap-2.5 shadow-xs">
               <Sparkles size={18} className="text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5" />
               <div>
-                <b className="text-emerald-950 dark:text-emerald-200 font-bold">Rythu Seva Tip:</b>{" "}
-                <span className="text-slate-900 dark:text-slate-100 font-medium">Maintain paddy bag tarp covers during transit even on sunny days to prevent sudden coastal humidity absorption.</span>
+                <b className="text-emerald-950 dark:text-emerald-200 font-bold">{tUi("Rythu Seva Tip:", language)}</b>{" "}
+                <span className="text-slate-900 dark:text-slate-100 font-medium">{tUi("Maintain paddy bag tarp covers during transit even on sunny days to prevent sudden coastal humidity absorption.", language)}</span>
               </div>
             </div>
           </div>
@@ -7192,7 +7196,7 @@ export default function Home() {
         <div className="flex items-center gap-2">
           <Globe size={14} className="text-emerald-700 shrink-0" />
           <span>
-            <b>Attribution:</b> Weather data by{" "}
+            <b>{tUi("Attribution:", language)}</b> Weather data by{" "}
             <a
               href="https://open-meteo.com/"
               target="_blank"
@@ -7258,7 +7262,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="DIGITAL KRISHI HELP CENTRE · 24x7 AGRI ADVISORY"
-        title="ProcureFlow Agricultural Help Centre"
+        title={tUi("ProcureFlow Agricultural Help Centre", language)}
         body={tUi("Instant operational answers for token queue, fair MSP prices, weather harvest advisories, subsidized transport, and farmer DBT settlements.", language)}
       />
 
@@ -7293,7 +7297,7 @@ export default function Home() {
                 type="button"
                 onClick={clearChat}
                 className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-slate-200 cursor-pointer"
-                title="Clear conversation"
+                title={tUi("Clear conversation", language)}
                 aria-label="Clear conversation"
               >
                 <Trash2 size={16} />
@@ -7537,7 +7541,7 @@ export default function Home() {
                   type="button"
                   onClick={removeAttachedImage}
                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                  title="Remove photo"
+                  title={tUi("Remove photo", language)}
                   aria-label="Remove photo"
                 >
                   <X size={16} />
@@ -7594,7 +7598,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setIsCameraMenuOpen(open => !open)}
-                  title="Attach agricultural photograph or document"
+                  title={tUi("Attach agricultural photograph or document", language)}
                   aria-label="Attach photograph or document"
                   className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors cursor-pointer border ${
                     attachedImage
@@ -7664,7 +7668,7 @@ export default function Home() {
               <Button
                 type="submit"
                 disabled={chatLoading || (!chatInput.trim() && !attachedImage)}
-                title="Send question or image"
+                title={tUi("Send question or image", language)}
                 className="bg-emerald-700 hover:bg-emerald-800 text-white w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 p-0 cursor-pointer"
               >
                 <ArrowRight size={18} />
@@ -7673,7 +7677,7 @@ export default function Home() {
 
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-2 px-1">
               <Headphones size={13} className="text-emerald-700 shrink-0" />
-              <span>Voice recognition & speech read-aloud enabled in English, Telugu and Hindi.</span>
+              <span>{tUi("Voice recognition & speech read-aloud enabled in English, Telugu and Hindi.", language)}</span>
             </div>
 
             {/* Desktop Webcam Live Capture Modal */}
@@ -7733,7 +7737,7 @@ export default function Home() {
                     {webcamLoading && (
                       <div className="absolute inset-0 bg-slate-950/70 flex flex-col items-center justify-center gap-2 text-white text-xs">
                         <LoaderCircle size={24} className="animate-spin text-emerald-400" />
-                        <span>Starting camera...</span>
+                        <span>{tUi("Starting camera...", language)}</span>
                       </div>
                     )}
                   </div>
@@ -7817,7 +7821,7 @@ export default function Home() {
                   <a
                     href="tel:18004250002"
                     className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors"
-                    title="Call Rythu Helpline"
+                    title={tUi("Call Rythu Helpline", language)}
                   >
                     <PhoneCall size={12} /> Call Helpline
                   </a>
@@ -7825,10 +7829,10 @@ export default function Home() {
                     type="button"
                     onClick={() => {
                       navigator.clipboard?.writeText("18004250002");
-                      toast.success("Helpline 1800-425-0002 copied.");
+                      toast.success(tUi("Helpline 1800-425-0002 copied.", language));
                     }}
                     className="p-1.5 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    title="Copy number"
+                    title={tUi("Copy number", language)}
                   >
                     <Copy size={13} />
                   </button>
@@ -7854,7 +7858,7 @@ export default function Home() {
                   <a
                     href="tel:1902"
                     className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors"
-                    title="Call 1902"
+                    title={tUi("Call 1902", language)}
                   >
                     <PhoneCall size={12} /> Call Helpline
                   </a>
@@ -7862,10 +7866,10 @@ export default function Home() {
                     type="button"
                     onClick={() => {
                       navigator.clipboard?.writeText("1902");
-                      toast.success("Helpline 1902 copied.");
+                      toast.success(tUi("Helpline 1902 copied.", language));
                     }}
                     className="p-1.5 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    title="Copy number"
+                    title={tUi("Copy number", language)}
                   >
                     <Copy size={13} />
                   </button>
@@ -7891,7 +7895,7 @@ export default function Home() {
                   <a
                     href="tel:18001801551"
                     className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors"
-                    title="Call Kisan Helpline"
+                    title={tUi("Call Kisan Helpline", language)}
                   >
                     <PhoneCall size={12} /> Call Helpline
                   </a>
@@ -7899,10 +7903,10 @@ export default function Home() {
                     type="button"
                     onClick={() => {
                       navigator.clipboard?.writeText("18001801551");
-                      toast.success("Helpline 1800-180-1551 copied.");
+                      toast.success(tUi("Helpline 1800-180-1551 copied.", language));
                     }}
                     className="p-1.5 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    title="Copy number"
+                    title={tUi("Copy number", language)}
                   >
                     <Copy size={13} />
                   </button>
@@ -7923,15 +7927,15 @@ export default function Home() {
             <ul className="text-xs text-[#244b38] space-y-2 pl-0 m-0 list-none font-medium">
               <li className="flex items-start gap-2">
                 <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
-                <span>1. Farmer Registration ID / Aadhaar Card</span>
+                <span>{tUi("1. Farmer Registration ID / Aadhaar Card", language)}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
-                <span>2. Aadhaar-linked Bank Passbook (DBT Account)</span>
+                <span>{tUi("2. Aadhaar-linked Bank Passbook (DBT Account)", language)}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
-                <span>3. e-Crop / Land Record (Pahani / 1B Receipt)</span>
+                <span>{tUi("3. e-Crop / Land Record (Pahani / 1B Receipt)", language)}</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" />
@@ -8023,7 +8027,7 @@ export default function Home() {
           </button>
         ))}
         <div className="officer-rail-bottom">
-          <button onClick={() => navigate("landing")}><ArrowLeft size={18}/> Farmer portal</button>
+          <button onClick={() => navigate("landing")}><ArrowLeft size={18}/> {tUi("Farmer portal", language)}</button>
         </div>
       </aside>
       <div className="officer-main">
@@ -8043,7 +8047,7 @@ export default function Home() {
                   <span className="hidden sm:inline">{(officerProfile?.role || "OFFICER").replaceAll("_", " ")} • </span>{officerProfile?.branch || "GUNTUR"}
                 </span>
               ) : (
-                <span className="text-xs font-semibold text-slate-700">Officer Console</span>
+                <span className="text-xs font-semibold text-slate-700">{tUi("Officer Console", language)}</span>
               )}
             </div>
           </div>
@@ -8053,7 +8057,7 @@ export default function Home() {
             <button
               className="notification-button relative"
               onClick={() => setShowOfficerNotifModal(true)}
-              title="View officer & staff alerts"
+              title={tUi("View officer & staff alerts", language)}
               aria-label="Officer alerts"
             >
               <Bell size={18}/>
@@ -8062,8 +8066,8 @@ export default function Home() {
             <span className="officer-user font-bold" title={officerProfile?.name || "Officer"}>
               {getInitials(officerProfile?.name, "SO")}
             </span>
-            <button className="top-logout-btn" onClick={logoutOfficer} title="Log out of officer console">
-              <LogOut size={15} /> <span className="hidden sm:inline">Logout</span>
+            <button className="top-logout-btn" onClick={logoutOfficer} title={tUi("Log out of officer console", language)}>
+              <LogOut size={15} /> <span className="hidden sm:inline">{tUi("Logout", language)}</span>
             </button>
           </div>
         </header>
@@ -8093,7 +8097,7 @@ export default function Home() {
             </div>
 
             <div className="drawer-links">
-              <div className="drawer-section-label">OPERATIONS & WORKFLOW</div>
+              <div className="drawer-section-label">{tUi("OPERATIONS & WORKFLOW", language)}</div>
               {officerMenuItems.map(item => (
                 <button
                   key={item.key}
@@ -8133,7 +8137,7 @@ export default function Home() {
                 className="drawer-switch-portal"
               >
                 <ArrowLeft size={18}/>
-                <span>Switch to Farmer Portal</span>
+                <span>{tUi("Switch to Farmer Portal", language)}</span>
               </button>
             </div>
 
@@ -8159,7 +8163,7 @@ export default function Home() {
             </div>
             <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
               {officerNotificationsList.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">No new officer notifications.</div>
+                <div className="p-6 text-center text-xs text-slate-400">{tUi("No new officer notifications.", language)}</div>
               ) : (
                 officerNotificationsList.map(notif => (
                   <div key={notif.id} className="py-2.5">
@@ -8187,24 +8191,24 @@ export default function Home() {
         <button onClick={() => navigate("landing")}><AppLogo /></button>
         <div className="flex items-center gap-2">
           <MobileViewToggle />
-          <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16}/> Back to home</button>
+          <button className="back-link" onClick={() => navigate("landing")}><ArrowLeft size={16}/> {tUi("Back to home", language)}</button>
         </div>
       </header>
       <main>
         <section>
-          <Pill kind="blue">OFFICER & STAFF GOVERNANCE</Pill>
-          <h1>Department Staff & Mandi Management.</h1>
-          <p>Multi-department access with Head Officer onboarding verification. Verify registrations, balance capacity, run quality inspections, assign subsidized transport, and settle farmer payments directly.</p>
+          <Pill kind="blue">{tUi("OFFICER & STAFF GOVERNANCE", language)}</Pill>
+          <h1>{tUi("Department Staff & Mandi Management.", language)}</h1>
+          <p>{tUi("Multi-department access with Head Officer onboarding verification. Verify registrations, balance capacity, run quality inspections, assign subsidized transport, and settle farmer payments directly.", language)}</p>
           <div className="officer-login-stat">
-            <span><UsersRound/> <b>{officerAnalytics?.approvedFarmers ?? 3}</b> farmers approved</span>
-            <span><Clock3/> <b>{officerAnalytics?.activeBookings ?? 3}</b> active bookings</span>
+            <span><UsersRound/> <b>{officerAnalytics?.approvedFarmers ?? 3}</b> {tUi("farmers approved", language)}</span>
+            <span><Clock3/> <b>{officerAnalytics?.activeBookings ?? 3}</b> {tUi("active bookings", language)}</span>
           </div>
         </section>
 
         {officerForgotStep !== "INACTIVE" ? (
           <section className="login-card w-full max-w-lg bg-white p-6 rounded-2xl border border-slate-200 shadow-md">
-            <p className="eyebrow text-emerald-800 font-extrabold text-[11px] uppercase tracking-wider mb-1">OFFICER PASSWORD GOVERNANCE</p>
-            <h2 className="text-xl font-black text-slate-900 mb-2">Officer Password Recovery</h2>
+            <p className="eyebrow text-emerald-800 font-extrabold text-[11px] uppercase tracking-wider mb-1">{tUi("OFFICER PASSWORD GOVERNANCE", language)}</p>
+            <h2 className="text-xl font-black text-slate-900 mb-2">{tUi("Officer Password Recovery", language)}</h2>
             <p className="text-xs text-slate-600 mb-4">
               Authorized Head Officer review is strictly enforced for department staff password modifications.
             </p>
@@ -8223,7 +8227,7 @@ export default function Home() {
                 </div>
                 <p className="leading-relaxed mb-2">{officerForgotSuccessMsg}</p>
                 <div className="p-2.5 bg-white rounded-lg border border-emerald-100 text-[11px] text-emerald-800 font-medium">
-                  Next Step: Contact your Head Officer to approve request #{officerForgotReqId} in <b>Staff Management → Password Reset Requests</b>. Once approved, the Head Officer will provide you a 24-hour Approval Token.
+                  Next Step: Contact your Head Officer to approve request #{officerForgotReqId} in <b>{tUi("Staff Management → Password Reset Requests", language)}</b>. Once approved, the Head Officer will provide you a 24-hour Approval Token.
                 </div>
               </div>
             )}
@@ -8264,7 +8268,7 @@ export default function Home() {
                   <Input
                     value={officerForgotCode}
                     onChange={e => setOfficerForgotCode(e.target.value)}
-                    placeholder="e.g. QC-2026-4892 or OFF-NZM-104"
+                    placeholder={tUi("e.g. QC-2026-4892 or OFF-NZM-104", language)}
                     required
                   />
                 </label>
@@ -8273,7 +8277,7 @@ export default function Home() {
                   <Input
                     value={officerForgotContact}
                     onChange={e => setOfficerForgotContact(e.target.value)}
-                    placeholder="e.g. qc.madhavan@smartprocure.gov.in"
+                    placeholder={tUi("e.g. qc.madhavan@smartprocure.gov.in", language)}
                     required
                   />
                 </label>
@@ -8283,7 +8287,7 @@ export default function Home() {
                     <Input
                       value={officerForgotDepartment}
                       onChange={e => setOfficerForgotDepartment(e.target.value)}
-                      placeholder="e.g. QUALITY_CONTROL"
+                      placeholder={tUi("e.g. QUALITY_CONTROL", language)}
                     />
                   </label>
                   <label className="text-xs font-bold text-slate-700 flex flex-col gap-1">
@@ -8291,7 +8295,7 @@ export default function Home() {
                     <Input
                       value={officerForgotReason}
                       onChange={e => setOfficerForgotReason(e.target.value)}
-                      placeholder="e.g. Forgot login password"
+                      placeholder={tUi("e.g. Forgot login password", language)}
                     />
                   </label>
                 </div>
@@ -8340,7 +8344,7 @@ export default function Home() {
                     <Input
                       value={officerForgotCode}
                       onChange={e => setOfficerForgotCode(e.target.value)}
-                      placeholder="e.g. QC-2026-4892"
+                      placeholder={tUi("e.g. QC-2026-4892", language)}
                       required
                     />
                   </label>
@@ -8350,7 +8354,7 @@ export default function Home() {
                       type="number"
                       value={officerForgotReqId || ""}
                       onChange={e => setOfficerForgotReqId(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="e.g. 1"
+                      placeholder={tUi("e.g. 1", language)}
                     />
                   </label>
                 </div>
@@ -8360,7 +8364,7 @@ export default function Home() {
                   <Input
                     value={officerForgotToken}
                     onChange={e => setOfficerForgotToken(e.target.value.trim())}
-                    placeholder="Enter approval token (e.g. 32-character hexadecimal string)"
+                    placeholder={tUi("Enter approval token (e.g. 32-character hexadecimal string)", language)}
                     className="font-mono text-xs tracking-wider"
                     required
                   />
@@ -8374,7 +8378,7 @@ export default function Home() {
                         type={showOfficerForgotNewPassword ? "text" : "password"}
                         value={officerForgotNewPassword}
                         onChange={e => setOfficerForgotNewPassword(e.target.value)}
-                        placeholder="Min 8 chars, mixed case, number"
+                        placeholder={tUi("Min 8 chars, mixed case, number", language)}
                         required
                         className="pr-8"
                       />
@@ -8394,7 +8398,7 @@ export default function Home() {
                         type={showOfficerForgotConfirmPassword ? "text" : "password"}
                         value={officerForgotConfirmPassword}
                         onChange={e => setOfficerForgotConfirmPassword(e.target.value)}
-                        placeholder="Re-enter password"
+                        placeholder={tUi("Re-enter password", language)}
                         required
                         className="pr-8"
                       />
@@ -8411,7 +8415,7 @@ export default function Home() {
 
                 {/* Password requirements indicators */}
                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] flex flex-col gap-1">
-                  <span className="font-bold text-slate-700">Password Policy Requirements:</span>
+                  <span className="font-bold text-slate-700">{tUi("Password Policy Requirements:", language)}</span>
                   <div className="grid grid-cols-2 gap-1 text-[11px]">
                     <span className={`flex items-center gap-1 ${officerForgotNewPassword.length >= 8 ? "text-emerald-700 font-bold" : "text-slate-500"}`}>
                       {officerForgotNewPassword.length >= 8 ? "✓" : "○"} At least 8 characters
@@ -8469,7 +8473,7 @@ export default function Home() {
                 <div className="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mb-3">
                   <CheckCircle2 size={32} />
                 </div>
-                <h3 className="text-lg font-bold text-emerald-950 mb-1">Officer Password Updated!</h3>
+                <h3 className="text-lg font-bold text-emerald-950 mb-1">{tUi("Officer Password Updated!", language)}</h3>
                 <p className="text-xs text-slate-600 max-w-sm mb-4">
                   Your officer account password has been updated and an audit event has been recorded. You can now login with your new credentials.
                 </p>
@@ -8492,19 +8496,19 @@ export default function Home() {
           </section>
         ) : (
         <form onSubmit={e => { e.preventDefault(); void loginOfficer(); }}>
-          <p className="eyebrow">OFFICER & STAFF LOGIN</p>
-          <h2>Enter your verified credentials.</h2>
+          <p className="eyebrow">{tUi("OFFICER & STAFF LOGIN", language)}</p>
+          <h2>{tUi("Enter your verified credentials.", language)}</h2>
           <label>
             Officer / Login ID
             <Input
               value={officerLoginForm.officerCode}
               onChange={e => setOfficerLoginForm(f => ({ ...f, officerCode: e.target.value }))}
-              placeholder="e.g. OFF-NZM-104 or QC-2026-4892"
+              placeholder={tUi("e.g. OFF-NZM-104 or QC-2026-4892", language)}
             />
           </label>
           <div>
             <div className="flex items-center justify-between mb-1 mt-1">
-              <span className="text-xs font-semibold text-slate-700">Password</span>
+              <span className="text-xs font-semibold text-slate-700">{tUi("Password", language)}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -8525,15 +8529,15 @@ export default function Home() {
               type="password"
               value={officerLoginForm.password}
               onChange={e => setOfficerLoginForm(f => ({ ...f, password: e.target.value }))}
-              placeholder="Enter password"
+              placeholder={tUi("Enter password", language)}
             />
           </div>
 
-          <Button type="submit" className="action-button mt-2">Enter officer console <ArrowRight size={17}/></Button>
+          <Button type="submit" className="action-button mt-2">{tUi("Enter officer console", language)} <ArrowRight size={17}/></Button>
 
           {/* Quick Demo Login Preset Pills */}
           <div className="flex flex-col gap-2 pt-2 border-t border-slate-200">
-            <span className="text-[11px] font-bold text-slate-500">QUICK LOGIN PRESETS:</span>
+            <span className="text-[11px] font-bold text-slate-500">{tUi("QUICK LOGIN PRESETS:", language)}</span>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -8594,7 +8598,7 @@ export default function Home() {
           </div>
 
           <div className="pt-2 flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">New employee joining a department?</span>
+            <span className="text-muted-foreground">{tUi("New employee joining a department?", language)}</span>
             <button
               type="button"
               onClick={() => setShowAddStaffModal(true)}
@@ -8604,7 +8608,7 @@ export default function Home() {
             </button>
           </div>
 
-          <p className="form-note"><ShieldCheck size={16}/> Authenticated officer session with role authorization.</p>
+          <p className="form-note"><ShieldCheck size={16}/> {tUi("Authenticated officer session with role authorization.", language)}</p>
         </form>
         )}
       </main>
@@ -8615,7 +8619,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="NIZAMABAD DISTRICT · LIVE OPERATIONS"
-        title="Procurement Operations Dashboard"
+        title={tUi("Procurement Operations Dashboard", language)}
         body="Real-time operational metrics, capacity utilization, and arrival flow computed directly from the system database."
         action={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -8638,10 +8642,10 @@ export default function Home() {
                     },
                     capacityUtilizationPercent: 78,
                   });
-                  toast.success("Officer Mandi Operational Report PDF downloaded.");
+                  toast.success(tUi("Officer Mandi Operational Report PDF downloaded.", language));
                 } catch (e) {
                   console.error(e);
-                  toast.error("Failed to generate officer report PDF");
+                  toast.error(tUi("Failed to generate officer report PDF", language));
                 }
               }}
               icon={Download}
@@ -8663,10 +8667,10 @@ export default function Home() {
       <section className="stats-section officer-stats-section">
         <div className="stats-heading">
           <div>
-            <p className="eyebrow">DATABASE ANALYTICS</p>
-            <h2>Aggregated real data from stored procurement records.</h2>
+            <p className="eyebrow">{tUi("DATABASE ANALYTICS", language)}</p>
+            <h2>{tUi("Aggregated real data from stored procurement records.", language)}</h2>
           </div>
-          <Pill kind="blue">LIVE DB METRICS</Pill>
+          <Pill kind="blue">{tUi("LIVE DB METRICS", language)}</Pill>
         </div>
         <div className="metric-grid stats-grid">
           <MetricCard icon={UsersRound} label="Total registered farmers" value={`${officerAnalytics?.totalFarmers ?? 0}`} hint={`${officerAnalytics?.approvedFarmers ?? 0} approved / ${officerAnalytics?.rejectedRegistrations ?? 0} rejected`} tone="blue"/>
@@ -8683,7 +8687,7 @@ export default function Home() {
             <p>{pendingRegistrations.length > 0 && pendingRegistrations[0]?.farmer?.name ? `${pendingRegistrations[0].farmer.name} (${pendingRegistrations[0].farmer.village || "Village"}) submitted registration.` : "All farmer registrations have been processed."}</p>
           </div>
           {pendingRegistrations.length > 0 ? (
-            <ActionButton onClick={() => { setOfficerView("pending"); navigate("registrations"); }} icon={ArrowRight}>Review now</ActionButton>
+            <ActionButton onClick={() => { setOfficerView("pending"); navigate("registrations"); }} icon={ArrowRight}>{tUi("Review now", language)}</ActionButton>
           ) : (
             <span className="cleared-icon"><Check/></span>
           )}
@@ -8691,8 +8695,8 @@ export default function Home() {
         <article className="centre-pulse-card">
           <div className="centre-pulse-head">
             <div>
-              <Pill kind="green"><span className="pulse-dot"/> LIVE CAPACITY</Pill>
-              <h2>Centre pulse</h2>
+              <Pill kind="green"><span className="pulse-dot"/> {tUi("LIVE CAPACITY", language)}</Pill>
+              <h2>{tUi("Centre pulse", language)}</h2>
             </div>
             <button onClick={() => { setOfficerView("bookings"); navigate("bookings"); }}><ArrowRight/></button>
           </div>
@@ -8712,9 +8716,9 @@ export default function Home() {
       </section>
       <section className="officer-queue-summary">
         <div>
-          <p className="eyebrow">ARRIVAL DISTRIBUTION BY SLOT</p>
-          <h2>Arrivals scheduled today across all centres.</h2>
-          <p>Real booking counts per slot time window computed from active database bookings.</p>
+          <p className="eyebrow">{tUi("ARRIVAL DISTRIBUTION BY SLOT", language)}</p>
+          <h2>{tUi("Arrivals scheduled today across all centres.", language)}</h2>
+          <p>{tUi("Real booking counts per slot time window computed from active database bookings.", language)}</p>
         </div>
         <div className="arrival-bars">
           {(officerAnalytics?.hourlyArrivals ?? [{ time: "09:30 AM", count: 2, percentage: 35 }, { time: "10:00 AM", count: 4, percentage: 60 }, { time: "10:30 AM", count: 6, percentage: 80 }, { time: "11:00 AM", count: 3, percentage: 45 }, { time: "11:30 AM", count: 5, percentage: 70 }, { time: "12:00 PM", count: 3, percentage: 50 }]).map((slotArrival, index) => (
@@ -8723,7 +8727,7 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <button onClick={() => { setOfficerView("bookings"); navigate("bookings"); }}>Open booking & queue overview <ArrowRight size={15}/></button>
+        <button onClick={() => { setOfficerView("bookings"); navigate("bookings"); }}>{tUi("Open booking & queue overview", language)} <ArrowRight size={15}/></button>
       </section>
     </>
   );
@@ -8732,23 +8736,23 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="PAYMENT OPERATIONS"
-        title="Payment status at a glance."
+        title={tUi("Payment status at a glance.", language)}
         body="Real payment states, transaction references, amounts, and settlement centres stored in the database."
         action={<ActionButton onClick={() => {
           if (!officerToken) return;
           void fetch(apiUrl("/officers/payments"), { headers: { Authorization: `Bearer ${officerToken}` } })
             .then(response => response.ok ? response.json() : Promise.reject())
-            .then(data => { setOfficerPayments(data.payments); toast.success("Payment status refreshed from database."); })
-            .catch(() => toast.error("Payment status could not be refreshed."));
-        }} icon={LocateFixed}>Refresh status</ActionButton>}
+            .then(data => { setOfficerPayments(data.payments); toast.success(tUi("Payment status refreshed from database.", language)); })
+            .catch(() => toast.error(tUi("Payment status could not be refreshed.", language)));
+        }} icon={LocateFixed}>{tUi("Refresh status", language)}</ActionButton>}
       />
       <section className="registration-table">
         <div className="table-head">
-          <span>Farmer</span>
-          <span>Booking</span>
-          <span>Method</span>
-          <span>Payment ID</span>
-          <span>Status</span>
+          <span>{tUi("Farmer", language)}</span>
+          <span>{tUi("Booking", language)}</span>
+          <span>{tUi("Method", language)}</span>
+          <span>{tUi("Payment ID", language)}</span>
+          <span>{tUi("Status", language)}</span>
           <span />
         </div>
         {officerPayments.length ? officerPayments.map(payment => (
@@ -8778,8 +8782,8 @@ export default function Home() {
         )) : (
           <div className="table-empty">
             <span><WalletCards/></span>
-            <h3>No payment records yet.</h3>
-            <p>Payment attempts will appear here with their live status once initiated.</p>
+            <h3>{tUi("No payment records yet.", language)}</h3>
+            <p>{tUi("Payment attempts will appear here with their live status once initiated.", language)}</p>
           </div>
         )}
       </section>
@@ -8791,16 +8795,16 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="REGISTRATION REVIEW"
-        title="Pending farmer registrations."
+        title={tUi("Pending farmer registrations.", language)}
         body="Review and approve or reject farmer registrations directly from the database API."
       />
       <div className="registration-table">
         <div className="table-head">
-          <span>Farmer</span>
-          <span>Location</span>
-          <span>Primary crop</span>
-          <span>Submitted</span>
-          <span>Status</span>
+          <span>{tUi("Farmer", language)}</span>
+          <span>{tUi("Location", language)}</span>
+          <span>{tUi("Primary crop", language)}</span>
+          <span>{tUi("Submitted", language)}</span>
+          <span>{tUi("Status", language)}</span>
           <span />
         </div>
         {pendingRegistrations.length ? pendingRegistrations.map(registration => (
@@ -8819,15 +8823,15 @@ export default function Home() {
             </div>
             <span>{registration.farmer?.village ?? "Village"}, {registration.farmer?.district ?? "District"}</span>
             <span>{registration.farmer?.primaryCrop ?? "Paddy"}</span>
-            <span>Awaiting review</span>
-            <Pill kind="yellow">PENDING</Pill>
+            <span>{tUi("Awaiting review", language)}</span>
+            <Pill kind="yellow">{tUi("PENDING", language)}</Pill>
             <ChevronRight/>
           </button>
         )) : (
           <div className="table-empty">
             <span><CheckCircle2/></span>
-            <h3>No pending registrations</h3>
-            <p>There are no pending farmer registrations requiring review.</p>
+            <h3>{tUi("No pending registrations", language)}</h3>
+            <p>{tUi("There are no pending farmer registrations requiring review.", language)}</p>
           </div>
         )}
       </div>
@@ -8835,8 +8839,8 @@ export default function Home() {
         <div className="review-drawer">
           <div className="drawer-top">
             <div>
-              <Pill kind="yellow">PENDING REVIEW</Pill>
-              <h2>Farmer registration details</h2>
+              <Pill kind="yellow">{tUi("PENDING REVIEW", language)}</Pill>
+              <h2>{tUi("Farmer registration details", language)}</h2>
             </div>
             <button onClick={() => setShowRecord(false)}><X/></button>
           </div>
@@ -8848,22 +8852,22 @@ export default function Home() {
             </div>
           </div>
           <div className="review-data">
-            <div><small>MOBILE NUMBER</small><b>{selectedPending.farmer?.phone ? `+91 ${selectedPending.farmer.phone}` : "—"}</b></div>
-            <div><small>VILLAGE</small><b>{selectedPending.farmer?.village ?? "—"}</b></div>
-            <div><small>DISTRICT</small><b>{selectedPending.farmer?.district ?? "—"}</b></div>
-            <div><small>PRIMARY CROP</small><b>{selectedPending.farmer?.primaryCrop ?? "Paddy"}</b></div>
-            <div><small>ACCOUNT STATUS</small><b>{selectedPending.farmer?.status ?? "PENDING"}</b></div>
-            <div><small>DECLARATION</small><b><CheckCircle2/> Confirmed</b></div>
+            <div><small>{tUi("MOBILE NUMBER", language)}</small><b>{selectedPending.farmer?.phone ? `+91 ${selectedPending.farmer.phone}` : "—"}</b></div>
+            <div><small>{tUi("VILLAGE", language)}</small><b>{selectedPending.farmer?.village ?? "—"}</b></div>
+            <div><small>{tUi("DISTRICT", language)}</small><b>{selectedPending.farmer?.district ?? "—"}</b></div>
+            <div><small>{tUi("PRIMARY CROP", language)}</small><b>{selectedPending.farmer?.primaryCrop ?? "Paddy"}</b></div>
+            <div><small>{tUi("ACCOUNT STATUS", language)}</small><b>{selectedPending.farmer?.status ?? "PENDING"}</b></div>
+            <div><small>{tUi("DECLARATION", language)}</small><b><CheckCircle2/> {tUi("Confirmed", language)}</b></div>
           </div>
           <div className="review-note">
             <ShieldCheck/>
-            <p>Approving activates farmer login. Rejecting notifies the farmer with your recorded reason.</p>
+            <p>{tUi("Approving activates farmer login. Rejecting notifies the farmer with your recorded reason.", language)}</p>
           </div>
           <div className="drawer-actions">
             <Button onClick={() => setShowRejectModal(true)} variant="outline" className="text-destructive hover:bg-destructive/10 border-destructive/30">
               <UserX size={16} className="mr-1.5" /> Reject farmer
             </Button>
-            <ActionButton onClick={approveFarmer} icon={Check}>Approve farmer</ActionButton>
+            <ActionButton onClick={approveFarmer} icon={Check}>{tUi("Approve farmer", language)}</ActionButton>
           </div>
         </div>
       )}
@@ -8871,15 +8875,15 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-background rounded-xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Reject Farmer Registration</h3>
+              <h3 className="text-lg font-bold">{tUi("Reject Farmer Registration", language)}</h3>
               <button onClick={() => setShowRejectModal(false)}><X size={18}/></button>
             </div>
-            <p className="text-sm text-muted-foreground">Specify the reason for rejecting <b>{selectedPending.farmer?.name ?? "Farmer"}</b>. The farmer will be notified.</p>
-            <label className="text-sm font-medium">Rejection Reason</label>
-            <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Document mismatch, incomplete land record..." />
+            <p className="text-sm text-muted-foreground">{tUi("Specify the reason for rejecting", language)} <b>{selectedPending.farmer?.name ?? "Farmer"}</b>{tUi(". The farmer will be notified.", language)}</p>
+            <label className="text-sm font-medium">{tUi("Rejection Reason", language)}</label>
+            <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder={tUi("e.g. Document mismatch, incomplete land record...", language)} />
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowRejectModal(false)}>Cancel</Button>
-              <Button variant="destructive" onClick={rejectFarmer}>Confirm Rejection</Button>
+              <Button variant="outline" onClick={() => setShowRejectModal(false)}>{tUi("Cancel", language)}</Button>
+              <Button variant="destructive" onClick={rejectFarmer}>{tUi("Confirm Rejection", language)}</Button>
             </div>
           </div>
         </div>
@@ -8891,7 +8895,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="NATIONAL FARMER DIRECTORY"
-        title="Registered Farmers & Database Records"
+        title={tUi("Registered Farmers & Database Records", language)}
         body="Comprehensive, live database directory of all registered farmers across all districts. Zero passwords exposed."
         action={
           <ActionButton
@@ -8940,7 +8944,7 @@ export default function Home() {
       {/* 2. Directory Toolbar & Filter */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-slate-700">Filter Status:</span>
+          <span className="text-xs font-bold text-slate-700">{tUi("Filter Status:", language)}</span>
           {(["ALL", "APPROVED", "PENDING", "REJECTED"] as const).map(tab => (
             <button
               key={tab}
@@ -8965,7 +8969,7 @@ export default function Home() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name, phone, village..."
+            placeholder={tUi("Search by name, phone, village...", language)}
             value={officerFarmersSearch}
             onChange={e => setOfficerFarmersSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 focus:bg-white"
@@ -8979,14 +8983,14 @@ export default function Home() {
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4">Farmer Info</th>
-                <th className="py-3 px-4">Mobile Number</th>
-                <th className="py-3 px-4">Village & District</th>
-                <th className="py-3 px-4">Primary Crop</th>
-                <th className="py-3 px-4">Aadhaar (Masked)</th>
-                <th className="py-3 px-4">Account Status</th>
-                <th className="py-3 px-4">Active Mandi / Slot</th>
-                <th className="py-3 px-4">Registration Date</th>
+                <th className="py-3 px-4">{tUi("Farmer Info", language)}</th>
+                <th className="py-3 px-4">{tUi("Mobile Number", language)}</th>
+                <th className="py-3 px-4">{tUi("Village & District", language)}</th>
+                <th className="py-3 px-4">{tUi("Primary Crop", language)}</th>
+                <th className="py-3 px-4">{tUi("Aadhaar (Masked)", language)}</th>
+                <th className="py-3 px-4">{tUi("Account Status", language)}</th>
+                <th className="py-3 px-4">{tUi("Active Mandi / Slot", language)}</th>
+                <th className="py-3 px-4">{tUi("Registration Date", language)}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -9008,8 +9012,8 @@ export default function Home() {
                     <tr>
                       <td colSpan={8} className="py-10 text-center text-slate-500">
                         <Users size={32} className="mx-auto text-slate-300 mb-2" />
-                        <p className="font-bold text-slate-700 m-0">No farmers found</p>
-                        <small className="text-slate-400">Try changing your search query or status filter.</small>
+                        <p className="font-bold text-slate-700 m-0">{tUi("No farmers found", language)}</p>
+                        <small className="text-slate-400">{tUi("Try changing your search query or status filter.", language)}</small>
                       </td>
                     </tr>
                   );
@@ -9072,7 +9076,7 @@ export default function Home() {
                             <span className="text-[10px] text-slate-500">{f.activeBooking.bookingCode} · {f.activeBooking.expectedQuantityQuintals} Qtl</span>
                           </div>
                         ) : (
-                          <span className="text-slate-400 italic">No active booking</span>
+                          <span className="text-slate-400 italic">{tUi("No active booking", language)}</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-slate-500 text-[11px]">
@@ -9093,9 +9097,9 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="BOOKINGS & QUEUE MANAGEMENT"
-        title="Live Procurement & Queue Control"
+        title={tUi("Live Procurement & Queue Control", language)}
         body="Monitor all active centre bookings and advance farmer procurement stages through weighing, quality inspection, and completion."
-        action={<ActionButton onClick={() => { if (officerToken) void loadOfficerBookings(officerToken); }} icon={LocateFixed}>Refresh bookings</ActionButton>}
+        action={<ActionButton onClick={() => { if (officerToken) void loadOfficerBookings(officerToken); }} icon={LocateFixed}>{tUi("Refresh bookings", language)}</ActionButton>}
       />
       <section className="bookings-board">
         <div className="booking-center-cards">
@@ -9121,7 +9125,7 @@ export default function Home() {
       <section className="officer-booking-list">
         <div className="flex items-center justify-between">
           <h2>All Centre Bookings ({officerBookings.length})</h2>
-          <Pill kind="blue">LIVE DATABASE RECORDS</Pill>
+          <Pill kind="blue">{tUi("LIVE DATABASE RECORDS", language)}</Pill>
         </div>
         {officerBookings.length > 0 ? (
           officerBookings.map(b => (
@@ -9156,7 +9160,7 @@ export default function Home() {
             </article>
           ))
         ) : (
-          <div className="p-8 text-center text-muted-foreground">Loading bookings from database...</div>
+          <div className="p-8 text-center text-muted-foreground">{tUi("Loading bookings from database...", language)}</div>
         )}
       </section>
 
@@ -9165,16 +9169,16 @@ export default function Home() {
           <div className="bg-background rounded-xl p-6 max-w-lg w-full shadow-2xl border flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold">Update Procurement Stage</h3>
-                <p className="text-xs text-muted-foreground">Farmer: <b>{selectedOfficerBooking.farmer?.name ?? "Farmer"}</b> · Token: <b>{selectedOfficerBooking.tokenNumber ?? "AP-001"}</b></p>
+                <h3 className="text-lg font-bold">{tUi("Update Procurement Stage", language)}</h3>
+                <p className="text-xs text-muted-foreground">{tUi("Farmer:", language)} <b>{selectedOfficerBooking.farmer?.name ?? "Farmer"}</b> {tUi("· Token:", language)} <b>{selectedOfficerBooking.tokenNumber ?? "AP-001"}</b></p>
               </div>
               <button onClick={() => setShowProcurementModal(false)}><X size={18}/></button>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs bg-muted/40 p-3 rounded-lg">
-              <div><span className="text-muted-foreground">Centre:</span> <b>{selectedOfficerBooking.centre?.name ?? "Procurement Centre"}</b></div>
-              <div><span className="text-muted-foreground">Booking Code:</span> <b>{selectedOfficerBooking.bookingCode}</b></div>
-              <div><span className="text-muted-foreground">Expected:</span> <b>{selectedOfficerBooking.expectedQuantityQuintals} quintals</b></div>
-              <div><span className="text-muted-foreground">Variety:</span> <b>{selectedOfficerBooking.paddyVariety}</b></div>
+              <div><span className="text-muted-foreground">{tUi("Centre:", language)}</span> <b>{selectedOfficerBooking.centre?.name ?? "Procurement Centre"}</b></div>
+              <div><span className="text-muted-foreground">{tUi("Booking Code:", language)}</span> <b>{selectedOfficerBooking.bookingCode}</b></div>
+              <div><span className="text-muted-foreground">{tUi("Expected:", language)}</span> <b>{selectedOfficerBooking.expectedQuantityQuintals} quintals</b></div>
+              <div><span className="text-muted-foreground">{tUi("Variety:", language)}</span> <b>{selectedOfficerBooking.paddyVariety}</b></div>
             </div>
             <label className="text-sm font-medium">Procurement Stage
               <select
@@ -9182,13 +9186,13 @@ export default function Home() {
                 value={procurementForm.status}
                 onChange={e => setProcurementForm(f => ({ ...f, status: e.target.value }))}
               >
-                <option value="BOOKED">BOOKED (Slot Reserved)</option>
-                <option value="ARRIVED">ARRIVED (Token Called / At Centre)</option>
-                <option value="DOCUMENT_VERIFICATION">DOCUMENT VERIFICATION</option>
-                <option value="WEIGHING">WEIGHING (On Weighbridge)</option>
-                <option value="QUALITY_CHECK">QUALITY CHECK (Moisture & Grade)</option>
-                <option value="PROCESSING">PROCESSING (Bagging & Storage)</option>
-                <option value="COMPLETED">COMPLETED (Procurement Finished)</option>
+                <option value="BOOKED">{tUi("BOOKED (Slot Reserved)", language)}</option>
+                <option value="ARRIVED">{tUi("ARRIVED (Token Called / At Centre)", language)}</option>
+                <option value="DOCUMENT_VERIFICATION">{tUi("DOCUMENT VERIFICATION", language)}</option>
+                <option value="WEIGHING">{tUi("WEIGHING (On Weighbridge)", language)}</option>
+                <option value="QUALITY_CHECK">{tUi("QUALITY CHECK (Moisture & Grade)", language)}</option>
+                <option value="PROCESSING">{tUi("PROCESSING (Bagging & Storage)", language)}</option>
+                <option value="COMPLETED">{tUi("COMPLETED (Procurement Finished)", language)}</option>
               </select>
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -9207,16 +9211,16 @@ export default function Home() {
                   value={procurementForm.qualityGrade}
                   onChange={e => setProcurementForm(f => ({ ...f, qualityGrade: e.target.value }))}
                 >
-                  <option value="Grade A">Grade A (Premium)</option>
-                  <option value="Grade B">Grade B (Standard)</option>
-                  <option value="Common">Common</option>
+                  <option value="Grade A">{tUi("Grade A (Premium)", language)}</option>
+                  <option value="Grade B">{tUi("Grade B (Standard)", language)}</option>
+                  <option value="Common">{tUi("Common", language)}</option>
                   <option value="Rejected">Rejected (Moisture {">"} 17%)</option>
                 </select>
               </label>
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="outline" onClick={() => setShowProcurementModal(false)}>Cancel</Button>
-              <Button onClick={updateProcurementStage} className="action-button">Save Status & Notify Farmer</Button>
+              <Button variant="outline" onClick={() => setShowProcurementModal(false)}>{tUi("Cancel", language)}</Button>
+              <Button onClick={updateProcurementStage} className="action-button">{tUi("Save Status & Notify Farmer", language)}</Button>
             </div>
           </div>
         </div>
@@ -9228,7 +9232,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="QUALITY ASSURANCE & LAB TESTING"
-        title="Quality Control & Crop Grading"
+        title={tUi("Quality Control & Crop Grading", language)}
         body="Inspect incoming paddy lots, verify moisture content & foreign matter according to Fair Average Quality (FAQ) standards, and approve for procurement payout."
         action={
           <ActionButton onClick={() => { if (officerToken) void loadOfficerBookings(officerToken); }} icon={LocateFixed}>
@@ -9274,7 +9278,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
           <div>
             <h2 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-              <span>Farmers in Quality Inspection Queue</span>
+              <span>{tUi("Farmers in Quality Inspection Queue", language)}</span>
               <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                 {officerBookings.filter(b => b.procurement?.status === "QUALITY_CHECK" || b.procurement?.status === "PROCESSING" || b.procurement?.status === "COMPLETED" || b.procurement?.status === "ARRIVED" || b.transport?.status === "DELIVERED_AT_CENTRE").length}
               </span>
@@ -9326,7 +9330,7 @@ export default function Home() {
                           <span className="text-slate-300">|</span>
                           <span className="inline-flex items-center gap-1 text-slate-600">
                             <Building2 size={12} className="text-slate-400" />
-                            <span>Mandi:</span>
+                            <span>{tUi("Mandi:", language)}</span>
                             <b>{b.centre?.name ?? "Procurement Centre"}</b>
                           </span>
                         </p>
@@ -9359,7 +9363,7 @@ export default function Home() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 bg-slate-50/90 p-3.5 rounded-xl border border-slate-100 text-xs">
                     {/* 1. Farmer Name & Location */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Farmer</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Farmer", language)}</span>
                       <span className="font-semibold text-slate-800 truncate block" title={b.farmer?.name ?? "Farmer"}>
                         {b.farmer?.name ?? "Farmer"}
                       </span>
@@ -9370,69 +9374,69 @@ export default function Home() {
 
                     {/* 2. Booking ID */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Booking ID</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Booking ID", language)}</span>
                       <b className="font-mono text-slate-800 truncate block">
                         {b.bookingCode ?? `BK-2026-${b.id}`}
                       </b>
-                      <span className="text-[10px] text-slate-400 truncate block">Official Lot</span>
+                      <span className="text-[10px] text-slate-400 truncate block">{tUi("Official Lot", language)}</span>
                     </div>
 
                     {/* 3. Logistics Trip ID */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Logistics Trip</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Logistics Trip", language)}</span>
                       <b className="font-mono text-emerald-800 truncate block">
                         {b.transport?.transportCode || "Centre Arrival"}
                       </b>
-                      <span className="text-[10px] text-slate-400 truncate block">Delivered</span>
+                      <span className="text-[10px] text-slate-400 truncate block">{tUi("Delivered", language)}</span>
                     </div>
 
                     {/* 4. Crop & Variety */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Crop & Variety</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Crop & Variety", language)}</span>
                       <b className="text-slate-800 truncate block" title={b.paddyVariety ?? "Paddy (Common)"}>
                         {b.paddyVariety ?? "Paddy (Common)"}
                       </b>
-                      <span className="text-[10px] text-slate-500 truncate block">Kharif 2026</span>
+                      <span className="text-[10px] text-slate-500 truncate block">{tUi("Kharif 2026", language)}</span>
                     </div>
 
                     {/* 5. Expected Quantity */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Expected Qty</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Expected Qty", language)}</span>
                       <b className="text-slate-800 truncate block">
                         {b.expectedQuantityQuintals ?? 18} Quintals
                       </b>
-                      <span className="text-[10px] text-slate-400 truncate block">Self Declared</span>
+                      <span className="text-[10px] text-slate-400 truncate block">{tUi("Self Declared", language)}</span>
                     </div>
 
                     {/* 6. Weighed Quantity */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Weighed Qty</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Weighed Qty", language)}</span>
                       {b.procurement?.weighedQuantityQuintals ? (
                         <span className="text-emerald-700 font-bold truncate block">
                           {b.procurement.weighedQuantityQuintals} Qtl
                         </span>
                       ) : (
-                        <span className="text-slate-400 italic truncate block">Pending Scale</span>
+                        <span className="text-slate-400 italic truncate block">{tUi("Pending Scale", language)}</span>
                       )}
-                      <span className="text-[10px] text-slate-400 truncate block">Certified Scale</span>
+                      <span className="text-[10px] text-slate-400 truncate block">{tUi("Certified Scale", language)}</span>
                     </div>
 
                     {/* 7. Quality Grade */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Quality Grade</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Quality Grade", language)}</span>
                       {b.procurement?.qualityGrade ? (
                         <span className="text-emerald-700 font-bold truncate block" title={b.procurement.qualityGrade}>
                           {b.procurement.qualityGrade}
                         </span>
                       ) : (
-                        <span className="text-slate-400 italic truncate block">Awaiting Grade</span>
+                        <span className="text-slate-400 italic truncate block">{tUi("Awaiting Grade", language)}</span>
                       )}
-                      <span className="text-[10px] text-slate-400 truncate block">FAQ Standard</span>
+                      <span className="text-[10px] text-slate-400 truncate block">{tUi("FAQ Standard", language)}</span>
                     </div>
 
                     {/* 8. Inspection Status */}
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">Inspection Status</span>
+                      <span className="text-slate-400 block text-[10px] font-semibold uppercase tracking-wider">{tUi("Inspection Status", language)}</span>
                       <span className={`font-bold truncate block ${
                         isPaid
                           ? "text-emerald-700"
@@ -9450,7 +9454,7 @@ export default function Home() {
                           ? "QC Failed"
                           : "Pending Inspection"}
                       </span>
-                      <span className="text-[10px] text-slate-400 truncate block">Mandi Lab</span>
+                      <span className="text-[10px] text-slate-400 truncate block">{tUi("Mandi Lab", language)}</span>
                     </div>
                   </div>
 
@@ -9458,7 +9462,7 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-3 border-t border-slate-100 gap-3">
                     <div className="text-xs text-slate-500 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>AP Civil Supplies Lab Station #1 · FAQ Moisture Standard: <b>≤ 17.0%</b></span>
+                      <span>{tUi("AP Civil Supplies Lab Station #1 · FAQ Moisture Standard:", language)} <b>{tUi("≤ 17.0%", language)}</b></span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
@@ -9470,7 +9474,7 @@ export default function Home() {
                         onClick={() => setViewingQcFarmerProfile(b.farmer || { name: "Farmer", farmerCode: "FMR-2026", village: "Muppalapally", district: "Guntur", primaryCrop: "Paddy" })}
                       >
                         <UserCheck size={14} className="text-slate-500" />
-                        <span>View Profile</span>
+                        <span>{tUi("View Profile", language)}</span>
                       </Button>
 
                       {/* 2. Inspect Crop Quality (PRIMARY ACTION) */}
@@ -9491,7 +9495,7 @@ export default function Home() {
                         }}
                       >
                         <ShieldCheck size={14} className="text-emerald-200" />
-                        <span>Inspect Crop Quality</span>
+                        <span>{tUi("Inspect Crop Quality", language)}</span>
                       </Button>
 
                       {/* 3. Initiate / Disburse DBT Payout (when ready) */}
@@ -9522,7 +9526,7 @@ export default function Home() {
                       {isPaid && (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
                           <CheckCircle2 size={13} className="text-emerald-600" />
-                          <span>DBT Payout Settled</span>
+                          <span>{tUi("DBT Payout Settled", language)}</span>
                         </span>
                       )}
                     </div>
@@ -9536,7 +9540,7 @@ export default function Home() {
             <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 mx-auto mb-3">
               <ShieldCheck size={24} />
             </div>
-            <h3 className="text-sm font-bold text-slate-800 m-0">No Crops Waiting in Quality Control Queue</h3>
+            <h3 className="text-sm font-bold text-slate-800 m-0">{tUi("No Crops Waiting in Quality Control Queue", language)}</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
               Incoming crop lots will automatically appear here once logistics marks them delivered at the procurement mandi.
             </p>
@@ -9568,30 +9572,30 @@ export default function Home() {
 
             <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2.5 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-500">Mobile Phone:</span>
+                <span className="text-slate-500">{tUi("Mobile Phone:", language)}</span>
                 <b className="text-slate-800">+91 {viewingQcFarmerProfile.phone ?? "98765 43210"}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Village & District:</span>
+                <span className="text-slate-500">{tUi("Village & District:", language)}</span>
                 <b className="text-slate-800">{viewingQcFarmerProfile.village ?? "Muppalapally"}, {viewingQcFarmerProfile.district ?? "Guntur"}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Primary Crop:</span>
+                <span className="text-slate-500">{tUi("Primary Crop:", language)}</span>
                 <b className="text-slate-800">{viewingQcFarmerProfile.primaryCrop ?? "Paddy"}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Account Status:</span>
+                <span className="text-slate-500">{tUi("Account Status:", language)}</span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   {viewingQcFarmerProfile.status ?? "APPROVED"}
                 </span>
               </div>
               <div className="flex justify-between pt-2 border-t border-slate-200/80">
-                <span className="text-slate-500">Aadhaar (Masked):</span>
-                <b className="font-mono text-slate-800">XXXX XXXX 4512</b>
+                <span className="text-slate-500">{tUi("Aadhaar (Masked):", language)}</span>
+                <b className="font-mono text-slate-800">{tUi("XXXX XXXX 4512", language)}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">e-Crop Land Registry:</span>
-                <span className="text-emerald-700 font-bold flex items-center gap-1"><Check size={13} /> Verified (Pahani/1B)</span>
+                <span className="text-slate-500">{tUi("e-Crop Land Registry:", language)}</span>
+                <span className="text-emerald-700 font-bold flex items-center gap-1"><Check size={13} /> {tUi("Verified (Pahani/1B)", language)}</span>
               </div>
             </div>
 
@@ -9612,7 +9616,7 @@ export default function Home() {
               <div>
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={18} className="text-emerald-700" />
-                  <h3 className="text-lg font-bold text-slate-900 m-0">Crop Quality & Lab Inspection</h3>
+                  <h3 className="text-lg font-bold text-slate-900 m-0">{tUi("Crop Quality & Lab Inspection", language)}</h3>
                 </div>
                 <p className="text-xs text-slate-500 mt-1 m-0">
                   Farmer: <b>{selectedQcBooking.farmer?.name}</b> ({selectedQcBooking.farmer?.farmerCode}) · Token: <b>{selectedQcBooking.tokenNumber}</b>
@@ -9628,15 +9632,15 @@ export default function Home() {
 
             <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-xl text-xs space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-emerald-800">Procurement Centre:</span>
+                <span className="text-emerald-800">{tUi("Procurement Centre:", language)}</span>
                 <b className="text-emerald-950">{selectedQcBooking.centre?.name}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-emerald-800">Paddy Variety:</span>
+                <span className="text-emerald-800">{tUi("Paddy Variety:", language)}</span>
                 <b className="text-emerald-950">{selectedQcBooking.paddyVariety}</b>
               </div>
               <div className="flex justify-between">
-                <span className="text-emerald-800">Expected Load:</span>
+                <span className="text-emerald-800">{tUi("Expected Load:", language)}</span>
                 <b className="text-emerald-950">{selectedQcBooking.expectedQuantityQuintals} Quintals</b>
               </div>
             </div>
@@ -9649,10 +9653,10 @@ export default function Home() {
                   value={qcForm.qualityGrade}
                   onChange={e => setQcForm(f => ({ ...f, qualityGrade: e.target.value }))}
                 >
-                  <option value="Grade A">Grade A (Fine / Premium)</option>
-                  <option value="Common">Common (Grade B)</option>
-                  <option value="Super Fine">Super Fine (BPT 5204)</option>
-                  <option value="FAQ Certified">FAQ Certified Standard</option>
+                  <option value="Grade A">{tUi("Grade A (Fine / Premium)", language)}</option>
+                  <option value="Common">{tUi("Common (Grade B)", language)}</option>
+                  <option value="Super Fine">{tUi("Super Fine (BPT 5204)", language)}</option>
+                  <option value="FAQ Certified">{tUi("FAQ Certified Standard", language)}</option>
                 </select>
               </label>
 
@@ -9663,9 +9667,9 @@ export default function Home() {
                   value={qcForm.qcResult}
                   onChange={e => setQcForm(f => ({ ...f, qcResult: e.target.value as "ACCEPTED" | "REJECTED" | "HOLD" }))}
                 >
-                  <option value="ACCEPTED">Accepted (Passed Inspection)</option>
-                  <option value="HOLD">Hold (Requires Re-drying)</option>
-                  <option value="REJECTED">Rejected (Below Quality Standards)</option>
+                  <option value="ACCEPTED">{tUi("Accepted (Passed Inspection)", language)}</option>
+                  <option value="HOLD">{tUi("Hold (Requires Re-drying)", language)}</option>
+                  <option value="REJECTED">{tUi("Rejected (Below Quality Standards)", language)}</option>
                 </select>
               </label>
             </div>
@@ -9673,8 +9677,8 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-3.5">
               <label className="text-xs font-semibold text-slate-700">
                 <span className="flex items-center justify-between">
-                  <span>Moisture %</span>
-                  <span className="text-[10px] text-emerald-700 font-normal">Max 17.0%</span>
+                  <span>{tUi("Moisture %", language)}</span>
+                  <span className="text-[10px] text-emerald-700 font-normal">{tUi("Max 17.0%", language)}</span>
                 </span>
                 <Input
                   type="number"
@@ -9686,7 +9690,7 @@ export default function Home() {
               </label>
 
               <label className="text-xs font-semibold text-slate-700">
-                <span>Net Weighed Qty (Quintals)</span>
+                <span>{tUi("Net Weighed Qty (Quintals)", language)}</span>
                 <Input
                   type="number"
                   step="0.01"
@@ -9699,8 +9703,8 @@ export default function Home() {
 
             <label className="text-xs font-semibold text-slate-700">
               <span className="flex items-center justify-between">
-                <span>Foreign Matter / Refraction %</span>
-                <span className="text-[10px] text-emerald-700 font-normal">Max 1.0%</span>
+                <span>{tUi("Foreign Matter / Refraction %", language)}</span>
+                <span className="text-[10px] text-emerald-700 font-normal">{tUi("Max 1.0%", language)}</span>
               </span>
               <Input
                 type="number"
@@ -9715,14 +9719,14 @@ export default function Home() {
               Inspection Remarks
               <Input
                 className="mt-1.5 text-xs"
-                placeholder="e.g. Grain sample inspected. Moisture and purity meet FAQ standards."
+                placeholder={tUi("e.g. Grain sample inspected. Moisture and purity meet FAQ standards.", language)}
                 value={qcForm.remarks}
                 onChange={e => setQcForm(f => ({ ...f, remarks: e.target.value }))}
               />
             </label>
 
             <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setShowQcModal(false)} className="text-xs">Cancel</Button>
+              <Button variant="outline" onClick={() => setShowQcModal(false)} className="text-xs">{tUi("Cancel", language)}</Button>
               <Button
                 disabled={qcSubmitting}
                 onClick={() => { void submitQcInspection(); }}
@@ -9741,7 +9745,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="FLEET & TRANSPORTATION MANAGEMENT"
-        title="Logistics & Transportation"
+        title={tUi("Logistics & Transportation", language)}
         body="Track and manage subsidized crop transportation from farmer pickup points to procurement centres, driver dispatch, live route mapping, and mandi arrivals."
         action={
           <ActionButton onClick={() => { if (officerToken) void loadOfficerTransport(officerToken); }} icon={LocateFixed}>
@@ -9818,7 +9822,7 @@ export default function Home() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search farmer, code, village, mandi..."
+            placeholder={tUi("Search farmer, code, village, mandi...", language)}
             value={transportSearchQuery}
             onChange={e => setTransportSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border bg-background text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:ring-2 focus:ring-emerald-600/30"
@@ -9835,7 +9839,7 @@ export default function Home() {
       <section className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
-            <span>Transport Requests</span>
+            <span>{tUi("Transport Requests", language)}</span>
             <span className="text-xs font-normal text-muted-foreground font-mono">
               ({officerLogisticsList.filter(t => {
                 const matchesStatus = transportFilterStatus === "ALL" || t.status === transportFilterStatus;
@@ -9879,8 +9883,8 @@ export default function Home() {
             return (
               <div className="p-10 text-center text-muted-foreground bg-card rounded-2xl border border-dashed flex flex-col items-center justify-center gap-2">
                 <Truck size={36} className="text-muted-foreground/40" />
-                <p className="text-sm font-semibold">No transport requests match your filter.</p>
-                <small className="text-xs text-muted-foreground">Try clearing your search query or selecting "All Trips".</small>
+                <p className="text-sm font-semibold">{tUi("No transport requests match your filter.", language)}</p>
+                <small className="text-xs text-muted-foreground">{tUi("Try clearing your search query or selecting \"All Trips\".", language)}</small>
               </div>
             );
           }
@@ -9917,7 +9921,7 @@ export default function Home() {
                             toast.success(`Copied ${t.transportCode}`);
                           }}
                           className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
-                          title="Copy Request Code"
+                          title={tUi("Copy Request Code", language)}
                         >
                           <Copy size={13} />
                         </button>
@@ -9990,7 +9994,7 @@ export default function Home() {
                     <div className="mt-1 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-800 flex items-start gap-2">
                       <MapPin size={15} className="text-emerald-700 shrink-0 mt-0.5" />
                       <div>
-                        <span className="text-[10px] text-muted-foreground uppercase font-bold block">Pickup Point</span>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold block">{tUi("Pickup Point", language)}</span>
                         <span className="text-xs font-bold text-foreground">{t.pickupVillage}</span>
                       </div>
                     </div>
@@ -10006,7 +10010,7 @@ export default function Home() {
                       <div className="flex items-start gap-2.5">
                         <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[9px] font-bold shadow-2xs">A</span>
                         <div className="min-w-0">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Origin Pickup</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">{tUi("Origin Pickup", language)}</span>
                           <span className="text-xs font-bold text-foreground truncate block">{t.pickupVillage}</span>
                         </div>
                       </div>
@@ -10022,7 +10026,7 @@ export default function Home() {
                       <div className="flex items-start gap-2.5">
                         <span className="w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 text-[9px] font-bold shadow-2xs">B</span>
                         <div className="min-w-0">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Destination Mandi</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">{tUi("Destination Mandi", language)}</span>
                           <span className="text-xs font-bold text-foreground truncate block">{t.destinationCentreName}</span>
                         </div>
                       </div>
@@ -10037,18 +10041,18 @@ export default function Home() {
                     <div className="space-y-2 flex-1 flex flex-col justify-between">
                       <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-800 space-y-1">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">📅 Scheduled Date:</span>
+                          <span className="text-muted-foreground">{tUi("📅 Scheduled Date:", language)}</span>
                           <b className="text-foreground">{t.scheduledDate}</b>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">⏰ Time Window:</span>
+                          <span className="text-muted-foreground">{tUi("⏰ Time Window:", language)}</span>
                           <b className="text-foreground">{t.timeSlot}</b>
                         </div>
                       </div>
                       <div className="p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/50 flex items-center justify-between">
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-400 block">Crop Load (Paddy)</span>
-                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Grain Cargo</span>
+                          <span className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-400 block">{tUi("Crop Load (Paddy)", language)}</span>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{tUi("Grain Cargo", language)}</span>
                         </div>
                         <span className="text-sm font-extrabold text-emerald-900 dark:text-emerald-300 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-emerald-300/80 shadow-2xs">
                           {t.estimatedLoadQuintals} Quintals
@@ -10082,7 +10086,7 @@ export default function Home() {
                       Govt 30% Subsidy: -₹{t.subsidyAmount.toFixed(2)}
                     </span>
                     <div className="flex items-baseline gap-1 pl-2 border-l border-emerald-300 dark:border-emerald-800">
-                      <span className="text-muted-foreground font-semibold">Farmer Net:</span>
+                      <span className="text-muted-foreground font-semibold">{tUi("Farmer Net:", language)}</span>
                       <span className="text-base font-extrabold text-emerald-900 dark:text-emerald-300 font-mono">
                         ₹{t.netPayable.toFixed(2)}
                       </span>
@@ -10094,7 +10098,7 @@ export default function Home() {
                 <div className="px-5 py-3 bg-slate-50/60 dark:bg-slate-900/30 border-t border-border/60 flex items-center justify-between flex-wrap gap-2.5">
                   <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
                     <LocateFixed size={14} className="text-emerald-700 shrink-0" />
-                    <span>Route: <b>{t.pickupVillage}</b> → <b>{t.destinationCentreName}</b> ({t.distanceKm} km)</span>
+                    <span>{tUi("Route:", language)} <b>{t.pickupVillage}</b> → <b>{t.destinationCentreName}</b> ({t.distanceKm} km)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -10103,7 +10107,7 @@ export default function Home() {
                       className="text-xs border-blue-600/80 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 font-bold shadow-2xs"
                       onClick={() => {
                         if (!t.pickupVillage || !t.destinationCentreName) {
-                          toast.error("Pickup village or destination mandi is missing for this booking.");
+                          toast.error(tUi("Pickup village or destination mandi is missing for this booking.", language));
                           return;
                         }
                         const opened = openGoogleMapsDirections({
@@ -10111,7 +10115,7 @@ export default function Home() {
                           destination: t.destinationCentreName,
                         }, (err) => toast.error(err));
                         if (opened) {
-                          toast.success("Opening Google Maps Directions in new tab...");
+                          toast.success(tUi("Opening Google Maps Directions in new tab...", language));
                         }
                       }}
                     >
@@ -10150,7 +10154,7 @@ export default function Home() {
                     Live Logistics Route & GPS Tracker
                   </h3>
                   <small className="text-xs text-muted-foreground">
-                    Trip: <b>{viewingTransportRouteItem.transportCode}</b> · Assigned Driver: <b>{viewingTransportRouteItem.driverName}</b> ({viewingTransportRouteItem.vehicleNumber})
+                    Trip: <b>{viewingTransportRouteItem.transportCode}</b> {tUi("· Assigned Driver:", language)} <b>{viewingTransportRouteItem.driverName}</b> ({viewingTransportRouteItem.vehicleNumber})
                   </small>
                 </div>
               </div>
@@ -10162,7 +10166,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[10px]">1</span>
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase">Logistics Unit / Hub</span>
+                  <span className="text-[10px] text-slate-400 block uppercase">{tUi("Logistics Unit / Hub", language)}</span>
                   <b>{driverGps.isLive ? "Live Driver GPS (Active)" : "Guntur Transport Hub"}</b>
                 </div>
               </div>
@@ -10170,7 +10174,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px]">2</span>
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase">Farmer Pickup</span>
+                  <span className="text-[10px] text-slate-400 block uppercase">{tUi("Farmer Pickup", language)}</span>
                   <b>{viewingTransportRouteItem.pickupVillage} ({viewingTransportRouteItem.farmerName})</b>
                 </div>
               </div>
@@ -10178,7 +10182,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-[10px]">3</span>
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase">Procurement Mandi</span>
+                  <span className="text-[10px] text-slate-400 block uppercase">{tUi("Procurement Mandi", language)}</span>
                   <b>{viewingTransportRouteItem.destinationCentreName}</b>
                 </div>
               </div>
@@ -10197,19 +10201,19 @@ export default function Home() {
               </div>
               <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
                 <div>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">Pickup Origin</span>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">{tUi("Pickup Origin", language)}</span>
                   <b className="text-foreground">{viewingTransportRouteItem.pickupVillage}</b>
                 </div>
                 <span className="text-muted-foreground font-bold hidden sm:inline">→</span>
                 <div>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">Destination Mandi</span>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">{tUi("Destination Mandi", language)}</span>
                   <b className="text-foreground">{viewingTransportRouteItem.destinationCentreName}</b>
                 </div>
                 <Button
                   size="sm"
                   onClick={() => {
                     if (!viewingTransportRouteItem.pickupVillage || !viewingTransportRouteItem.destinationCentreName) {
-                      toast.error("Pickup village or destination mandi is missing.");
+                      toast.error(tUi("Pickup village or destination mandi is missing.", language));
                       return;
                     }
                     openGoogleMapsDirections({
@@ -10225,15 +10229,15 @@ export default function Home() {
             </div>           {/* Metrics Breakdown */}
             <div className="grid grid-cols-3 gap-3 text-xs bg-slate-50 p-3 rounded-xl border">
               <div>
-                <span className="text-muted-foreground block text-[11px]">Total Road Distance</span>
+                <span className="text-muted-foreground block text-[11px]">{tUi("Total Road Distance", language)}</span>
                 <b className="text-sm text-slate-900">{viewingTransportRouteItem.distanceKm} km</b>
               </div>
               <div>
-                <span className="text-muted-foreground block text-[11px]">Estimated Travel Time</span>
+                <span className="text-muted-foreground block text-[11px]">{tUi("Estimated Travel Time", language)}</span>
                 <b className="text-sm text-emerald-800">~{Math.round(viewingTransportRouteItem.distanceKm * 2.2)} mins</b>
               </div>
               <div>
-                <span className="text-muted-foreground block text-[11px]">Trip Status</span>
+                <span className="text-muted-foreground block text-[11px]">{tUi("Trip Status", language)}</span>
                 <Pill kind={viewingTransportRouteItem.status === "DELIVERED_AT_CENTRE" ? "green" : "blue"}>
                   {(viewingTransportRouteItem.status || "REQUESTED").replaceAll("_", " ")}
                 </Pill>
@@ -10246,7 +10250,7 @@ export default function Home() {
                 size="sm"
                 onClick={() => {
                   if (!viewingTransportRouteItem.pickupVillage || !viewingTransportRouteItem.destinationCentreName) {
-                    toast.error("Pickup or destination location is missing.");
+                    toast.error(tUi("Pickup or destination location is missing.", language));
                     return;
                   }
                   openGoogleMapsDirections({
@@ -10284,7 +10288,7 @@ export default function Home() {
                       farmerNetPayable: viewingTransportRouteItem.netPayable,
                       status: viewingTransportRouteItem.status,
                     });
-                    toast.success("Subsidized Transport Pass PDF downloaded.");
+                    toast.success(tUi("Subsidized Transport Pass PDF downloaded.", language));
                   }}
                 >
                   <Download size={14} className="mr-1.5" /> Download Pass PDF
@@ -10315,9 +10319,9 @@ export default function Home() {
           <div className="bg-background rounded-xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-[#143e2b]">Update Logistics Status</h3>
+                <h3 className="text-lg font-bold text-[#143e2b]">{tUi("Update Logistics Status", language)}</h3>
                 <p className="text-xs text-muted-foreground">
-                  Transport: <b>{selectedTransportItem.transportCode}</b> · Farmer: <b>{selectedTransportItem.farmerName || "Farmer details unavailable"}</b>
+                  Transport: <b>{selectedTransportItem.transportCode}</b> {tUi("· Farmer:", language)} <b>{selectedTransportItem.farmerName || "Farmer details unavailable"}</b>
                 </p>
               </div>
               <button onClick={() => setShowTransportModal(false)}><X size={18} /></button>
@@ -10330,16 +10334,16 @@ export default function Home() {
                 value={transportUpdateStatus}
                 onChange={e => setTransportUpdateStatus(e.target.value as typeof transportUpdateStatus)}
               >
-                <option value="REQUESTED">REQUESTED (New Booking)</option>
-                <option value="ASSIGNED">ASSIGNED (Driver & Vehicle Allocated)</option>
-                <option value="IN_TRANSIT">IN TRANSIT (Pickup Scheduled / Picked Up)</option>
-                <option value="DELIVERED_AT_CENTRE">DELIVERED AT CENTRE (Arrived at Mandi)</option>
-                <option value="CANCELLED">CANCELLED</option>
+                <option value="REQUESTED">{tUi("REQUESTED (New Booking)", language)}</option>
+                <option value="ASSIGNED">{tUi("ASSIGNED (Driver & Vehicle Allocated)", language)}</option>
+                <option value="IN_TRANSIT">{tUi("IN TRANSIT (Pickup Scheduled / Picked Up)", language)}</option>
+                <option value="DELIVERED_AT_CENTRE">{tUi("DELIVERED AT CENTRE (Arrived at Mandi)", language)}</option>
+                <option value="CANCELLED">{tUi("CANCELLED", language)}</option>
               </select>
             </label>
 
             <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="outline" onClick={() => setShowTransportModal(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setShowTransportModal(false)}>{tUi("Cancel", language)}</Button>
               <Button onClick={() => { void updateLogisticsStatus(); }} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold">
                 Save & Notify Farmer
               </Button>
@@ -10375,7 +10379,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="GOVERNMENT DECLARED MSP & CROP RATES"
-        title="Official Crop Minimum Support Prices (MSP)"
+        title={tUi("Official Crop Minimum Support Prices (MSP)", language)}
         body="Notified by the Ministry of Agriculture & Farmers Welfare, Govt of India (Kharif & Rabi 2025-26) with Telangana State bonus incentives."
         action={
           <ActionButton onClick={() => navigate("paddy")} icon={ArrowRight}>
@@ -10401,13 +10405,13 @@ export default function Home() {
             <div className="flex items-center gap-1.5">
               <CalendarDays size={14} className="text-emerald-300 shrink-0" />
               <span>
-                <b>Official Publication Date:</b>{" "}
+                <b>{tUi("Official Publication Date:", language)}</b>{" "}
                 {mspMetadata?.officialPublishedDate ? (
                   <span className="text-emerald-200 font-bold">
                     {mspMetadata.officialPublishedDate} (Effective from: {mspMetadata.effectiveFrom || "01-Oct-2025"})
                   </span>
                 ) : (
-                  <span className="text-emerald-300/80 italic">Publication date unavailable</span>
+                  <span className="text-emerald-300/80 italic">{tUi("Publication date unavailable", language)}</span>
                 )}
               </span>
             </div>
@@ -10415,7 +10419,7 @@ export default function Home() {
             <div className="flex items-center gap-1.5">
               <Clock3 size={14} className="text-emerald-300 shrink-0" />
               <span>
-                <b>Last synced:</b>{" "}
+                <b>{tUi("Last synced:", language)}</b>{" "}
                 <span className="text-emerald-200 font-bold">
                   {formatIndianDateTime(mspMetadata?.lastSynchronizedAt || new Date())}
                 </span>
@@ -10433,7 +10437,7 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
           className="group inline-flex items-center justify-between sm:justify-start gap-3 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-emerald-300 text-white transition-all shadow-xs hover:shadow-md shrink-0 focus:outline-hidden"
-          title="Open official Directorate of Economics & Statistics MSP notifications portal"
+          title={tUi("Open official Directorate of Economics & Statistics MSP notifications portal", language)}
         >
           <div className="text-left">
             <div className="text-xs font-black tracking-wide flex items-center gap-1.5 text-white">
@@ -10463,7 +10467,7 @@ export default function Home() {
           <Search />
           <input
             type="text"
-            placeholder="Search crop or variety..."
+            placeholder={tUi("Search crop or variety...", language)}
             value={cropSearchQuery}
             onChange={e => setCropSearchQuery(e.target.value)}
           />
@@ -10503,28 +10507,28 @@ export default function Home() {
 
                     <div className="crop-pricing-rows">
                       <div>
-                        <span className="text-muted-foreground">Declared MSP</span>
+                        <span className="text-muted-foreground">{tUi("Declared MSP", language)}</span>
                         <strong className="text-foreground">₹{item.mspPerQuintal.toLocaleString("en-IN")} / qtl</strong>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Mandi Open Market Rate</span>
+                        <span className="text-muted-foreground">{tUi("Mandi Open Market Rate", language)}</span>
                         <span className="text-slate-500">₹{item.marketRatePerQuintal.toLocaleString("en-IN")} / qtl</span>
                       </div>
                       <div>
-                        <span className="text-emerald-700 font-semibold">Govt Bonus</span>
+                        <span className="text-emerald-700 font-semibold">{tUi("Govt Bonus", language)}</span>
                         <strong className="text-emerald-700 font-bold">+₹{item.govtBonusPerQuintal} / qtl</strong>
                       </div>
                     </div>
 
                     <div className="effective-rate-pill mt-3">
-                      <span className="text-xs font-bold text-emerald-800">Effective Rate</span>
-                      <strong>₹{item.effectiveRatePerQuintal.toLocaleString("en-IN")} <small className="text-xs font-normal">/ qtl</small></strong>
+                      <span className="text-xs font-bold text-emerald-800">{tUi("Effective Rate", language)}</span>
+                      <strong>₹{item.effectiveRatePerQuintal.toLocaleString("en-IN")} <small className="text-xs font-normal">{tUi("/ qtl", language)}</small></strong>
                     </div>
                   </div>
                 </div>
 
                 <div className="crop-card-footer px-4 pb-4 pt-2">
-                  <span>Max Moisture: <b>{item.maxMoisturePercent}%</b></span>
+                  <span>{tUi("Max Moisture:", language)} <b>{item.maxMoisturePercent}%</b></span>
                   <button
                     className="text-emerald-700 font-extrabold hover:underline"
                     onClick={() => {
@@ -10541,11 +10545,11 @@ export default function Home() {
         </div>
 
         <aside className="msp-calc-aside">
-          <Pill kind="yellow">MSP VALUATION CALCULATOR</Pill>
-          <h3 className="mt-2">Estimate your crop revenue</h3>
-          <p className="text-xs text-muted-foreground mb-4">Calculate total guaranteed payment at official government rates.</p>
+          <Pill kind="yellow">{tUi("MSP VALUATION CALCULATOR", language)}</Pill>
+          <h3 className="mt-2">{tUi("Estimate your crop revenue", language)}</h3>
+          <p className="text-xs text-muted-foreground mb-4">{tUi("Calculate total guaranteed payment at official government rates.", language)}</p>
 
-          <label className="text-xs font-bold block mb-1">Select Crop & Variety</label>
+          <label className="text-xs font-bold block mb-1">{tUi("Select Crop & Variety", language)}</label>
           <select
             className="w-full h-10 px-3 rounded-lg border bg-background text-xs font-semibold mb-3"
             value={calcCropVariety}
@@ -10558,7 +10562,7 @@ export default function Home() {
             ))}
           </select>
 
-          <label className="text-xs font-bold block mb-1">Estimated Load (Quintals)</label>
+          <label className="text-xs font-bold block mb-1">{tUi("Estimated Load (Quintals)", language)}</label>
           <Input
             type="number"
             min="1"
@@ -10571,18 +10575,18 @@ export default function Home() {
           {calcValuation && (
             <div className="calc-result-box">
               <div className="flex justify-between text-xs mb-1">
-                <span>Base MSP Value:</span>
+                <span>{tUi("Base MSP Value:", language)}</span>
                 <b>₹{calcValuation.mspBase.toLocaleString("en-IN")}</b>
               </div>
               <div className="flex justify-between text-xs mb-1 text-emerald-700">
-                <span>Govt Bonus Incentive:</span>
+                <span>{tUi("Govt Bonus Incentive:", language)}</span>
                 <b>+₹{calcValuation.bonus.toLocaleString("en-IN")}</b>
               </div>
               <div className="border-t border-emerald-300 pt-2 mt-2 flex justify-between items-baseline">
-                <span className="text-xs font-bold text-emerald-900">Total Guaranteed:</span>
+                <span className="text-xs font-bold text-emerald-900">{tUi("Total Guaranteed:", language)}</span>
                 <span className="grand-total">₹{calcValuation.grand.toLocaleString("en-IN")}</span>
               </div>
-              <small className="text-[10px] text-muted-foreground block mt-1">100% credited via direct bank transfer (DBT).</small>
+              <small className="text-[10px] text-muted-foreground block mt-1">{tUi("100% credited via direct bank transfer (DBT).", language)}</small>
             </div>
           )}
 
@@ -10640,10 +10644,10 @@ export default function Home() {
                 transportSubsidySavedRupees: farmerAnalyticsData?.summary?.transportLogistics?.subsidySaved ?? 450,
                 statementPeriod: "Kharif Marketing Season 2025-26",
               });
-              toast.success("Procurement Statement downloaded as PDF.");
+              toast.success(tUi("Procurement Statement downloaded as PDF.", language));
             } catch (err) {
               console.error(err);
-              toast.error("Failed to generate statement PDF");
+              toast.error(tUi("Failed to generate statement PDF", language));
             }
           }}
           secondary
@@ -10692,9 +10696,9 @@ export default function Home() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-extrabold text-foreground m-0">{tUi("Procurement Volume by Crop", language)}</h3>
-              <span className="text-[11px] text-muted-foreground">Quantity in Quintals per crop</span>
+              <span className="text-[11px] text-muted-foreground">{tUi("Quantity in Quintals per crop", language)}</span>
             </div>
-            <Pill kind="green">Kharif 2025-26</Pill>
+            <Pill kind="green">{tUi("Kharif 2025-26", language)}</Pill>
           </div>
           {(() => {
             const cropData = (farmerAnalyticsData?.cropBreakdown && farmerAnalyticsData.cropBreakdown.length > 0)
@@ -10747,9 +10751,9 @@ export default function Home() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-extrabold text-foreground m-0">{tUi("Harvest Processing Pipeline", language)}</h3>
-              <span className="text-[11px] text-muted-foreground">Procurement stage distribution</span>
+              <span className="text-[11px] text-muted-foreground">{tUi("Procurement stage distribution", language)}</span>
             </div>
-            <Pill kind="blue">Workflow</Pill>
+            <Pill kind="blue">{tUi("Workflow", language)}</Pill>
           </div>
           {(() => {
             const workflowData = [
@@ -10787,9 +10791,9 @@ export default function Home() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-extrabold text-foreground m-0">{tUi("Fleet Transportation Analytics", language)}</h3>
-              <span className="text-[11px] text-muted-foreground">Trips by transit status</span>
+              <span className="text-[11px] text-muted-foreground">{tUi("Trips by transit status", language)}</span>
             </div>
-            <Pill kind="green">30% Subsidy</Pill>
+            <Pill kind="green">{tUi("30% Subsidy", language)}</Pill>
           </div>
           {(() => {
             const requested = transportBookingsList.filter(t => t.status === "REQUESTED").length;
@@ -10836,7 +10840,7 @@ export default function Home() {
         <div className="analytics-chart-card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-extrabold text-foreground">{tUi("Crop Variety Breakdown", language)}</h3>
-            <Pill kind="blue">Kharif 2025-26</Pill>
+            <Pill kind="blue">{tUi("Kharif 2025-26", language)}</Pill>
           </div>
           {(farmerAnalyticsData?.cropBreakdown && farmerAnalyticsData.cropBreakdown.length > 0 ? farmerAnalyticsData.cropBreakdown : [
             { variety: "Common Paddy — Grade A", quantityQuintals: 18.0, bookingCount: 1, earnings: 41400 },
@@ -10857,14 +10861,14 @@ export default function Home() {
         <div className="analytics-chart-card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-extrabold text-foreground">{tUi("Transport Logistics Savings", language)}</h3>
-            <Pill kind="green">30% Govt Subsidy</Pill>
+            <Pill kind="green">{tUi("30% Govt Subsidy", language)}</Pill>
           </div>
           <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-900/60 mb-4">
             <div className="text-xs text-muted-foreground font-semibold">{tUi("Logistics Subsidy Saved", language)}</div>
             <strong className="text-2xl text-emerald-800 dark:text-emerald-300 font-extrabold font-mono">
               ₹{(farmerAnalyticsData?.summary.transportLogistics.subsidySaved ?? 180).toLocaleString("en-IN")}
             </strong>
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1 font-medium">Telangana Rythu Ratha / PMKSY Transport Scheme</p>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1 font-medium">{tUi("Telangana Rythu Ratha / PMKSY Transport Scheme", language)}</p>
           </div>
           <div className="flex justify-between text-xs py-2 border-b">
             <span className="text-muted-foreground">{tUi("Total Transport Trips:", language)}</span>
@@ -10883,7 +10887,7 @@ export default function Home() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
             <div className="flex items-center gap-2">
-              <Pill kind="green">OFFICIAL AGMARKNET TIME-SERIES</Pill>
+              <Pill kind="green">{tUi("OFFICIAL AGMARKNET TIME-SERIES", language)}</Pill>
               <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
                 Direct Mandi Observations
               </span>
@@ -10925,14 +10929,14 @@ export default function Home() {
         {cropTrendData && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/70 dark:border-slate-800">
             <div>
-              <span className="text-[11px] text-muted-foreground font-semibold block">Latest Modal Rate</span>
+              <span className="text-[11px] text-muted-foreground font-semibold block">{tUi("Latest Modal Rate", language)}</span>
               <strong className="text-base sm:text-lg font-black text-[#0f2d1e] dark:text-white">
-                ₹{cropTrendData.latestPrice.toLocaleString("en-IN")} <small className="text-xs font-normal">/ Qtl</small>
+                ₹{cropTrendData.latestPrice.toLocaleString("en-IN")} <small className="text-xs font-normal">{tUi("/ Qtl", language)}</small>
               </strong>
             </div>
 
             <div>
-              <span className="text-[11px] text-muted-foreground font-semibold block">Trend Direction</span>
+              <span className="text-[11px] text-muted-foreground font-semibold block">{tUi("Trend Direction", language)}</span>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {cropTrendData.trend === "UP" ? (
                   <span className="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-100/80 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
@@ -10951,14 +10955,14 @@ export default function Home() {
             </div>
 
             <div>
-              <span className="text-[11px] text-muted-foreground font-semibold block">2-Month Change</span>
+              <span className="text-[11px] text-muted-foreground font-semibold block">{tUi("2-Month Change", language)}</span>
               <strong className={`text-base font-black ${cropTrendData.percentageChange > 0 ? "text-emerald-700 dark:text-emerald-400" : cropTrendData.percentageChange < 0 ? "text-red-600 dark:text-red-400" : "text-slate-700"}`}>
                 {cropTrendData.percentageChange > 0 ? `+${cropTrendData.percentageChange}%` : `${cropTrendData.percentageChange}%`}
               </strong>
             </div>
 
             <div>
-              <span className="text-[11px] text-muted-foreground font-semibold block">Coverage Period</span>
+              <span className="text-[11px] text-muted-foreground font-semibold block">{tUi("Coverage Period", language)}</span>
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate" title={cropTrendData.coveragePeriod}>
                 📅 {cropTrendData.coveragePeriod}
               </span>
@@ -10970,7 +10974,7 @@ export default function Home() {
         {cropTrendLoading ? (
           <div className="h-64 flex flex-col items-center justify-center text-xs text-muted-foreground gap-2">
             <RefreshCw size={22} className="animate-spin text-emerald-600" />
-            <span>Loading historical AGMARKNET trend data…</span>
+            <span>{tUi("Loading historical AGMARKNET trend data…", language)}</span>
           </div>
         ) : cropTrendData && cropTrendData.points.length > 0 ? (
           <div className="h-72 w-full pt-1">
@@ -11028,15 +11032,15 @@ export default function Home() {
         ) : (
           <div className="h-56 flex flex-col items-center justify-center text-center p-4 bg-muted/20 rounded-xl border border-dashed text-xs text-muted-foreground">
             <Wheat size={28} className="text-muted-foreground/40 mb-1" />
-            <b>No records for this commodity</b>
-            <span>Historical market reporting records will appear here as mandis submit sessions.</span>
+            <b>{tUi("No records for this commodity", language)}</b>
+            <span>{tUi("Historical market reporting records will appear here as mandis submit sessions.", language)}</span>
           </div>
         )}
 
         {/* Footer Notes & Data Attribution */}
         <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span>
-            <b>Official Data Source:</b> {cropTrendData?.dataSource || "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)"}
+            <b>{tUi("Official Data Source:", language)}</b> {cropTrendData?.dataSource || "AGMARKNET (Ministry of Agriculture & Farmers Welfare, GoI)"}
           </span>
           {cropTrendData?.coverageNotice && (
             <span className="text-emerald-700 dark:text-emerald-400 font-medium">
@@ -11050,7 +11054,7 @@ export default function Home() {
       <div className="statement-table-card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-[#183d2e] dark:text-emerald-400 m-0">{tUi("Harvest Delivery Statements", language)}</h3>
-          <span className="text-xs text-muted-foreground">Verified database records</span>
+          <span className="text-xs text-muted-foreground">{tUi("Verified database records", language)}</span>
         </div>
         <table className="procure-table">
           <thead>
@@ -11120,13 +11124,13 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="CROP TRANSPORTATION & LOGISTICS"
-        title="Subsidized Farm-to-Mandi Transportation"
+        title={tUi("Subsidized Farm-to-Mandi Transportation", language)}
         body="Book dedicated transport directly to your procurement centre with 30% Telangana Rythu Ratha State Logistics Subsidy."
       />
 
       <div className="transport-layout">
         <div>
-          <label className="text-xs font-bold block mb-1">1. Choose Vehicle Type</label>
+          <label className="text-xs font-bold block mb-1">{tUi("1. Choose Vehicle Type", language)}</label>
           <div className="vehicle-selector-grid">
             {[
               { type: "TRACTOR_TROLLEY", name: "Tractor Trolley", cap: "30–50 Quintals", rate: "₹18/km", icon: Tractor, note: "Ideal for village farm paths" },
@@ -11148,7 +11152,7 @@ export default function Home() {
           </div>
 
           <div className="transport-form-card">
-            <h3 className="text-base font-bold text-[#183d2e] mb-3">2. Pickup & Destination Details</h3>
+            <h3 className="text-base font-bold text-[#183d2e] mb-3">{tUi("2. Pickup & Destination Details", language)}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <label className="text-xs font-bold">
                 Pickup Village
@@ -11189,10 +11193,10 @@ export default function Home() {
                   value={transportForm.timeSlot}
                   onChange={e => setTransportForm(f => ({ ...f, timeSlot: e.target.value }))}
                 >
-                  <option>07:00 AM – 10:00 AM</option>
-                  <option>10:00 AM – 01:00 PM</option>
-                  <option>01:00 PM – 04:00 PM</option>
-                  <option>04:00 PM – 07:00 PM</option>
+                  <option>{tUi("07:00 AM – 10:00 AM", language)}</option>
+                  <option>{tUi("10:00 AM – 01:00 PM", language)}</option>
+                  <option>{tUi("01:00 PM – 04:00 PM", language)}</option>
+                  <option>{tUi("04:00 PM – 07:00 PM", language)}</option>
                 </select>
               </label>
               <label className="text-xs font-bold">
@@ -11208,19 +11212,19 @@ export default function Home() {
 
             <div className="fare-estimate-box">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-muted-foreground">Estimated Distance:</span>
+                <span className="text-xs text-muted-foreground">{tUi("Estimated Distance:", language)}</span>
                 <b>{calculatedFare.distNum} km</b>
               </div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-muted-foreground">Standard Transit Fare:</span>
+                <span className="text-xs text-muted-foreground">{tUi("Standard Transit Fare:", language)}</span>
                 <span>₹{calculatedFare.baseFare.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center mb-2 text-emerald-700">
-                <span className="subsidy-badge"><Check size={12} /> 30% Govt Transport Subsidy</span>
+                <span className="subsidy-badge"><Check size={12} /> {tUi("30% Govt Transport Subsidy", language)}</span>
                 <b>-₹{calculatedFare.subsidy.toFixed(2)}</b>
               </div>
               <div className="flex justify-between items-baseline pt-2 border-t border-emerald-200">
-                <span className="text-sm font-extrabold text-emerald-950">Net Payable on Delivery:</span>
+                <span className="text-sm font-extrabold text-emerald-950">{tUi("Net Payable on Delivery:", language)}</span>
                 <strong className="text-xl text-emerald-800 font-extrabold">₹{calculatedFare.netPayable.toFixed(2)}</strong>
               </div>
             </div>
@@ -11239,7 +11243,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <Navigation size={16} className="text-blue-600 shrink-0" />
                 <div>
-                  <span className="font-bold text-slate-800 block">External Route Navigation</span>
+                  <span className="font-bold text-slate-800 block">{tUi("External Route Navigation", language)}</span>
                   <span className="text-[11px] text-muted-foreground">
                     Driving route via Google Maps with real-time road directions
                   </span>
@@ -11252,7 +11256,7 @@ export default function Home() {
                 onClick={() => {
                   const destName = apiCentres.find(c => c.id === transportForm.destinationCentreId)?.name ?? "Guntur Agricultural Market Yard";
                   if (!transportForm.pickupVillage) {
-                    toast.error("Please enter a pickup village name to preview driving route.");
+                    toast.error(tUi("Please enter a pickup village name to preview driving route.", language));
                     return;
                   }
                   openGoogleMapsDirections({
@@ -11271,7 +11275,7 @@ export default function Home() {
         <aside>
           <div className="transport-history-card">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-[#183d2e] m-0">Active Vehicle Bookings</h3>
+              <h3 className="text-base font-bold text-[#183d2e] m-0">{tUi("Active Vehicle Bookings", language)}</h3>
               <Pill kind="green">{transportBookingsList.length} Booked</Pill>
             </div>
 
@@ -11336,7 +11340,7 @@ export default function Home() {
                               farmerNetPayable: item.netPayable,
                               status: item.status,
                             });
-                            toast.success("Subsidized Transport Pass PDF downloaded.");
+                            toast.success(tUi("Subsidized Transport Pass PDF downloaded.", language));
                           }}
                           className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 mt-1 underline"
                         >
@@ -11347,7 +11351,7 @@ export default function Home() {
                           variant="outline"
                           onClick={() => {
                             if (!item.pickupVillage || !item.destinationCentreName) {
-                              toast.error("Pickup village or destination mandi is missing for this booking.");
+                              toast.error(tUi("Pickup village or destination mandi is missing for this booking.", language));
                               return;
                             }
                             const opened = openGoogleMapsDirections({
@@ -11355,7 +11359,7 @@ export default function Home() {
                               destination: item.destinationCentreName,
                             }, (err) => toast.error(err));
                             if (opened) {
-                              toast.success("Opening Google Maps Directions in new tab...");
+                              toast.success(tUi("Opening Google Maps Directions in new tab...", language));
                             }
                           }}
                           className="h-8 px-2 text-[11px] font-bold border-blue-600 text-blue-800 hover:bg-blue-50 mt-1 shadow-2xs"
@@ -11372,13 +11376,13 @@ export default function Home() {
                           <X size={13} /> Transportation Cancelled
                         </span>
                       ) : isOngoing ? (
-                        <span className="text-slate-500 font-medium">Trip dispatched / completed</span>
+                        <span className="text-slate-500 font-medium">{tUi("Trip dispatched / completed", language)}</span>
                       ) : cStatus.expired ? (
-                        <span className="text-slate-400">Cancellation window expired (available for 30 mins from booking creation)</span>
+                        <span className="text-slate-400">{tUi("Cancellation window expired (available for 30 mins from booking creation)", language)}</span>
                       ) : (
                         <>
                           <span className="text-amber-700 font-medium flex items-center gap-1">
-                            <Clock3 size={13} /> Can cancel until: <b className="font-bold">{cStatus.deadlineFormatted} ({cStatus.text} left)</b>
+                            <Clock3 size={13} /> {tUi("Can cancel until:", language)} <b className="font-bold">{cStatus.deadlineFormatted} ({cStatus.text} left)</b>
                           </span>
                           <button
                             type="button"
@@ -11428,7 +11432,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="FARMER ACTIVITY TIMELINE"
-        title="Procurement & Service History"
+        title={tUi("Procurement & Service History", language)}
         body="Track all your government slot bookings, mandi arrivals, subsidized transportation, and direct benefit payments in one place."
         action={
           <button
@@ -11450,7 +11454,7 @@ export default function Home() {
             <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <CalendarDays size={16} />
             </span>
-            <span className="text-xs font-bold text-slate-500">Slot Bookings</span>
+            <span className="text-xs font-bold text-slate-500">{tUi("Slot Bookings", language)}</span>
           </div>
           <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100">
             {farmerHistoryData?.summary.totalBookings ?? 0}
@@ -11465,7 +11469,7 @@ export default function Home() {
             <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
               <Truck size={16} />
             </span>
-            <span className="text-xs font-bold text-slate-500">Transportation</span>
+            <span className="text-xs font-bold text-slate-500">{tUi("Transportation", language)}</span>
           </div>
           <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100">
             {farmerHistoryData?.summary.totalTransport ?? 0}
@@ -11480,7 +11484,7 @@ export default function Home() {
             <span className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
               <WalletCards size={16} />
             </span>
-            <span className="text-xs font-bold text-slate-500">DBT Payouts</span>
+            <span className="text-xs font-bold text-slate-500">{tUi("DBT Payouts", language)}</span>
           </div>
           <div className="text-xl font-extrabold text-emerald-800 dark:text-emerald-400">
             ₹{(farmerHistoryData?.summary.totalPaidAmount ?? 0).toLocaleString("en-IN")}
@@ -11495,7 +11499,7 @@ export default function Home() {
             <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
               <CheckCircle2 size={16} />
             </span>
-            <span className="text-xs font-bold text-slate-500">Aadhaar DBT</span>
+            <span className="text-xs font-bold text-slate-500">{tUi("Aadhaar DBT", language)}</span>
           </div>
           <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100 truncate">
             {profileRecord?.farmerCode || "Verified"}
@@ -11539,7 +11543,7 @@ export default function Home() {
             type="text"
             value={historySearchQuery}
             onChange={e => setHistorySearchQuery(e.target.value)}
-            placeholder="Search bookings, crops, transport, payments..."
+            placeholder={tUi("Search bookings, crops, transport, payments...", language)}
             className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all"
           />
           {historySearchQuery && (
@@ -11559,7 +11563,7 @@ export default function Home() {
         {historyLoading && !farmerHistoryData ? (
           <div className="py-12 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
             <LoaderCircle className="animate-spin mx-auto text-emerald-700 mb-2" size={32} />
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Loading your verified procurement history…</p>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{tUi("Loading your verified procurement history…", language)}</p>
           </div>
         ) : filteredTimeline.length === 0 ? (
           <div className="py-12 px-4 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
@@ -11642,7 +11646,7 @@ export default function Home() {
                         className="w-12 h-12 rounded-xl object-cover shrink-0"
                       />
                       <div className="min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Crop & Variety</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">{tUi("Crop & Variety", language)}</span>
                         <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{item.crop}</div>
                         <span className="text-slate-500 font-semibold">{item.quantity} Quintals expected</span>
                       </div>
@@ -11650,14 +11654,14 @@ export default function Home() {
 
                     {/* Centre & Location */}
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Procurement Centre</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{tUi("Procurement Centre", language)}</span>
                       <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{item.centre || "Assigned Centre"}</div>
                       <span className="text-slate-500">📅 {item.date || "Date scheduled"} {item.timeSlot ? `· ${item.timeSlot}` : ""}</span>
                     </div>
 
                     {/* Token & Queue */}
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Queue Token & Status</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{tUi("Queue Token & Status", language)}</span>
                       <div className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
                         <Ticket size={13} /> {item.tokenNumber || "Token Generated"}
                       </div>
@@ -11736,19 +11740,19 @@ export default function Home() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl mb-3 text-xs">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Vehicle & Load</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{tUi("Vehicle & Load", language)}</span>
                       <div className="font-bold text-slate-900 dark:text-slate-100">{t.vehicleType?.replaceAll("_", " ")}</div>
                       <span className="text-slate-500">Cap: {t.estimatedLoadQuintals} Quintals load</span>
                     </div>
 
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Route & Schedule</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{tUi("Route & Schedule", language)}</span>
                       <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{t.pickupVillage} → {t.destinationCentre}</div>
                       <span className="text-slate-500">📅 {t.scheduledDate} · {t.timeSlot}</span>
                     </div>
 
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned Driver</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{tUi("Assigned Driver", language)}</span>
                       <div className="font-bold text-slate-900 dark:text-slate-100">{t.driverName}</div>
                       <span className="text-slate-500 font-mono text-[11px]">{t.vehicleNumber}</span>
                     </div>
@@ -11756,7 +11760,7 @@ export default function Home() {
 
                   <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-500">Net Fare:</span>
+                      <span className="text-slate-500">{tUi("Net Fare:", language)}</span>
                       <strong className="text-emerald-800 dark:text-emerald-400 font-bold">₹{Number(t.netPayable).toFixed(2)}</strong>
                       <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">
                         30% Govt Subsidy Applied
@@ -11811,19 +11815,19 @@ export default function Home() {
 
                   <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl mb-2 flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase block tracking-wider">Transferred Payout</span>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase block tracking-wider">{tUi("Transferred Payout", language)}</span>
                       <div className="text-xl font-black text-emerald-900 dark:text-emerald-300">
                         ₹{Number(item.amount).toLocaleString("en-IN")}
                       </div>
                     </div>
                     <div className="text-right text-xs">
-                      <span className="text-[10px] text-slate-400 block">Payment Mode</span>
+                      <span className="text-[10px] text-slate-400 block">{tUi("Payment Mode", language)}</span>
                       <b className="text-slate-800 dark:text-slate-200">{item.paymentMethod || "Aadhaar DBT / NEFT"}</b>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                    <span>Related Booking: <code className="font-mono text-slate-700 dark:text-slate-300">{p.bookingCode || "Mandi Procurement"}</code></span>
+                    <span>{tUi("Related Booking:", language)} <code className="font-mono text-slate-700 dark:text-slate-300">{p.bookingCode || "Mandi Procurement"}</code></span>
                     <span className="text-emerald-700 font-semibold flex items-center gap-1">
                       <CheckCircle2 size={12} /> Aadhaar DBT Verified
                     </span>
@@ -11843,7 +11847,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="HEAD OFFICER GOVERNANCE · STAFF ONBOARDING"
-        title="Department Staff Governance & Access Control"
+        title={tUi("Department Staff Governance & Access Control", language)}
         body="Verify new employee onboarding requests, assign departmental roles and branch centres, provision secure Login IDs, and review system audit logs."
         action={
           <ActionButton onClick={() => setShowAddStaffModal(true)} icon={UserPlus}>
@@ -11927,8 +11931,8 @@ export default function Home() {
                 <span className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
                   <CheckCircle2 size={24} />
                 </span>
-                <h3 className="text-base font-bold text-slate-800 mb-1">No Pending Staff Verification Requests</h3>
-                <p className="text-xs text-slate-500 max-w-md">All onboarding applications have been verified. Click "+ Onboard New Employee" to register new staff joining a branch.</p>
+                <h3 className="text-base font-bold text-slate-800 mb-1">{tUi("No Pending Staff Verification Requests", language)}</h3>
+                <p className="text-xs text-slate-500 max-w-md">{tUi("All onboarding applications have been verified. Click \"+ Onboard New Employee\" to register new staff joining a branch.", language)}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -11949,10 +11953,10 @@ export default function Home() {
                           </Badge>
                         </div>
                         <div className="text-xs text-slate-600 flex flex-wrap items-center gap-x-4 gap-y-1">
-                          <span>🏢 <b>Dept:</b> {staff.department} ({staff.designation || "Staff"})</span>
-                          <span>📍 <b>Branch:</b> {staff.branch} ({staff.centreName || staff.district})</span>
-                          <span>📞 <b>Phone:</b> {staff.phone || "—"}</span>
-                          <span>✉️ <b>Email:</b> {staff.email || "—"}</span>
+                          <span>{tUi("🏢", language)} <b>{tUi("Dept:", language)}</b> {staff.department} ({staff.designation || "Staff"})</span>
+                          <span>{tUi("📍", language)} <b>{tUi("Branch:", language)}</b> {staff.branch} ({staff.centreName || staff.district})</span>
+                          <span>{tUi("📞", language)} <b>{tUi("Phone:", language)}</b> {staff.phone || "—"}</span>
+                          <span>{tUi("✉️", language)} <b>{tUi("Email:", language)}</b> {staff.email || "—"}</span>
                         </div>
                         <p className="text-[11px] text-amber-800 mt-2 m-0 flex items-center gap-1 font-medium">
                           <Clock3 size={13} /> Submitted for Head Officer verification on {new Date(staff.createdAt).toLocaleDateString("en-IN")}
@@ -11999,12 +12003,12 @@ export default function Home() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 text-slate-500 font-bold bg-slate-50/50">
-                    <th className="py-3 px-4">OFFICER / LOGIN ID</th>
-                    <th className="py-3 px-4">EMPLOYEE ID & NAME</th>
-                    <th className="py-3 px-4">ROLE & DEPARTMENT</th>
-                    <th className="py-3 px-4">ASSIGNED BRANCH & CENTRE</th>
-                    <th className="py-3 px-4">STATUS</th>
-                    <th className="py-3 px-4 text-right">ACTION</th>
+                    <th className="py-3 px-4">{tUi("OFFICER / LOGIN ID", language)}</th>
+                    <th className="py-3 px-4">{tUi("EMPLOYEE ID & NAME", language)}</th>
+                    <th className="py-3 px-4">{tUi("ROLE & DEPARTMENT", language)}</th>
+                    <th className="py-3 px-4">{tUi("ASSIGNED BRANCH & CENTRE", language)}</th>
+                    <th className="py-3 px-4">{tUi("STATUS", language)}</th>
+                    <th className="py-3 px-4 text-right">{tUi("ACTION", language)}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -12016,15 +12020,15 @@ export default function Home() {
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900">K. Venkata Rao</div>
-                      <div className="text-[11px] text-slate-500">EMP-HO-104 · 9848012345</div>
+                      <div className="font-bold text-slate-900">{tUi("K. Venkata Rao", language)}</div>
+                      <div className="text-[11px] text-slate-500">{tUi("EMP-HO-104 · 9848012345", language)}</div>
                     </td>
                     <td className="py-3 px-4">
-                      <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 font-bold text-[10px]">HEAD OFFICER</Badge>
-                      <div className="text-[11px] text-slate-500 mt-0.5">Administration & District Governance</div>
+                      <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 font-bold text-[10px]">{tUi("HEAD OFFICER", language)}</Badge>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{tUi("Administration & District Governance", language)}</div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="font-semibold text-slate-800">Guntur & Nizamabad Main Branch</span>
+                      <span className="font-semibold text-slate-800">{tUi("Guntur & Nizamabad Main Branch", language)}</span>
                     </td>
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
@@ -12045,7 +12049,7 @@ export default function Home() {
                           <button
                             onClick={() => { navigator.clipboard?.writeText(staff.officerCode); toast.success(`Login ID ${staff.officerCode} copied!`); }}
                             className="p-1 hover:bg-slate-200 rounded text-slate-500"
-                            title="Copy Login ID"
+                            title={tUi("Copy Login ID", language)}
                           >
                             <Copy size={12} />
                           </button>
@@ -12111,7 +12115,7 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <strong className="text-xs font-bold text-slate-800">{staff.name}</strong>
                         <span className="font-mono text-[11px] text-slate-500">({staff.officerCode})</span>
-                        <Badge variant="outline" className="text-[10px] text-slate-600 bg-slate-200">DEACTIVATED</Badge>
+                        <Badge variant="outline" className="text-[10px] text-slate-600 bg-slate-200">{tUi("DEACTIVATED", language)}</Badge>
                       </div>
                       <p className="text-[11px] text-slate-500 m-0 mt-1">
                         {(staff.role || "STAFF").replaceAll("_", " ")} · {staff.department || "Administration"} · {staff.branch || "Guntur"}
@@ -12136,12 +12140,12 @@ export default function Home() {
           <div className="flex flex-col gap-3">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-center gap-2">
               <ShieldCheck size={16} className="text-blue-700 shrink-0" />
-              <span>Immutable administrative audit trail recording all staff onboarding, verification approvals, credential issuances, and deactivations.</span>
+              <span>{tUi("Immutable administrative audit trail recording all staff onboarding, verification approvals, credential issuances, and deactivations.", language)}</span>
             </div>
 
             <div className="divide-y divide-slate-100">
               {staffAuditLogsList.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">No audit logs recorded yet.</div>
+                <div className="p-8 text-center text-slate-400 text-xs">{tUi("No audit logs recorded yet.", language)}</div>
               ) : (
                 staffAuditLogsList.map(log => (
                   <div key={log.id} className="py-3 flex items-start justify-between gap-4">
@@ -12156,7 +12160,7 @@ export default function Home() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <strong className="text-xs font-bold text-slate-900">{(log.action || "").replaceAll("_", " ")}</strong>
-                          <span className="text-[11px] text-slate-500">by <b>{log.performedByOfficerName}</b></span>
+                          <span className="text-[11px] text-slate-500">{tUi("by", language)} <b>{log.performedByOfficerName}</b></span>
                         </div>
                         <p className="text-xs text-slate-600 m-0 mt-0.5">{log.details}</p>
                       </div>
@@ -12177,7 +12181,7 @@ export default function Home() {
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex items-start gap-2.5">
               <Key size={18} className="text-emerald-700 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold block text-emerald-900 mb-0.5">Officer Password Reset Governance</span>
+                <span className="font-bold block text-emerald-900 mb-0.5">{tUi("Officer Password Reset Governance", language)}</span>
                 <span>
                   Head Officers review and authorize password reset requests submitted by department staff. Approving a request generates a cryptographically secure 24-hour single-use token that the officer must enter to complete their password change.
                 </span>
@@ -12189,8 +12193,8 @@ export default function Home() {
                 <span className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
                   <ShieldCheck size={24} />
                 </span>
-                <h3 className="text-base font-bold text-slate-800 mb-1">No Password Reset Requests</h3>
-                <p className="text-xs text-slate-500 max-w-md">There are no pending or past password reset requests. All department officer credentials remain secure and active.</p>
+                <h3 className="text-base font-bold text-slate-800 mb-1">{tUi("No Password Reset Requests", language)}</h3>
+                <p className="text-xs text-slate-500 max-w-md">{tUi("There are no pending or past password reset requests. All department officer credentials remain secure and active.", language)}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -12242,11 +12246,11 @@ export default function Home() {
                             </Badge>
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-                            <span>Department: <b>{req.department || "General"}</b></span>
+                            <span>{tUi("Department:", language)} <b>{req.department || "General"}</b></span>
                             <span>•</span>
-                            <span>Email: <b>{req.email}</b></span>
+                            <span>{tUi("Email:", language)} <b>{req.email}</b></span>
                             <span>•</span>
-                            <span>Phone: <b>{req.phone}</b></span>
+                            <span>{tUi("Phone:", language)} <b>{req.phone}</b></span>
                           </div>
                           {req.reason && (
                             <p className="text-xs text-slate-600 bg-white/70 p-2 rounded-lg border border-slate-200/60 mt-2 mb-0">
@@ -12298,13 +12302,13 @@ export default function Home() {
                         {req.status === "APPROVED" && (
                           <div className="p-2.5 bg-white border border-emerald-200 rounded-xl flex flex-col gap-1 text-xs">
                             <div className="flex items-center justify-between gap-3">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase">Approval Token (24h):</span>
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">{tUi("Approval Token (24h):", language)}</span>
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (req.approvalToken) {
                                     navigator.clipboard?.writeText(req.approvalToken);
-                                    toast.success("Approval token copied to clipboard!");
+                                    toast.success(tUi("Approval token copied to clipboard!", language));
                                   }
                                 }}
                                 className="text-[11px] text-emerald-800 hover:text-emerald-950 font-bold flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0"
@@ -12325,7 +12329,7 @@ export default function Home() {
 
                         {req.status === "REJECTED" && (
                           <div className="text-right text-xs">
-                            <span className="text-rose-700 font-bold block">Rejected by Head Officer</span>
+                            <span className="text-rose-700 font-bold block">{tUi("Rejected by Head Officer", language)}</span>
                             <span className="text-[11px] text-slate-500 italic">"{req.rejectionReason || "Identity mismatch"}"</span>
                           </div>
                         )}
@@ -12335,7 +12339,7 @@ export default function Home() {
                             <span className="text-emerald-700 font-bold flex items-center gap-1 justify-end">
                               <Check size={14} /> Password Reset Complete
                             </span>
-                            <span className="text-[10px] text-slate-400">Used & deactivated</span>
+                            <span className="text-[10px] text-slate-400">{tUi("Used & deactivated", language)}</span>
                           </div>
                         )}
                       </div>
@@ -12357,7 +12361,7 @@ export default function Home() {
                 <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
                   <UserPlus size={18} className="text-emerald-700" /> Onboard Department Staff Member
                 </h3>
-                <p className="text-xs text-slate-500 m-0 mt-0.5">Submit employee details for Head Officer verification and role provisioning.</p>
+                <p className="text-xs text-slate-500 m-0 mt-0.5">{tUi("Submit employee details for Head Officer verification and role provisioning.", language)}</p>
               </div>
               <button onClick={() => setShowAddStaffModal(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
                 <X size={18} />
@@ -12371,7 +12375,7 @@ export default function Home() {
                   <Input
                     required
                     className="mt-1"
-                    placeholder="e.g. S. Srinivas Reddy"
+                    placeholder={tUi("e.g. S. Srinivas Reddy", language)}
                     value={addStaffForm.name}
                     onChange={e => setAddStaffForm(f => ({ ...f, name: e.target.value }))}
                   />
@@ -12381,7 +12385,7 @@ export default function Home() {
                   <Input
                     required
                     className="mt-1"
-                    placeholder="e.g. EMP-QC-8842"
+                    placeholder={tUi("e.g. EMP-QC-8842", language)}
                     value={addStaffForm.employeeId}
                     onChange={e => setAddStaffForm(f => ({ ...f, employeeId: e.target.value }))}
                   />
@@ -12395,7 +12399,7 @@ export default function Home() {
                     required
                     type="tel"
                     className="mt-1"
-                    placeholder="10-digit mobile number"
+                    placeholder={tUi("10-digit mobile number", language)}
                     value={addStaffForm.phone}
                     onChange={e => setAddStaffForm(f => ({ ...f, phone: e.target.value }))}
                   />
@@ -12406,7 +12410,7 @@ export default function Home() {
                     required
                     type="email"
                     className="mt-1"
-                    placeholder="name@smartprocure.gov.in"
+                    placeholder={tUi("name@smartprocure.gov.in", language)}
                     value={addStaffForm.email}
                     onChange={e => setAddStaffForm(f => ({ ...f, email: e.target.value }))}
                   />
@@ -12431,11 +12435,11 @@ export default function Home() {
                       setAddStaffForm(f => ({ ...f, department: dept, role, designation: desig }));
                     }}
                   >
-                    <option value="Quality Control">Quality Control</option>
-                    <option value="Logistics & Transportation">Logistics & Transportation</option>
-                    <option value="Payment & DBT">Payment & DBT</option>
-                    <option value="Procurement Operations">Procurement Operations</option>
-                    <option value="Administration">Administration</option>
+                    <option value="Quality Control">{tUi("Quality Control", language)}</option>
+                    <option value="Logistics & Transportation">{tUi("Logistics & Transportation", language)}</option>
+                    <option value="Payment & DBT">{tUi("Payment & DBT", language)}</option>
+                    <option value="Procurement Operations">{tUi("Procurement Operations", language)}</option>
+                    <option value="Administration">{tUi("Administration", language)}</option>
                   </select>
                 </label>
 
@@ -12459,11 +12463,11 @@ export default function Home() {
                       setAddStaffForm(f => ({ ...f, branch: b, centreId: c?.id || 1, centreName: c?.name || "Guntur Yard", district: b }));
                     }}
                   >
-                    <option value="Guntur">Guntur Main Yard (Guntur District)</option>
-                    <option value="Nizamabad">Nizamabad Market Yard (Nizamabad District)</option>
-                    <option value="Bhiknoor">Bhiknoor Procurement Centre (Kamareddy District)</option>
-                    <option value="Warangal">Warangal Enamamula Market (Warangal District)</option>
-                    <option value="Karimnagar">Karimnagar District Centre</option>
+                    <option value="Guntur">{tUi("Guntur Main Yard (Guntur District)", language)}</option>
+                    <option value="Nizamabad">{tUi("Nizamabad Market Yard (Nizamabad District)", language)}</option>
+                    <option value="Bhiknoor">{tUi("Bhiknoor Procurement Centre (Kamareddy District)", language)}</option>
+                    <option value="Warangal">{tUi("Warangal Enamamula Market (Warangal District)", language)}</option>
+                    <option value="Karimnagar">{tUi("Karimnagar District Centre", language)}</option>
                   </select>
                 </label>
 
@@ -12471,7 +12475,7 @@ export default function Home() {
                   Designation Title
                   <Input
                     className="mt-1"
-                    placeholder="e.g. Senior Quality Inspector"
+                    placeholder={tUi("e.g. Senior Quality Inspector", language)}
                     value={addStaffForm.designation}
                     onChange={e => setAddStaffForm(f => ({ ...f, designation: e.target.value }))}
                   />
@@ -12480,7 +12484,7 @@ export default function Home() {
 
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-2">
                 <ShieldCheck size={16} className="text-emerald-700 shrink-0" />
-                <span>Onboarding requests require Head Officer verification before access credentials and login privileges become active.</span>
+                <span>{tUi("Onboarding requests require Head Officer verification before access credentials and login privileges become active.", language)}</span>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
@@ -12509,20 +12513,20 @@ export default function Home() {
                 <CheckCircle2 size={26} />
               </span>
               <div>
-                <h3 className="text-base font-bold text-slate-900 m-0">Staff Access Approved!</h3>
+                <h3 className="text-base font-bold text-slate-900 m-0">{tUi("Staff Access Approved!", language)}</h3>
                 <p className="text-xs text-slate-500 m-0">{approvedCredentials.staff?.name} is now verified and active.</p>
               </div>
             </div>
 
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-3">
               <div>
-                <span className="text-[11px] font-bold text-slate-500">PROVISIONED LOGIN ID</span>
+                <span className="text-[11px] font-bold text-slate-500">{tUi("PROVISIONED LOGIN ID", language)}</span>
                 <div className="flex items-center justify-between bg-white p-2.5 mt-1 rounded-lg border border-slate-200">
                   <code className="text-sm font-black text-emerald-800 tracking-wider">{approvedCredentials.officerCode}</code>
                   <button
-                    onClick={() => { navigator.clipboard?.writeText(approvedCredentials.officerCode); toast.success("Login ID copied!"); }}
+                    onClick={() => { navigator.clipboard?.writeText(approvedCredentials.officerCode); toast.success(tUi("Login ID copied!", language)); }}
                     className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800"
-                    title="Copy Login ID"
+                    title={tUi("Copy Login ID", language)}
                   >
                     <Copy size={15} />
                   </button>
@@ -12530,13 +12534,13 @@ export default function Home() {
               </div>
 
               <div>
-                <span className="text-[11px] font-bold text-slate-500">TEMPORARY ACTIVATION PASSWORD</span>
+                <span className="text-[11px] font-bold text-slate-500">{tUi("TEMPORARY ACTIVATION PASSWORD", language)}</span>
                 <div className="flex items-center justify-between bg-white p-2.5 mt-1 rounded-lg border border-slate-200">
                   <code className="text-sm font-mono font-bold text-slate-800">{approvedCredentials.temporaryPassword || "Staff@2026#AP"}</code>
                   <button
-                    onClick={() => { navigator.clipboard?.writeText(approvedCredentials.temporaryPassword || "Staff@2026#AP"); toast.success("Temporary password copied!"); }}
+                    onClick={() => { navigator.clipboard?.writeText(approvedCredentials.temporaryPassword || "Staff@2026#AP"); toast.success(tUi("Temporary password copied!", language)); }}
                     className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800"
-                    title="Copy Password"
+                    title={tUi("Copy Password", language)}
                   >
                     <Copy size={15} />
                   </button>
@@ -12563,7 +12567,7 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 m-0">Reject Staff Onboarding</h3>
+              <h3 className="text-base font-bold text-slate-900 m-0">{tUi("Reject Staff Onboarding", language)}</h3>
               <button onClick={() => setShowRejectStaffModal(false)}><X size={18} /></button>
             </div>
             <p className="text-xs text-slate-600">
@@ -12575,12 +12579,12 @@ export default function Home() {
                 className="mt-1"
                 value={staffRejectReason}
                 onChange={e => setStaffRejectReason(e.target.value)}
-                placeholder="e.g. Employee ID not found on payroll, verification failed..."
+                placeholder={tUi("e.g. Employee ID not found on payroll, verification failed...", language)}
               />
             </label>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setShowRejectStaffModal(false)}>Cancel</Button>
-              <Button variant="destructive" size="sm" onClick={() => { void submitRejectStaff(); }}>Confirm Rejection</Button>
+              <Button variant="outline" size="sm" onClick={() => setShowRejectStaffModal(false)}>{tUi("Cancel", language)}</Button>
+              <Button variant="destructive" size="sm" onClick={() => { void submitRejectStaff(); }}>{tUi("Confirm Rejection", language)}</Button>
             </div>
           </div>
         </div>
@@ -12594,14 +12598,14 @@ export default function Home() {
               <CheckCircle2 size={28} />
             </div>
             <div className="text-center">
-              <h3 className="text-base font-extrabold text-slate-900 mb-1">Password Reset Authorized!</h3>
+              <h3 className="text-base font-extrabold text-slate-900 mb-1">{tUi("Password Reset Authorized!", language)}</h3>
               <p className="text-xs text-slate-600">
                 Provide this 24-hour Approval Token to <b>{activeTokenModal.officerName}</b> ({activeTokenModal.officerCode}).
               </p>
             </div>
 
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-col gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Single-Use Approval Token:</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{tUi("Single-Use Approval Token:", language)}</span>
               <div className="flex items-center justify-between gap-2 bg-white p-2.5 rounded-lg border border-slate-200">
                 <span className="font-mono text-xs font-bold text-emerald-900 tracking-wider select-all break-all">
                   {activeTokenModal.token}
@@ -12610,7 +12614,7 @@ export default function Home() {
                   size="sm"
                   onClick={() => {
                     navigator.clipboard?.writeText(activeTokenModal.token);
-                    toast.success("Token copied to clipboard!");
+                    toast.success(tUi("Token copied to clipboard!", language));
                   }}
                   className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs h-8 px-3 shrink-0 rounded-lg flex items-center gap-1"
                 >
@@ -12657,16 +12661,16 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl text-xs">
-              <div><span className="text-slate-400 font-bold block text-[10px]">DEPARTMENT</span><b>{viewingStaffDetails.department}</b></div>
-              <div><span className="text-slate-400 font-bold block text-[10px]">BRANCH CENTRE</span><b>{viewingStaffDetails.branch}</b></div>
-              <div><span className="text-slate-400 font-bold block text-[10px]">CONTACT PHONE</span><b>{viewingStaffDetails.phone || "—"}</b></div>
-              <div><span className="text-slate-400 font-bold block text-[10px]">EMAIL ADDRESS</span><b>{viewingStaffDetails.email || "—"}</b></div>
-              <div><span className="text-slate-400 font-bold block text-[10px]">STATUS</span><b className="text-emerald-700">{viewingStaffDetails.status}</b></div>
-              <div><span className="text-slate-400 font-bold block text-[10px]">ENROLLED AT</span><b>{new Date(viewingStaffDetails.createdAt).toLocaleDateString("en-IN")}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("DEPARTMENT", language)}</span><b>{viewingStaffDetails.department}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("BRANCH CENTRE", language)}</span><b>{viewingStaffDetails.branch}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("CONTACT PHONE", language)}</span><b>{viewingStaffDetails.phone || "—"}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("EMAIL ADDRESS", language)}</span><b>{viewingStaffDetails.email || "—"}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("STATUS", language)}</span><b className="text-emerald-700">{viewingStaffDetails.status}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("ENROLLED AT", language)}</span><b>{new Date(viewingStaffDetails.createdAt).toLocaleDateString("en-IN")}</b></div>
             </div>
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
-              <b>Role Scope:</b>{" "}
+              <b>{tUi("Role Scope:", language)}</b>{" "}
               {viewingStaffDetails.role === "QUALITY_CONTROL_INSPECTOR"
                 ? "Grain quality inspection, moisture/foreign matter testing, batch accept/reject grading."
                 : viewingStaffDetails.role === "LOGISTICS_OFFICER"
@@ -12689,7 +12693,7 @@ export default function Home() {
     <>
       <SectionTitle
         eyebrow="AI OFFICER COPILOT · OPERATIONAL ADVISORY SUITE"
-        title="ProcureFlow Officer Operational Copilot"
+        title={tUi("ProcureFlow Officer Operational Copilot", language)}
         body="Ask any operational question regarding Fair Average Quality (FAQ) standards, electronic weighbridge calibration, queue dispatch, or farmer document verification."
       />
 
@@ -12699,7 +12703,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="assistant-bot-avatar"><Bot size={20} /></span>
               <div>
-                <b className="text-sm font-extrabold text-[#143d2c]">ProcureFlow Officer Copilot</b>
+                <b className="text-sm font-extrabold text-[#143d2c]">{tUi("ProcureFlow Officer Copilot", language)}</b>
                 <small className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                   <i className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
                   Official Mandi Operations · ProcureFlow AI Copilot
@@ -12712,7 +12716,7 @@ export default function Home() {
                 type="button"
                 onClick={clearOfficerChat}
                 className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-slate-200"
-                title="Clear Copilot Conversation"
+                title={tUi("Clear Copilot Conversation", language)}
               >
                 <Trash2 size={16} />
               </button>
@@ -12759,7 +12763,7 @@ export default function Home() {
                         <button
                           onClick={() => speak(msg.text)}
                           className={`assistant-audio-btn ${speakingText === msg.text ? "text-emerald-600 animate-pulse" : ""}`}
-                          title="Read aloud"
+                          title={tUi("Read aloud", language)}
                         >
                           <Volume2 size={14} /> Listen
                         </button>
@@ -12785,7 +12789,7 @@ export default function Home() {
               <div className="chat-bubble assistant">
                 <div className="ai-typing-indicator">
                   <Bot size={14} className="animate-pulse" />
-                  <span>ProcureFlow Copilot is analyzing operational SOPs...</span>
+                  <span>{tUi("ProcureFlow Copilot is analyzing operational SOPs...", language)}</span>
                   <div className="flex items-center gap-1 ml-1">
                     <span className="ai-typing-dot" />
                     <span className="ai-typing-dot" />
@@ -12810,7 +12814,7 @@ export default function Home() {
               type="button"
               onClick={listen}
               className={`p-2 rounded-lg ${isListening ? "bg-red-500 text-white animate-pulse" : "bg-emerald-100 text-emerald-800"}`}
-              title="Voice Input"
+              title={tUi("Voice Input", language)}
             >
               <Mic size={18} />
             </button>
@@ -12818,7 +12822,7 @@ export default function Home() {
               type="text"
               value={officerChatInput}
               onChange={(e) => setOfficerChatInput(e.target.value)}
-              placeholder="Ask officer copilot about FAQ norms, weighbridges, queues, verification..."
+              placeholder={tUi("Ask officer copilot about FAQ norms, weighbridges, queues, verification...", language)}
               disabled={officerChatLoading}
             />
             <button
@@ -12833,23 +12837,23 @@ export default function Home() {
 
         {/* Side Panel with Mandi SOP & Reference Standards */}
         <aside className="assistant-side">
-          <span className="status-pill verified">OFFICIAL SOP MANUAL</span>
-          <h3>Mandi Standard Norms (AP)</h3>
+          <span className="status-pill verified">{tUi("OFFICIAL SOP MANUAL", language)}</span>
+          <h3>{tUi("Mandi Standard Norms (AP)", language)}</h3>
           <p>
             Reference guidelines for Moisture Testing, Digital Weighment, and Fair Average Quality (FAQ) standards.
           </p>
           <div className="mt-4 space-y-2 text-xs text-slate-700">
             <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
-              <b className="text-emerald-900 block">Paddy Moisture Limit</b>
-              <span>Strictly maximum 17.0% as per AP Civil Supplies norms.</span>
+              <b className="text-emerald-900 block">{tUi("Paddy Moisture Limit", language)}</b>
+              <span>{tUi("Strictly maximum 17.0% as per AP Civil Supplies norms.", language)}</span>
             </div>
             <div className="p-2.5 bg-blue-50 rounded-lg border border-blue-200">
-              <b className="text-blue-900 block">Foreign Matter Allowance</b>
-              <span>Maximum 1.0% inorganic, 1.0% organic impurities.</span>
+              <b className="text-blue-900 block">{tUi("Foreign Matter Allowance", language)}</b>
+              <span>{tUi("Maximum 1.0% inorganic, 1.0% organic impurities.", language)}</span>
             </div>
             <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200">
-              <b className="text-amber-900 block">Dispute Protocol</b>
-              <span>Draw three random composite samples in farmer presence before issuing inspection slip.</span>
+              <b className="text-amber-900 block">{tUi("Dispute Protocol", language)}</b>
+              <span>{tUi("Draw three random composite samples in farmer presence before issuing inspection slip.", language)}</span>
             </div>
           </div>
         </aside>
@@ -12913,7 +12917,7 @@ export default function Home() {
                   <h3 className="text-base font-extrabold text-foreground m-0">
                     {tUi("Cancel booking?", language)}
                   </h3>
-                  <span className="text-xs text-muted-foreground">Release reserved procurement slot</span>
+                  <span className="text-xs text-muted-foreground">{tUi("Release reserved procurement slot", language)}</span>
                 </div>
               </div>
               <button onClick={() => setShowCancelBookingModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
@@ -12927,7 +12931,7 @@ export default function Home() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-semibold">{tUi("Booking type:", language)}</span>
-                  <span className="font-semibold text-foreground">MSP Paddy Procurement</span>
+                  <span className="font-semibold text-foreground">{tUi("MSP Paddy Procurement", language)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-semibold">{tUi("Scheduled time:", language)}</span>
@@ -12993,7 +12997,7 @@ export default function Home() {
                   <h3 className="text-base font-extrabold text-foreground m-0">
                     {tUi("Cancel booking?", language)}
                   </h3>
-                  <span className="text-xs text-muted-foreground">Subsidized vehicle transportation</span>
+                  <span className="text-xs text-muted-foreground">{tUi("Subsidized vehicle transportation", language)}</span>
                 </div>
               </div>
               <button onClick={() => setShowCancelTransportModal(false)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>

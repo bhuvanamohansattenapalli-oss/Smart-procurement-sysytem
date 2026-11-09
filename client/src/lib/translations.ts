@@ -1,3 +1,7 @@
+import enLocale from "../locales/en.json";
+import teLocale from "../locales/te.json";
+import hiLocale from "../locales/hi.json";
+
 export type Language =
   | "EN"
   | "HI"
@@ -5187,6 +5191,17 @@ for (const [lang, dict] of Object.entries(comprehensiveFeatureTranslations)) {
   }
 }
 
+// Merge centralized JSON locales
+if (enLocale) {
+  Object.assign(localizedUiText.EN, enLocale);
+}
+if (hiLocale) {
+  Object.assign(localizedUiText.HI, hiLocale);
+}
+if (teLocale) {
+  Object.assign(localizedUiText.TE, teLocale);
+}
+
 // Build comprehensive reverse translation map mapping ANY regional string back to its canonical English key
 export const reverseTranslationMap: Record<string, string> = {};
 
@@ -5200,25 +5215,40 @@ for (const [lang, dict] of Object.entries(localizedUiText)) {
   }
 }
 
-export function getLocalizedText(key: string, lang: Language): string {
+function interpolateVars(template: string, vars?: Record<string, string | number>): string {
+  if (!vars || typeof vars !== "object") return template;
+  let out = template;
+  for (const [key, val] of Object.entries(vars)) {
+    const s = String(val);
+    out = out
+      .replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"), s)
+      .replace(new RegExp(`\\{${key}\\}`, "g"), s);
+  }
+  return out;
+}
+
+export function getLocalizedText(
+  key: string,
+  lang: Language,
+  vars?: Record<string, string | number>
+): string {
   if (!key) return "";
   const trimmed = key.trim();
   if (lang === "EN") {
     // If the string was already localized into a regional language, look up its English source
-    if (reverseTranslationMap[trimmed]) return reverseTranslationMap[trimmed];
-    if (reverseTranslationMap[key]) return reverseTranslationMap[key];
-    return key;
+    const raw = reverseTranslationMap[trimmed] || reverseTranslationMap[key] || key;
+    return interpolateVars(raw, vars);
   }
 
   // 1. If key is in a regional language, first normalize to English canonical key
   const normalizedKey = reverseTranslationMap[trimmed] || reverseTranslationMap[key] || trimmed;
   const dict = localizedUiText[lang];
-  if (!dict) return normalizedKey;
+  if (!dict) return interpolateVars(normalizedKey, vars);
 
   // 2. Direct exact or trimmed match
-  if (dict[key]) return dict[key];
-  if (dict[trimmed]) return dict[trimmed];
-  if (dict[normalizedKey]) return dict[normalizedKey];
+  if (dict[key]) return interpolateVars(dict[key], vars);
+  if (dict[trimmed]) return interpolateVars(dict[trimmed], vars);
+  if (dict[normalizedKey]) return interpolateVars(dict[normalizedKey], vars);
 
   // 3. Punctuation stripping / prefix-suffix restoration
   const punctMatch = key.match(/^([\s·•–—\-\*:()\[\]\+]+)?(.*?)([\s·•–—\-\*:()\[\]\+]+)?$/);
@@ -5229,7 +5259,7 @@ export function getLocalizedText(key: string, lang: Language): string {
     if (core && core !== key) {
       const coreNorm = reverseTranslationMap[core] || core;
       if (dict[coreNorm] || dict[core]) {
-        return prefix + (dict[coreNorm] || dict[core]) + suffix;
+        return interpolateVars(prefix + (dict[coreNorm] || dict[core]) + suffix, vars);
       }
     }
   }
@@ -5239,7 +5269,7 @@ export function getLocalizedText(key: string, lang: Language): string {
     const base = trimmed.slice(0, -1).trim();
     const baseNorm = reverseTranslationMap[base] || base;
     if (dict[baseNorm] || dict[base]) {
-      return (dict[baseNorm] || dict[base]) + ":";
+      return interpolateVars((dict[baseNorm] || dict[base]) + ":", vars);
     }
   }
 
@@ -5248,7 +5278,7 @@ export function getLocalizedText(key: string, lang: Language): string {
     const base = trimmed.slice(0, -1).trim();
     const baseNorm = reverseTranslationMap[base] || base;
     if (dict[baseNorm] || dict[base]) {
-      return (dict[baseNorm] || dict[base]) + " *";
+      return interpolateVars((dict[baseNorm] || dict[base]) + " *", vars);
     }
   }
 
@@ -5259,11 +5289,11 @@ export function getLocalizedText(key: string, lang: Language): string {
     const numPart = parenNumMatch[2];
     const baseNorm = reverseTranslationMap[base] || base;
     if (dict[baseNorm] || dict[base]) {
-      return (dict[baseNorm] || dict[base]) + numPart;
+      return interpolateVars((dict[baseNorm] || dict[base]) + numPart, vars);
     }
   }
 
-  return normalizedKey;
+  return interpolateVars(normalizedKey, vars);
 }
 
 export const tUi = getLocalizedText;

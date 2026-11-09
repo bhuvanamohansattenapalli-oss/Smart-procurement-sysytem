@@ -1,50 +1,16 @@
-[
-  {
-    "file": "Home.tsx",
-    "totalVisible": 676,
-    "translatedTe": 676,
-    "translatedHi": 676,
-    "missingTe": [],
-    "missingHi": []
+{
+  "timestamp": "2026-11-09T12:43:23.388Z",
+  "dictionaries": {
+    "en": 1324,
+    "te": 1324,
+    "hi": 1324,
+    "completenessPercentage": 100
   },
-  {
-    "file": "MandiMarketPrices.tsx",
-    "totalVisible": 32,
-    "translatedTe": 32,
-    "translatedHi": 32,
-    "missingTe": [],
-    "missingHi": []
+  "frontendCallSites": {
+    "total": 960,
+    "valid": 960,
+    "coveragePercentage": 100
   },
-  {
-    "file": "WeatherSellingAdvisory.tsx",
-    "totalVisible": 8,
-    "translatedTe": 8,
-    "translatedHi": 8,
-    "missingTe": [],
-    "missingHi": []
-  },
-  {
-    "file": "Map.tsx",
-    "totalVisible": 15,
-    "translatedTe": 15,
-    "translatedHi": 15,
-    "missingTe": [],
-    "missingHi": []
-  },
-  {
-    "file": "DashboardLayout.tsx",
-    "totalVisible": 2,
-    "translatedTe": 2,
-    "translatedHi": 2,
-    "missingTe": [],
-    "missingHi": []
-  },
-  {
-    "file": "NotFound.tsx",
-    "totalVisible": 0,
-    "translatedTe": 0,
-    "translatedHi": 0,
-    "missingTe": [],
-    "missingHi": []
-  }
-]
+  "unwrappedNodesCount": 0,
+  "status": "AUDIT_PASSED"
+}

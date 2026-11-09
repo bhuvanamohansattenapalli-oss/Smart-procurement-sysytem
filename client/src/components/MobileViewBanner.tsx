@@ -33,12 +33,12 @@ export function MobileViewBanner() {
           {frameMode === "phone" ? (
             <>
               <Maximize2 size={12} />
-              <span>Full Width</span>
+              <span>{tUi("Full Width", language)}</span>
             </>
           ) : (
             <>
               <Minimize2 size={12} />
-              <span>Phone Frame</span>
+              <span>{tUi("Phone Frame", language)}</span>
             </>
           )}
         </button>

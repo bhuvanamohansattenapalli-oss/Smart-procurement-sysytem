@@ -569,7 +569,7 @@ export function MapView({
             className="flex items-center gap-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold shadow-2xs cursor-pointer"
           >
             <Navigation size={12} className="text-emerald-700" />
-            <span className="hidden sm:inline">My Location</span>
+            <span className="hidden sm:inline">{tUi("My Location", language)}</span>
           </button>
           <button
             type="button"
@@ -578,7 +578,7 @@ export function MapView({
             className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold shadow-2xs cursor-pointer"
           >
             <RotateCcw size={12} />
-            <span className="hidden sm:inline">All India</span>
+            <span className="hidden sm:inline">{tUi("All India", language)}</span>
           </button>
           <button
             type="button"
@@ -613,7 +613,7 @@ export function MapView({
               {/* Cluster circle badge */}
               <div className="relative flex flex-col items-center justify-center w-11 h-11 rounded-full bg-emerald-800 text-white font-extrabold shadow-lg border-2 border-white group-hover:scale-115 transition-transform">
                 <span className="text-sm leading-none">{cluster.count}</span>
-                <span className="text-[8px] uppercase tracking-tighter text-emerald-200">Centres</span>
+                <span className="text-[8px] uppercase tracking-tighter text-emerald-200">{tUi("Centres", language)}</span>
               </div>
 
               {/* Cluster State Label */}
@@ -781,11 +781,11 @@ export function MapView({
           <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-lg text-[10px] text-slate-700 font-semibold mb-2.5 border border-slate-100">
             <div className="flex items-center gap-1">
               <UsersRound size={12} className="text-emerald-700" />
-              <span><b>{activeCentre.queue}</b> in queue</span>
+              <span><b>{activeCentre.queue}</b> {tUi("in queue", language)}</span>
             </div>
             <div className="flex items-center gap-1">
               <Clock3 size={12} className="text-emerald-700" />
-              <span><b>{activeCentre.wait}</b> wait</span>
+              <span><b>{activeCentre.wait}</b> {tUi("wait", language)}</span>
             </div>
           </div>
 

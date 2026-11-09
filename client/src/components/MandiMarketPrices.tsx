@@ -234,7 +234,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400">
               <Filter size={13} className="text-emerald-700 dark:text-emerald-400" />
-              <span>Filters:</span>
+              <span>{tUi("Filters:", language)}</span>
             </div>
 
             <select
@@ -243,12 +243,12 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
               className="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-foreground shadow-xs cursor-pointer focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
               aria-label="Filter by Commodity"
             >
-              <option value="ALL">All Crops</option>
-              <option value="Paddy">Paddy (Dhan)</option>
-              <option value="Maize">Maize (Makka)</option>
-              <option value="Cotton">Cotton (Kapas)</option>
-              <option value="Bengal Gram">Bengal Gram (Chana)</option>
-              <option value="Chilli">Dry Red Chillies</option>
+              <option value="ALL">{tUi("All Crops", language)}</option>
+              <option value="Paddy">{tUi("Paddy (Dhan)", language)}</option>
+              <option value="Maize">{tUi("Maize (Makka)", language)}</option>
+              <option value="Cotton">{tUi("Cotton (Kapas)", language)}</option>
+              <option value="Bengal Gram">{tUi("Bengal Gram (Chana)", language)}</option>
+              <option value="Chilli">{tUi("Dry Red Chillies", language)}</option>
             </select>
 
             <select
@@ -257,15 +257,15 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
               className="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-foreground shadow-xs cursor-pointer focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
               aria-label="Filter by District"
             >
-              <option value="ALL">All Districts / Mandis</option>
-              <option value="Guntur">Guntur District</option>
-              <option value="NTR">NTR / Vijayawada</option>
-              <option value="Kurnool">Kurnool District</option>
-              <option value="Nandyal">Nandyal District</option>
-              <option value="Nalgonda">Nalgonda (Miryalaguda)</option>
-              <option value="Warangal">Warangal District</option>
-              <option value="Khammam">Khammam District</option>
-              <option value="Nizamabad">Nizamabad District</option>
+              <option value="ALL">{tUi("All Districts / Mandis", language)}</option>
+              <option value="Guntur">{tUi("Guntur District", language)}</option>
+              <option value="NTR">{tUi("NTR / Vijayawada", language)}</option>
+              <option value="Kurnool">{tUi("Kurnool District", language)}</option>
+              <option value="Nandyal">{tUi("Nandyal District", language)}</option>
+              <option value="Nalgonda">{tUi("Nalgonda (Miryalaguda)", language)}</option>
+              <option value="Warangal">{tUi("Warangal District", language)}</option>
+              <option value="Khammam">{tUi("Khammam District", language)}</option>
+              <option value="Nizamabad">{tUi("Nizamabad District", language)}</option>
             </select>
 
             <button
@@ -286,12 +286,12 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
         {loading ? (
           <div className="py-16 flex flex-col items-center justify-center text-xs font-bold text-muted-foreground gap-3">
             <RefreshCw size={22} className="animate-spin text-emerald-600" />
-            <span>Synchronizing official AGMARKNET daily reporting sessions…</span>
+            <span>{tUi("Synchronizing official AGMARKNET daily reporting sessions…", language)}</span>
           </div>
         ) : comparisons.length === 0 ? (
           <div className="py-12 text-center rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 p-6">
             <AlertCircle size={28} className="mx-auto text-slate-400 mb-2" />
-            <h4 className="text-sm font-bold text-foreground">No mandi comparisons available</h4>
+            <h4 className="text-sm font-bold text-foreground">{tUi("No mandi comparisons available", language)}</h4>
             <p className="text-xs text-muted-foreground mt-1">
               No matching market reporting records were found for the selected commodity or district. Try adjusting your filter above.
             </p>
@@ -385,7 +385,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                                 ₹{card.previous.modalPrice.toLocaleString("en-IN")}
                               </span>
                             ) : (
-                              <span className="text-xs text-slate-400 italic">None</span>
+                              <span className="text-xs text-slate-400 italic">{tUi("None", language)}</span>
                             )}
                           </div>
                         </div>
@@ -396,7 +396,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                             <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-600 text-emerald-950 dark:text-emerald-100 font-extrabold shadow-2xs">
                               <div className="flex items-center gap-1.5 text-xs font-black">
                                 <span className="text-sm font-black text-[#10B981]">↑</span>
-                                <span>Price Increased</span>
+                                <span>{tUi("Price Increased", language)}</span>
                               </div>
                               <span className="text-xs font-black text-emerald-900 dark:text-emerald-200">
                                 +₹{card.difference.toLocaleString("en-IN")} (+{card.percentageChange}%)
@@ -408,7 +408,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                             <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-600 text-rose-950 dark:text-rose-100 font-extrabold shadow-2xs">
                               <div className="flex items-center gap-1.5 text-xs font-black">
                                 <span className="text-sm font-black text-[#EF4444]">↓</span>
-                                <span>Price Decreased</span>
+                                <span>{tUi("Price Decreased", language)}</span>
                               </div>
                               <span className="text-xs font-black text-rose-900 dark:text-rose-200">
                                 -₹{Math.abs(card.difference).toLocaleString("en-IN")} ({card.percentageChange}%)
@@ -420,7 +420,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                             <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 font-extrabold shadow-2xs">
                               <div className="flex items-center gap-1.5 text-xs font-black">
                                 <span className="text-sm font-black text-slate-600 dark:text-slate-300">→</span>
-                                <span>Price Unchanged</span>
+                                <span>{tUi("Price Unchanged", language)}</span>
                               </div>
                               <span className="text-xs font-black">₹0.00 (0.00%)</span>
                             </div>
@@ -430,16 +430,16 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                             <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-semibold shadow-2xs">
                               <div className="flex items-center gap-1.5 text-xs font-bold">
                                 <span className="text-sm text-slate-500">•</span>
-                                <span>Previous price record not available</span>
+                                <span>{tUi("Previous price record not available", language)}</span>
                               </div>
-                              <span className="text-[11px] font-black">1st Session</span>
+                              <span className="text-[11px] font-black">{tUi("1st Session", language)}</span>
                             </div>
                           )}
                         </div>
 
                         {/* Daily Min - Max Range */}
                         <div className="mt-2 text-[11px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                          <span className="font-semibold">Daily Range:</span>
+                          <span className="font-semibold">{tUi("Daily Range:", language)}</span>
                           <span className="font-black text-slate-900 dark:text-white">
                             ₹{card.latest.minPrice.toLocaleString("en-IN")} – ₹{card.latest.maxPrice.toLocaleString("en-IN")}
                           </span>
@@ -451,7 +451,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-1">
                             <Calendar size={11} className="text-emerald-700 shrink-0" />
-                            <span>Latest Reporting Date:</span>
+                            <span>{tUi("Latest Reporting Date:", language)}</span>
                           </span>
                           <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
                             {card.latest.arrivalDate}
@@ -461,7 +461,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-1">
                             <Calendar size={11} className="text-slate-400 shrink-0" />
-                            <span>Previous Reporting Date:</span>
+                            <span>{tUi("Previous Reporting Date:", language)}</span>
                           </span>
                           <span className="font-medium text-slate-600 dark:text-slate-400 font-mono">
                             {card.previous ? card.previous.arrivalDate : "Not recorded"}
@@ -471,7 +471,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                         <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60 text-[10px] text-slate-400">
                           <span className="flex items-center gap-1">
                             <Clock size={10} />
-                            <span>API Synchronized:</span>
+                            <span>{tUi("API Synchronized:", language)}</span>
                           </span>
                           <span className="font-medium">
                             {formattedSyncTime} IST
@@ -600,12 +600,12 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-black border-b border-slate-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-3">Mandi / Market Yard</th>
-                      <th className="p-3">Commodity & Variety</th>
-                      <th className="p-3">Arrival Date</th>
-                      <th className="p-3">Min Rate</th>
-                      <th className="p-3">Max Rate</th>
-                      <th className="p-3 text-right">Modal Rate</th>
+                      <th className="p-3">{tUi("Mandi / Market Yard", language)}</th>
+                      <th className="p-3">{tUi("Commodity & Variety", language)}</th>
+                      <th className="p-3">{tUi("Arrival Date", language)}</th>
+                      <th className="p-3">{tUi("Min Rate", language)}</th>
+                      <th className="p-3">{tUi("Max Rate", language)}</th>
+                      <th className="p-3 text-right">{tUi("Modal Rate", language)}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-100 font-medium">
@@ -639,7 +639,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                           <td className="p-3 text-slate-800 dark:text-slate-200 font-bold">₹{r.maxPrice.toLocaleString("en-IN")}</td>
                           <td className="p-3 text-right font-black text-slate-950 dark:text-white text-sm">
                             ₹{r.modalPrice.toLocaleString("en-IN")}
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal ml-1">/ qtl</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal ml-1">{tUi("/ qtl", language)}</span>
                           </td>
                         </tr>
                       );
@@ -654,7 +654,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
               <div className="flex items-center gap-2">
                 <Database size={13} className="text-emerald-700 shrink-0" />
                 <span>
-                  <b>Data Integrity:</b> Sourced from official AGMARKNET daily reporting sessions. Reporting dates reflect actual APMC arrival records, distinguished from the live API synchronization timestamp ({formattedSyncTime} IST).
+                  <b>{tUi("Data Integrity:", language)}</b> Sourced from official AGMARKNET daily reporting sessions. Reporting dates reflect actual APMC arrival records, distinguished from the live API synchronization timestamp ({formattedSyncTime} IST).
                 </span>
               </div>
               <span>

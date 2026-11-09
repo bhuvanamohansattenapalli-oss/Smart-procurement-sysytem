@@ -130,25 +130,25 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
             Weather-Based Selling Advisory
           </h3>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-            Forecast Horizon: <b>{actualAdvisory?.forecastPeriodUsed || "Next 24 to 72 Hours"}</b> · Target Location: <b>{district}</b>
+            Forecast Horizon: <b>{actualAdvisory?.forecastPeriodUsed || "Next 24 to 72 Hours"}</b> {tUi("· Target Location:", language)} <b>{district}</b>
           </p>
         </div>
 
         {/* Quick Crop Selector */}
         {onCropChange && (
           <div className="flex items-center gap-2 text-xs font-semibold bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
-            <span className="text-muted-foreground">Advisory Crop:</span>
+            <span className="text-muted-foreground">{tUi("Advisory Crop:", language)}</span>
             <select
               value={selectedCrop}
               onChange={(e) => onCropChange(e.target.value)}
               className="bg-transparent font-bold text-emerald-800 dark:text-emerald-300 focus:outline-hidden cursor-pointer"
               aria-label="Select Advisory Crop"
             >
-              <option value="Paddy">Paddy (Common / Grade A)</option>
-              <option value="Maize">Maize (Makka)</option>
-              <option value="Cotton">Cotton (Kapas)</option>
-              <option value="Bengal Gram">Bengal Gram (Chana)</option>
-              <option value="Chillies">Dry Red Chillies</option>
+              <option value="Paddy">{tUi("Paddy (Common / Grade A)", language)}</option>
+              <option value="Maize">{tUi("Maize (Makka)", language)}</option>
+              <option value="Cotton">{tUi("Cotton (Kapas)", language)}</option>
+              <option value="Bengal Gram">{tUi("Bengal Gram (Chana)", language)}</option>
+              <option value="Chillies">{tUi("Dry Red Chillies", language)}</option>
             </select>
           </div>
         )}
@@ -186,10 +186,10 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
             <div>
               <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white mb-1.5">
                 <CloudRain size={16} className="text-sky-600 dark:text-sky-400" />
-                <span>Precipitation Risk</span>
+                <span>{tUi("Precipitation Risk", language)}</span>
               </div>
               <div className="text-lg font-black text-slate-950 dark:text-white">
-                {actualRainProb}% <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">probability</span>
+                {actualRainProb}% <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{tUi("probability", language)}</span>
               </div>
               <div className="text-xs text-slate-700 dark:text-slate-200 mt-1 font-semibold">
                 Forecasted Rain: <b className="text-slate-900 dark:text-white">{actualRainMm.toFixed(1)} mm</b>
@@ -209,7 +209,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
             <div>
               <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white mb-1.5">
                 <Truck size={16} className="text-emerald-600 dark:text-emerald-400" />
-                <span>Transit Feasibility</span>
+                <span>{tUi("Transit Feasibility", language)}</span>
               </div>
               <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                 {actualAdvisory?.transportAdvice ||
@@ -231,7 +231,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
                   <Warehouse size={16} className="text-amber-600 dark:text-amber-400" />
-                  <span>Storage Guard</span>
+                  <span>{tUi("Storage Guard", language)}</span>
                 </div>
                 {/* Storage Toggle */}
                 <div className="flex gap-1 text-[10px]">
@@ -276,7 +276,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
                   <CheckCircle2 size={16} className="text-teal-600 dark:text-teal-400" />
-                  <span>Harvest Stage</span>
+                  <span>{tUi("Harvest Stage", language)}</span>
                 </div>
                 {/* Crop Stage Toggle */}
                 <div className="flex gap-1 text-[10px]">
@@ -325,7 +325,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                 onClick={onNavigateToTransport}
                 className="inline-flex items-center justify-center text-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold shadow-xs transition w-full sm:w-auto min-h-[44px]"
               >
-                <Truck size={14} className="shrink-0" /> <span>Book Subsidized Transport for This Window</span>
+                <Truck size={14} className="shrink-0" /> <span>{tUi("Book Subsidized Transport for This Window", language)}</span>
               </button>
             )}
             {onNavigateToBooking && (
@@ -334,7 +334,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                 onClick={onNavigateToBooking}
                 className="inline-flex items-center justify-center text-center gap-1.5 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-800 dark:text-slate-200 text-xs font-bold shadow-xs transition w-full sm:w-auto min-h-[44px]"
               >
-                <Calendar size={14} className="shrink-0" /> <span>Book Mandi Procurement Slot</span>
+                <Calendar size={14} className="shrink-0" /> <span>{tUi("Book Mandi Procurement Slot", language)}</span>
               </button>
             )}
           </div>
@@ -344,7 +344,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
         <div className="p-3.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 flex items-start gap-2.5 font-medium shadow-2xs">
           <Info size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
           <p className="leading-relaxed">
-            <b className="text-slate-950 dark:text-white font-bold">Important Agronomic Advisory Notice:</b>{" "}
+            <b className="text-slate-950 dark:text-white font-bold">{tUi("Important Agronomic Advisory Notice:", language)}</b>{" "}
             <span className="text-slate-800 dark:text-slate-200">
               {actualAdvisory?.disclaimer ||
                 "Weather conditions are a critical operational consideration, but do not alone dictate the best crop-selling date. Farmers should simultaneously evaluate APMC mandi modal price trends, government MSP announcements, moisture thresholds (<17% for Grade A paddy), transport availability, and storage capacity before scheduling their dispatch."}
