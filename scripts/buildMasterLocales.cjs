@@ -1321,46 +1321,77 @@ const NEW_TRANSLATIONS = {
 };
 
 // 2. Load existing translations
-const transSrc = fs.readFileSync('client/src/lib/translations.ts', 'utf8');
+const localesDir = path.join(__dirname, '..', 'client', 'src', 'locales');
+let baseEN = {};
+let baseTE = {};
+let baseHI = {};
 
-function extractDict(lang) {
-  const dict = {};
-  const blockRegex = new RegExp(`['"]?${lang}['"]?\\s*:\\s*\\{([\\s\\S]*?)\\n\\s*\\},`, 'g');
-  let match;
-  while ((match = blockRegex.exec(transSrc)) !== null) {
-    const block = match[1];
-    const pairRegex = /"([^"\\]*(?:\\.[^"\\]*)*)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g;
-    let p;
-    while ((p = pairRegex.exec(block)) !== null) {
-      dict[p[1].replace(/\\"/g, '"')] = p[2].replace(/\\"/g, '"');
-    }
-  }
-  return dict;
+if (fs.existsSync(path.join(localesDir, 'en.json'))) {
+  baseEN = JSON.parse(fs.readFileSync(path.join(localesDir, 'en.json'), 'utf8'));
+  baseTE = JSON.parse(fs.readFileSync(path.join(localesDir, 'te.json'), 'utf8'));
+  baseHI = JSON.parse(fs.readFileSync(path.join(localesDir, 'hi.json'), 'utf8'));
 }
-
-const teExisting = extractDict('TE');
-const hiExisting = extractDict('HI');
 
 // 3. Merge everything into master EN, TE, HI maps
-const masterEN = {};
-const masterTE = { ...teExisting };
-const masterHI = { ...hiExisting };
+const masterEN = { ...baseEN };
+const masterTE = { ...baseTE };
+const masterHI = { ...baseHI };
+
+function mergeDict(source) {
+  if (!source) return;
+  for (const [key, val] of Object.entries(source)) {
+    if (!key) continue;
+    const teVal = typeof val === 'object' && val !== null ? (val.TE || val.te) : val;
+    const hiVal = typeof val === 'object' && val !== null ? (val.HI || val.hi) : val;
+    if (teVal) masterTE[key] = teVal;
+    if (hiVal) masterHI[key] = hiVal;
+    masterEN[key] = key;
+  }
+}
 
 // Add all new translations
-for (const [key, val] of Object.entries(NEW_TRANSLATIONS)) {
-  masterTE[key] = val.TE;
-  masterHI[key] = val.HI;
-}
+mergeDict(NEW_TRANSLATIONS);
 
 // Add agricultural & crop dictionary
 const { CROP_TRANSLATIONS } = require('./agriculturalDictionary.cjs');
-for (const [key, val] of Object.entries(CROP_TRANSLATIONS)) {
-  masterTE[key] = val.TE;
-  masterHI[key] = val.HI;
-}
+mergeDict(CROP_TRANSLATIONS);
+
+// Add comprehensive vocabulary
+const {
+  GEOGRAPHY_TRANSLATIONS,
+  PDF_AND_DOC_TRANSLATIONS,
+  APMC_MARKET_TRANSLATIONS,
+  UI_COMPONENTS_TRANSLATIONS,
+  STANDALONE_WORDS_TRANSLATIONS,
+} = require('./comprehensiveVocabulary.cjs');
+mergeDict(GEOGRAPHY_TRANSLATIONS);
+mergeDict(PDF_AND_DOC_TRANSLATIONS);
+mergeDict(APMC_MARKET_TRANSLATIONS);
+mergeDict(UI_COMPONENTS_TRANSLATIONS);
+mergeDict(STANDALONE_WORDS_TRANSLATIONS);
+
+// Add crop descriptions
+const { CROP_DESCRIPTION_TRANSLATIONS } = require('./cropDescriptionsDictionary.cjs');
+mergeDict(CROP_DESCRIPTION_TRANSLATIONS);
+
+// Add exhaustive platform strings
+const { EXHAUSTIVE_PLATFORM_STRINGS } = require('./exhaustivePlatformDictionary.cjs');
+mergeDict(EXHAUSTIVE_PLATFORM_STRINGS);
+
+// Add long UI translations
+const { LONG_UI_TRANSLATIONS } = require('./longUiTranslations.cjs');
+mergeDict(LONG_UI_TRANSLATIONS);
+
+// Add short UI translations
+const { SHORT_TRANSLATIONS } = require('./shortUiTranslations.cjs');
+mergeDict(SHORT_TRANSLATIONS);
+
+// Add master words dictionary
+const { MASTER_WORDS_DICT } = require('./wordsTranslations.cjs');
+mergeDict(MASTER_WORDS_DICT);
 
 // Ensure all keys in TE & HI are represented in EN (identity mapping)
-const allKeys = new Set([...Object.keys(masterTE), ...Object.keys(masterHI)]);
+const allKeys = new Set([...Object.keys(masterTE), ...Object.keys(masterHI), ...Object.keys(masterEN)]);
 
 for (const k of allKeys) {
   masterEN[k] = k;
@@ -1374,7 +1405,6 @@ console.log(`- TE keys: ${Object.keys(masterTE).length}`);
 console.log(`- HI keys: ${Object.keys(masterHI).length}`);
 
 // 4. Ensure output directory exists
-const localesDir = path.join(__dirname, '..', 'client', 'src', 'locales');
 if (!fs.existsSync(localesDir)) {
   fs.mkdirSync(localesDir, { recursive: true });
 }

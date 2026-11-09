@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-11-09T13:26:26.073Z",
+  "timestamp": "2026-11-09T18:16:43.986Z",
   "dictionaries": {
-    "en": 1637,
-    "te": 1637,
-    "hi": 1637,
+    "en": 5149,
+    "te": 5149,
+    "hi": 5149,
     "completenessPercentage": 100
   },
   "frontendCallSites": {
