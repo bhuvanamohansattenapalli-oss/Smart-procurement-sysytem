@@ -30,7 +30,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { apiUrl } from "@/lib/api";
-import { tUi, type Language } from "@/lib/translations";
+import { tUi, getLocalizedCropName, getLocalizedVariety, type Language } from "@/lib/translations";
 
 export type PriceMovementType = "UP" | "DOWN" | "STABLE" | "NO_PREVIOUS";
 export type PriceMovementLabel =
@@ -332,10 +332,10 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <h5 className="text-slate-900 dark:text-white font-black text-base leading-snug tracking-tight">
-                              {card.commodity}
+                              {getLocalizedCropName(card.commodity, language)}
                             </h5>
                             <span className="inline-block text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 mt-1">
-                              Variety: {card.variety}
+                              {tUi("Variety:", language)} {getLocalizedVariety(card.variety, language)}
                             </span>
                           </div>
 
@@ -504,7 +504,7 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                       </h4>
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                      {activeComparison.market} · <b className="text-emerald-800 dark:text-emerald-300">{activeComparison.commodity}</b> ({activeComparison.variety})
+                      {activeComparison.market} · <b className="text-emerald-800 dark:text-emerald-300">{getLocalizedCropName(activeComparison.commodity, language)}</b> ({getLocalizedVariety(activeComparison.variety, language)})
                     </p>
                   </div>
 
@@ -629,8 +629,8 @@ export const MandiMarketPrices: React.FC<MandiMarketPricesProps> = ({
                             <span>{r.market}</span>
                           </td>
                           <td className="p-3">
-                            <span className="font-extrabold text-slate-950 dark:text-white">{r.commodity}</span>
-                            <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{r.variety}</div>
+                            <span className="font-extrabold text-slate-950 dark:text-white">{getLocalizedCropName(r.commodity, language)}</span>
+                            <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{getLocalizedVariety(r.variety, language)}</div>
                           </td>
                           <td className="p-3 text-slate-800 dark:text-slate-200 font-mono text-[11px] font-semibold">
                             {r.arrivalDate}

@@ -1352,6 +1352,13 @@ for (const [key, val] of Object.entries(NEW_TRANSLATIONS)) {
   masterHI[key] = val.HI;
 }
 
+// Add agricultural & crop dictionary
+const { CROP_TRANSLATIONS } = require('./agriculturalDictionary.cjs');
+for (const [key, val] of Object.entries(CROP_TRANSLATIONS)) {
+  masterTE[key] = val.TE;
+  masterHI[key] = val.HI;
+}
+
 // Ensure all keys in TE & HI are represented in EN (identity mapping)
 const allKeys = new Set([...Object.keys(masterTE), ...Object.keys(masterHI)]);
 

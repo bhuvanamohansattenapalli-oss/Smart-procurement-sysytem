@@ -97,7 +97,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { MobileViewToggle } from "@/components/MobileViewToggle";
 import { MobileViewBanner } from "@/components/MobileViewBanner";
 
-import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, getLocalizedText, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
+import { localizedUiText, translations, statusTranslations, getStatusLabel, tUi, getLocalizedText, getLocalizedCropName, getLocalizedVariety, getLocalizedCropAndVariety, Language, reverseTranslationMap, parseScheduledStartTime } from "@/lib/translations";
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from "recharts";
 import { CROP_CATALOGUE, filterCrops, getCatalogueCropImage, CropItem } from "@/lib/cropCatalogue";
 import {
@@ -785,7 +785,7 @@ function QRCodeSvg({ value, size = 140 }: { value: string; size?: number }) {
 
 function MetricCard({ label, value, hint, icon: Icon, tone = "green" }: { label: string; value: string; hint: string; icon: typeof Ticket; tone?: "green" | "blue" | "yellow" }) {
   const { language } = useLanguage();
-  return <article className={`metric-card ${tone}`}><span className="metric-icon"><Icon size={20} /></span><p>{typeof label === "string" ? tUi(label, language) : label}</p><strong>{value}</strong><small>{typeof hint === "string" ? tUi(hint, language) : hint}</small></article>;
+  return <article className={`metric-card ${tone}`}><span className="metric-icon"><Icon size={20} /></span><p>{typeof label === "string" ? tUi(label, language) : label}</p><strong>{typeof value === "string" ? (getStatusLabel(value, language) || getLocalizedText(value, language) || value) : value}</strong><small>{typeof hint === "string" ? tUi(hint, language) : hint}</small></article>;
 }
 
 export default function Home() {
@@ -4255,7 +4255,7 @@ export default function Home() {
       <aside className="journey-rail">
         <button className="logo-button" onClick={() => navigate("dashboard")}><AppLogo /></button>
         <div className="rail-label">{tUi("FARMER SPACE", language)}</div>
-        <nav>{navItems.map(({ screen: target, label, icon: Icon }) => <button key={target} onClick={() => navigate(target)} className={screen === target ? "active" : ""}><Icon size={19} /><span>{t.nav[label as keyof typeof t.nav] ?? label}</span></button>)}</nav>
+        <nav>{navItems.map(({ screen: target, label, icon: Icon }) => <button key={target} onClick={() => navigate(target)} className={screen === target ? "active" : ""}><Icon size={19} /><span>{t.nav[label as keyof typeof t.nav] ?? tUi(label, language) ?? label}</span></button>)}</nav>
         <div className="rail-bottom"><button onClick={() => navigate("assistant")}><Bot size={19} /><span>{tUi("Farmer assistant", language)}</span></button><button onClick={() => navigate("profile")}><UserCheck size={19} /><span>{tUi("My profile", language)}</span></button></div>
       </aside>
       <div className="screen-area">
@@ -4343,7 +4343,7 @@ export default function Home() {
                   className={screen === target ? "active" : ""}
                 >
                   <Icon size={20} />
-                  <span>{t.nav[label as keyof typeof t.nav] ?? label}</span>
+                  <span>{t.nav[label as keyof typeof t.nav] ?? tUi(label, language) ?? label}</span>
                 </button>
               ))}
               <div className="drawer-divider" />
@@ -5228,7 +5228,7 @@ export default function Home() {
             <i />
             <span className="route-node"><WalletCards /></span>
             <div>
-              <b>{(bookingRecord?.procurement?.status || "Ready for your arrival").replaceAll("_", " ")}</b>
+              <b>{getStatusLabel(bookingRecord?.procurement?.status || "Ready for your arrival", language)}</b>
               <p>{tUi("Live record loaded from your connected booking when available.", language)}</p>
             </div>
           </div>
@@ -5239,16 +5239,16 @@ export default function Home() {
           <div>
             <Pill kind="yellow">{tUi("TODAY’S SIGNAL", language)}</Pill>
             <strong>{tUi("Queue update", language)}</strong>
-            <p>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min expected wait</p>
+            <p>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} {tUi("min", language)} {tUi("expected wait", language)}</p>
             <button onClick={() => navigate("queue")}>{tUi("See live queue", language)} <ArrowRight size={14}/></button>
           </div>
         </aside>
       </section>
       <section className="metric-grid">
         <MetricCard icon={UsersRound} label="People ahead" value={`${bookingRecord?.queue?.peopleAhead ?? queueAhead}`} hint="From the connected queue" tone="green"/>
-        <MetricCard icon={Clock3} label="Estimated wait" value={`${bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min`} hint="Based on current centre flow" tone="yellow"/>
-        <MetricCard icon={Wheat} label="Paddy selected" value={bookingRecord?.paddyGrade ?? "Grade A"} hint={`${bookingRecord?.paddyVariety ?? "Common paddy"} · ${bookingRecord?.expectedQuantityQuintals ?? 18} quintals`} tone="blue"/>
-        <MetricCard icon={ClipboardCheck} label="Procurement stage" value={(bookingRecord?.procurement?.status || "Booked").replaceAll("_", " ")} hint="Live prototype record" tone="green"/>
+        <MetricCard icon={Clock3} label="Estimated wait" value={`${bookingRecord?.queue?.estimatedWaitMinutes ?? 35} ${tUi("min", language)}`} hint="Based on current centre flow" tone="yellow"/>
+        <MetricCard icon={Wheat} label="Paddy selected" value={getStatusLabel(bookingRecord?.paddyGrade ?? "Grade A", language)} hint={`${getLocalizedCropName(bookingRecord?.paddyVariety ?? "Common paddy", language)} · ${bookingRecord?.expectedQuantityQuintals ?? 18} ${tUi("quintals", language)}`} tone="blue"/>
+        <MetricCard icon={ClipboardCheck} label="Procurement stage" value={getStatusLabel(bookingRecord?.procurement?.status || "Booked", language)} hint="Live prototype record" tone="green"/>
       </section>
       <section className="stats-section">
         <div className="stats-heading">
@@ -5399,7 +5399,7 @@ export default function Home() {
                   onClick={() => { setBookingCropSearch(""); setBookingCropCategory("ALL"); }}
                   className="mt-3 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors inline-block"
                 >
-                  Reset all filters
+                  {tUi("Reset all filters", language)}
                 </button>
               </div>
             ) : (
@@ -5438,30 +5438,30 @@ export default function Home() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                           <Pill kind={crop.category === "Pulses" ? "yellow" : crop.category === "Oilseeds" ? "blue" : crop.category === "Vegetables" || crop.category === "Fruits" ? "green" : "gray"}>
-                            {crop.category}
+                            {tUi(crop.category, language)}
                           </Pill>
                           {crop.govtBonusPerQuintal > 0 && (
                             <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
-                              +₹{crop.govtBonusPerQuintal} Bonus
+                              +₹{crop.govtBonusPerQuintal} {tUi("Bonus", language)}
                             </span>
                           )}
                         </div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate leading-snug">{crop.cropName}</h3>
-                        <p className="text-xs text-slate-500 truncate mt-0.5">{crop.variety}</p>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate leading-snug">{getLocalizedCropName(crop.cropName, language)}</h3>
+                        <p className="text-xs text-slate-500 truncate mt-0.5">{getLocalizedVariety(crop.variety, language)}</p>
                         <div className="flex items-baseline justify-between mt-1.5">
                           <b className="text-emerald-800 dark:text-emerald-400 font-extrabold text-sm">
                             ₹{crop.effectiveRatePerQuintal.toLocaleString("en-IN")} <span className="text-[10px] font-normal text-slate-500">{tUi("/ quintal", language)}</span>
                           </b>
-                          <span className="text-[10px] text-slate-400 font-medium">Max {crop.maxMoisturePercent}% moist</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{tUi("Max", language)} {crop.maxMoisturePercent}% {tUi("moist", language)}</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Selected badge status */}
                     <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                      <span className="text-[11px] text-slate-400">{crop.season}</span>
+                      <span className="text-[11px] text-slate-400">{tUi(crop.season, language)}</span>
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${isSelected ? "bg-emerald-600 text-white" : "text-emerald-700 bg-emerald-50 group-hover:bg-emerald-100"}`}>
-                        {isSelected ? "Selected ✓" : "Select crop"}
+                        {isSelected ? tUi("Selected ✓", language) : tUi("Select crop", language)}
                       </span>
                     </div>
                   </button>
@@ -5497,10 +5497,10 @@ export default function Home() {
 
           <div className="page-actions">
             <ActionButton onClick={() => navigate("dashboard")} secondary icon={ArrowLeft}>
-              Save for later
+              {tUi("Save for later", language)}
             </ActionButton>
             <ActionButton onClick={() => navigate("centres")} icon={ArrowRight}>
-              Choose a centre
+              {tUi("Choose a centre", language)}
             </ActionButton>
           </div>
         </div>
@@ -5521,8 +5521,8 @@ export default function Home() {
                   className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{selectedCropRecord.cropName}</div>
-                  <div className="text-[11px] text-slate-500 truncate">{selectedCropRecord.variety}</div>
+                  <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{getLocalizedCropName(selectedCropRecord.cropName, language)}</div>
+                  <div className="text-[11px] text-slate-500 truncate">{getLocalizedVariety(selectedCropRecord.variety, language)}</div>
                 </div>
               </div>
               <div className="flex justify-between items-baseline pt-1 border-t border-slate-100 dark:border-slate-800">
@@ -5530,7 +5530,7 @@ export default function Home() {
                 <span className="font-bold text-slate-900 dark:text-slate-100">₹{selectedCropRecord.effectiveRatePerQuintal}/qtl</span>
               </div>
               <div className="flex justify-between text-slate-500 text-[11px]">
-                <span>Est. Payout ({expectedQuantity} Qtl):</span>
+                <span>{tUi("Est. Payout", language)} ({expectedQuantity} {tUi("Qtl", language)}):</span>
                 <b className="text-emerald-700 dark:text-emerald-400 font-bold">
                   ₹{(expectedQuantity * selectedCropRecord.effectiveRatePerQuintal).toLocaleString("en-IN")}
                 </b>
@@ -5660,10 +5660,10 @@ export default function Home() {
                   <div>
                     <h3>{centre.name}</h3>
                     <p>{centre.place} · {centre.distance}</p>
-                    <span>{centre.queue} in queue <i/> {centre.wait} wait <i/> {centre.slots} slots</span>
+                    <span>{centre.queue} {tUi("in queue", language)} <i/> {centre.wait} {tUi("wait", language)} <i/> {centre.slots} {tUi("slots", language)}</span>
                   </div>
                   <Pill kind={centre.status === "Open" ? "green" : centre.status === "Busy" ? "yellow" : "blue"}>
-                    {centre.status}
+                    {getStatusLabel(centre.status, language)}
                   </Pill>
                   <ChevronRight />
                 </button>
@@ -5685,14 +5685,14 @@ export default function Home() {
             setSelectedCentre(chosen);
             navigate("centre");
           }}>
-            View Vijayawada Centre <ArrowRight size={15}/>
+            {tUi("View Vijayawada Centre", language)} <ArrowRight size={15}/>
           </button>
         </aside>
       </div>
     </>
   );
 
-  const centreDetail = farmerShell(<><button className="back-link" onClick={() => navigate("centres")}><ArrowLeft size={16}/> {tUi("All centres", language)}</button><div className="centre-detail"><section><div className="centre-detail-head"><div><Pill kind={selectedCentre.status === "Open" ? "green" : "yellow"}><span className="pulse-dot" /> {selectedCentre.status}</Pill><h1>{selectedCentre.name}</h1><p><MapPin size={16}/> {selectedCentre.place} · {selectedCentre.distance} from your village</p></div><span className="large-location"><MapPin/></span></div><div className="centre-stat-row"><div><small>{tUi("CURRENT QUEUE", language)}</small><strong>{selectedCentre.queue}</strong><span>{tUi("farmers waiting", language)}</span></div><div><small>{tUi("ESTIMATED WAIT", language)}</small><strong>{selectedCentre.wait}</strong><span>{tUi("at current speed", language)}</span></div><div><small>{tUi("SLOTS OPEN", language)}</small><strong>{selectedCentre.slots}</strong><span>{tUi("available slots", language)}</span></div></div><div className="centre-route-preview"><div className="route-map"><span className="route-source"><Sprout /></span><span className="route-destination"><MapPin /></span><i /></div><div><b>{tUi("From Muppalapally", language)}</b><p>{tUi("2.4 km · approximately 8 minutes", language)}</p></div><button onClick={() => toast.message("Routing map view ready.")}><LocateFixed size={17}/> {tUi("Route", language)}</button></div><section className="centre-notes"><h2>{tUi("At this centre", language)}</h2><div><span><Check /> {tUi("Weighing facility ready", language)}</span><span><Check /> {tUi("Quality check queue available", language)}</span><span><Check /> {tUi("Document desk open", language)}</span></div></section></section><aside><StepTrack current={2}/><Pill kind="blue">{tUi("YOUR SELECTION", language)}</Pill><h3>{selectedPaddy}</h3><p>{tUi("18 quintals expected", language)}</p><hr/><p>{tUi("Choose a date and slot to hold this centre in your booking.", language)}</p><ActionButton onClick={() => navigate("slot")} icon={ArrowRight}>{tUi("Choose a slot", language)}</ActionButton><button onClick={() => navigate("centres")}>{tUi("Compare another centre", language)}</button></aside></div></>);
+  const centreDetail = farmerShell(<><button className="back-link" onClick={() => navigate("centres")}><ArrowLeft size={16}/> {tUi("All centres", language)}</button><div className="centre-detail"><section><div className="centre-detail-head"><div><Pill kind={selectedCentre.status === "Open" ? "green" : "yellow"}><span className="pulse-dot" /> {getStatusLabel(selectedCentre.status, language)}</Pill><h1>{selectedCentre.name}</h1><p><MapPin size={16}/> {selectedCentre.place} · {selectedCentre.distance} from your village</p></div><span className="large-location"><MapPin/></span></div><div className="centre-stat-row"><div><small>{tUi("CURRENT QUEUE", language)}</small><strong>{selectedCentre.queue}</strong><span>{tUi("farmers waiting", language)}</span></div><div><small>{tUi("ESTIMATED WAIT", language)}</small><strong>{selectedCentre.wait}</strong><span>{tUi("at current speed", language)}</span></div><div><small>{tUi("SLOTS OPEN", language)}</small><strong>{selectedCentre.slots}</strong><span>{tUi("available slots", language)}</span></div></div><div className="centre-route-preview"><div className="route-map"><span className="route-source"><Sprout /></span><span className="route-destination"><MapPin /></span><i /></div><div><b>{tUi("From Muppalapally", language)}</b><p>{tUi("2.4 km · approximately 8 minutes", language)}</p></div><button onClick={() => toast.message("Routing map view ready.")}><LocateFixed size={17}/> {tUi("Route", language)}</button></div><section className="centre-notes"><h2>{tUi("At this centre", language)}</h2><div><span><Check /> {tUi("Weighing facility ready", language)}</span><span><Check /> {tUi("Quality check queue available", language)}</span><span><Check /> {tUi("Document desk open", language)}</span></div></section></section><aside><StepTrack current={2}/><Pill kind="blue">{tUi("YOUR SELECTION", language)}</Pill><h3>{getLocalizedCropAndVariety(selectedPaddy, language)}</h3><p>{tUi("18 quintals expected", language)}</p><hr/><p>{tUi("Choose a date and slot to hold this centre in your booking.", language)}</p><ActionButton onClick={() => navigate("slot")} icon={ArrowRight}>{tUi("Choose a slot", language)}</ActionButton><button onClick={() => navigate("centres")}>{tUi("Compare another centre", language)}</button></aside></div></>);
 
   const slot = farmerShell(
     <>
@@ -5730,7 +5730,7 @@ export default function Home() {
           <h2 className="slot-heading flex items-center justify-between">
             <span>{tUi("Available Windows", language)}</span>
             <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              ● Live Centre Capacity
+              ● {tUi("Live Centre Capacity", language)}
             </span>
           </h2>
 
@@ -5792,8 +5792,8 @@ export default function Home() {
           <h3>{selectedCentre.name}</h3>
           <p>{selectedCentre.distance} from Muppalapally</p>
           <hr />
-          <span><Wheat /> {selectedPaddy}</span>
-          <span><Tractor /> {expectedQuantity} quintals</span>
+          <span><Wheat /> {getLocalizedCropAndVariety(selectedPaddy, language)}</span>
+          <span><Tractor /> {expectedQuantity} {tUi("quintals", language)}</span>
           <span><CalendarDays /> {selectedDate}</span>
           <span><Clock3 /> {selectedSlot}</span>
           <p className="tip-line"><Clock3 /> {tUi("Arrive 10 minutes early for document verification.", language)}</p>
@@ -5830,7 +5830,7 @@ export default function Home() {
               </div>
               <div>
                 <small>{tUi("PADDY", language)}</small>
-                <b>{selectedPaddy}</b>
+                <b>{getLocalizedCropAndVariety(selectedPaddy, language)}</b>
                 <p><Wheat /> {tUi("Approx. 18 quintals", language)}</p>
               </div>
               <div>
@@ -6011,20 +6011,20 @@ export default function Home() {
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{tUi("CROP & VARIETY", language)}</span>
                     <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
-                      {bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0]}
+                      {getLocalizedCropAndVariety(bookingRecord?.paddyVariety ?? selectedPaddy.split("—")[0], language)}
                     </strong>
                     <span className="text-xs text-slate-500">
-                      {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} Quintals
+                      {getStatusLabel(bookingRecord?.paddyGrade ?? "Grade A", language)} · {bookingRecord?.expectedQuantityQuintals ?? 18} {tUi("Quintals", language)}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{tUi("LIVE QUEUE STATUS", language)}</span>
                     <strong className="text-sm font-extrabold text-[#153e2a] block mt-0.5">
-                      Position #{bookingRecord?.queue?.position ?? 1}
+                      {tUi("Position", language)} #{bookingRecord?.queue?.position ?? 1}
                     </strong>
                     <span className="text-xs text-amber-700 font-bold">
-                      {bookingRecord?.queue?.peopleAhead ?? 0} farmers ahead · ~{bookingRecord?.queue?.estimatedWaitMinutes ?? 0}m wait
+                      {bookingRecord?.queue?.peopleAhead ?? 0} {tUi("farmers ahead", language)} · ~{bookingRecord?.queue?.estimatedWaitMinutes ?? 0}{tUi("m", language)} {tUi("wait", language)}
                     </span>
                   </div>
                 </div>
@@ -6271,7 +6271,7 @@ export default function Home() {
             <div>
               <small>{tUi("ESTIMATED WAIT", language)}</small>
               <strong>{bookingRecord?.queue?.estimatedWaitMinutes ?? 35} min</strong>
-              <span>{bookingRecord?.queue?.status ?? "WAITING"}</span>
+              <span>{getStatusLabel(bookingRecord?.queue?.status ?? "WAITING", language)}</span>
             </div>
           </div>
           <div className="queue-track">
@@ -6331,10 +6331,10 @@ export default function Home() {
               <div className="timeline-head">
                 <div>
                   <Pill kind={bookingRecord?.status === "CANCELLED" ? "gray" : "green"}>
-                    {bookingRecord?.status === "CANCELLED" ? "CANCELLED" : (bookingRecord?.bookingCode ?? "BK-2026-7294")}
+                    {bookingRecord?.status === "CANCELLED" ? getStatusLabel("CANCELLED", language) : (bookingRecord?.bookingCode ?? "BK-2026-7294")}
                   </Pill>
                   <h2>{bookingRecord?.centre.name ?? "Nizamabad Market Yard"}</h2>
-                  <p>{bookingRecord?.paddyVariety ?? "Common paddy"} · {bookingRecord?.paddyGrade ?? "Grade A"} · {bookingRecord?.expectedQuantityQuintals ?? 18} quintals expected</p>
+                  <p>{getLocalizedCropAndVariety(bookingRecord?.paddyVariety ?? "Common paddy", language)} · {getStatusLabel(bookingRecord?.paddyGrade ?? "Grade A", language)} · {bookingRecord?.expectedQuantityQuintals ?? 18} {tUi("quintals expected", language)}</p>
                 </div>
                 <button onClick={() => navigate("token")}>
                   <Ticket size={18}/> {bookingRecord?.tokenNumber ? (bookingRecord.tokenNumber.startsWith("TK-") || bookingRecord.tokenNumber.startsWith("Token ") ? bookingRecord.tokenNumber : `Token ${bookingRecord.tokenNumber}`) : "Token TK-GNT-0001"}
@@ -6509,11 +6509,11 @@ export default function Home() {
               </div>
               <div>
                 <small>{tUi("CROP & VARIETY", language)}</small>
-                <b>{bookingRecord?.paddyVariety ?? "Common paddy"} ({bookingRecord?.expectedQuantityQuintals ?? 18} Quintals)</b>
+                <b>{getLocalizedCropAndVariety(bookingRecord?.paddyVariety ?? "Common paddy", language)} ({bookingRecord?.expectedQuantityQuintals ?? 18} {tUi("Quintals", language)})</b>
               </div>
               <div>
                 <small>{tUi("SETTLEMENT DATE", language)}</small>
-                <b>{isPaymentCredited && paymentRecord?.completedAt ? new Date(paymentRecord.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Pending Officer Initiation"}</b>
+                <b>{isPaymentCredited && paymentRecord?.completedAt ? new Date(paymentRecord.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : paymentRecord?.initiatedAt ? new Date(paymentRecord.initiatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : tUi("Pending Officer Initiation", language)}</b>
               </div>
             </div>
           </div>
@@ -6782,7 +6782,7 @@ export default function Home() {
               <div>
                 <b>2. Procurement Payment: ₹{history.amount.toLocaleString("en-IN")} Credited TO Farmer</b>
                 <p>
-                  Payment Status: <b>{history.status === "SUCCESS" ? "Credited (DBT Bank Transfer)" : history.status}</b> · Method: {history.method}
+                  Payment Status: <b>{history.status === "SUCCESS" ? tUi("Credited (DBT Bank Transfer)", language) : getStatusLabel(history.status, language)}</b> · Method: {history.method}
                   <br />
                   Payment ID: {history.paymentId} · Transaction: {history.transactionReference}
                   <br />
@@ -6791,7 +6791,7 @@ export default function Home() {
               </div>
             </div>
             <Pill kind={history.status === "SUCCESS" ? "green" : history.status === "FAILED" ? "yellow" : "blue"}>
-              {history.status === "SUCCESS" ? "CREDITED" : history.status}
+              {history.status === "SUCCESS" ? tUi("CREDITED", language) : getStatusLabel(history.status, language)}
             </Pill>
           </section>
         ))
@@ -6814,7 +6814,7 @@ export default function Home() {
     </>
   );
 
-  const profile = farmerShell(<><SectionTitle eyebrow="FARMER PROFILE" title={t.profileTitle} body="Your current profile is loaded from the authenticated backend session."/><div className="profile-layout"><section className="profile-card"><div className="profile-main"><span className="profile-avatar">{getInitials(profileRecord?.name, "RK")}</span><div><Pill kind="green"><Check/> {profileRecord?.status ?? "APPROVED"} FARMER</Pill><h2>{profileRecord?.name ?? "Ramesh Kumar"}</h2><p>Farmer ID · {profileRecord?.farmerCode ?? "FMR-2026-11842"}</p></div><button onClick={() => toast.message("Profile details verified by officer.")}>{tUi("Verified profile", language)}</button></div><div className="profile-details"><div><small>{tUi("MOBILE NUMBER", language)}</small><b>+91 {profileRecord?.phone ?? "98765 43210"}</b></div><div><small>{tUi("VILLAGE", language)}</small><b>{profileRecord?.village ?? "Muppalapally"}</b></div><div><small>{tUi("DISTRICT", language)}</small><b>{profileRecord?.district ?? "Nizamabad"}, Telangana</b></div><div><small>{tUi("PRIMARY CROP", language)}</small><b>{profileRecord?.primaryCrop ?? "Paddy"}</b></div></div><div className="profile-data-note"><ShieldCheck/><p>{tUi("This profile is delivered from the protected database API after login.", language)}</p></div></section><aside className="profile-aside"><Pill kind="yellow">{tUi("PROCUREMENT READY", language)}</Pill><h3>Profile status: {profileRecord?.status ?? "APPROVED"}</h3><p>{tUi("Your authenticated profile is eligible to make bookings.", language)}</p><button onClick={() => navigate("paddy")}>{tUi("Start a new booking", language)} <ArrowRight size={15}/></button></aside></div></>);
+  const profile = farmerShell(<><SectionTitle eyebrow="FARMER PROFILE" title={t.profileTitle} body="Your current profile is loaded from the authenticated backend session."/><div className="profile-layout"><section className="profile-card"><div className="profile-main"><span className="profile-avatar">{getInitials(profileRecord?.name, "RK")}</span><div><Pill kind="green"><Check/> {getStatusLabel(profileRecord?.status ?? "APPROVED", language)} {tUi("FARMER", language)}</Pill><h2>{profileRecord?.name ?? "Ramesh Kumar"}</h2><p>Farmer ID · {profileRecord?.farmerCode ?? "FMR-2026-11842"}</p></div><button onClick={() => toast.message("Profile details verified by officer.")}>{tUi("Verified profile", language)}</button></div><div className="profile-details"><div><small>{tUi("MOBILE NUMBER", language)}</small><b>+91 {profileRecord?.phone ?? "98765 43210"}</b></div><div><small>{tUi("VILLAGE", language)}</small><b>{profileRecord?.village ?? "Muppalapally"}</b></div><div><small>{tUi("DISTRICT", language)}</small><b>{profileRecord?.district ?? "Nizamabad"}, Telangana</b></div><div><small>{tUi("PRIMARY CROP", language)}</small><b>{getLocalizedCropName(profileRecord?.primaryCrop ?? "Paddy", language)}</b></div></div><div className="profile-data-note"><ShieldCheck/><p>{tUi("This profile is delivered from the protected database API after login.", language)}</p></div></section><aside className="profile-aside"><Pill kind="yellow">{tUi("PROCUREMENT READY", language)}</Pill><h3>{tUi("Profile status:", language)} {getStatusLabel(profileRecord?.status ?? "APPROVED", language)}</h3><p>{tUi("Your authenticated profile is eligible to make bookings.", language)}</p><button onClick={() => navigate("paddy")}>{tUi("Start a new booking", language)} <ArrowRight size={15}/></button></aside></div></>);
 
   const notifications = farmerShell(<><SectionTitle eyebrow="NOTIFICATIONS" title={t.notificationTitle} body="Booking, queue, procurement, and payment signals are loaded from your database records."/><div className="notifications-list">{(apiNotifications.length ? apiNotifications.map(notification => ({ icon: notification.category === "PAYMENT" ? WalletCards : notification.category === "PROCUREMENT" ? ClipboardCheck : notification.category === "QUEUE" ? UsersRound : Ticket, tone: notification.category === "QUEUE" ? "yellow" : notification.category === "PROCUREMENT" ? "blue" : "green", title: notification.title, copy: notification.message, time: new Date(notification.createdAt).toLocaleString() })) : [{ icon: Ticket, tone: "green", title: "Sign in to see API notifications", copy: "Your booking and status updates will appear here after an authenticated login.", time: "Live" }]).map(({ icon: Icon, tone, title, copy, time }) => <article key={`${title}-${time}`}><span className={`notice-icon ${tone}`}><Icon/></span><div><h3>{title}</h3><p>{copy}</p></div><small>{time}</small></article>)}</div></>);
 
@@ -8765,7 +8765,7 @@ export default function Home() {
             <span>{payment.method ?? "UPI"} · ₹{(payment.amount ?? 0).toLocaleString("en-IN")}</span>
             <span>{payment.paymentId}<small>{payment.transactionReference ?? ""}</small></span>
             <div className="flex items-center gap-2">
-              <Pill kind={payment.status === "SUCCESS" ? "green" : payment.status === "OFFICER_INITIATED" ? "blue" : payment.status === "PROCESSING" ? "yellow" : payment.status === "FAILED" ? "yellow" : "blue"}>{payment.status}</Pill>
+              <Pill kind={payment.status === "SUCCESS" ? "green" : payment.status === "OFFICER_INITIATED" ? "blue" : payment.status === "PROCESSING" ? "yellow" : payment.status === "FAILED" ? "yellow" : "blue"}>{getStatusLabel(payment.status, language)}</Pill>
               {payment.status !== "SUCCESS" && (
                 <button
                   type="button"
@@ -8773,7 +8773,7 @@ export default function Home() {
                   disabled={payoutProcessingId === payment.bookingId}
                   className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
                 >
-                  {payoutProcessingId === payment.bookingId ? "Disbursing…" : "Disburse DBT"}
+                  {payoutProcessingId === payment.bookingId ? tUi("Disbursing…", language) : tUi("Disburse DBT", language)}
                 </button>
               )}
             </div>
@@ -8822,7 +8822,7 @@ export default function Home() {
               <b>{registration.farmer?.name ?? "Farmer"}<small>{registration.farmer?.farmerCode ?? "FMR-2026"}</small></b>
             </div>
             <span>{registration.farmer?.village ?? "Village"}, {registration.farmer?.district ?? "District"}</span>
-            <span>{registration.farmer?.primaryCrop ?? "Paddy"}</span>
+            <span>{getLocalizedCropName(registration.farmer?.primaryCrop ?? "Paddy", language)}</span>
             <span>{tUi("Awaiting review", language)}</span>
             <Pill kind="yellow">{tUi("PENDING", language)}</Pill>
             <ChevronRight/>
@@ -8855,8 +8855,8 @@ export default function Home() {
             <div><small>{tUi("MOBILE NUMBER", language)}</small><b>{selectedPending.farmer?.phone ? `+91 ${selectedPending.farmer.phone}` : "—"}</b></div>
             <div><small>{tUi("VILLAGE", language)}</small><b>{selectedPending.farmer?.village ?? "—"}</b></div>
             <div><small>{tUi("DISTRICT", language)}</small><b>{selectedPending.farmer?.district ?? "—"}</b></div>
-            <div><small>{tUi("PRIMARY CROP", language)}</small><b>{selectedPending.farmer?.primaryCrop ?? "Paddy"}</b></div>
-            <div><small>{tUi("ACCOUNT STATUS", language)}</small><b>{selectedPending.farmer?.status ?? "PENDING"}</b></div>
+            <div><small>{tUi("PRIMARY CROP", language)}</small><b>{getLocalizedCropName(selectedPending.farmer?.primaryCrop ?? "Paddy", language)}</b></div>
+            <div><small>{tUi("ACCOUNT STATUS", language)}</small><b>{getStatusLabel(selectedPending.farmer?.status ?? "PENDING", language)}</b></div>
             <div><small>{tUi("DECLARATION", language)}</small><b><CheckCircle2/> {tUi("Confirmed", language)}</b></div>
           </div>
           <div className="review-note">
@@ -8957,10 +8957,10 @@ export default function Home() {
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               )}
             >
-              {tab === "ALL" ? `All (${officerFarmersList.length})` :
-               tab === "APPROVED" ? `Approved (${officerFarmersList.filter(f => f.status === "APPROVED").length})` :
-               tab === "PENDING" ? `Pending (${officerFarmersList.filter(f => f.status === "PENDING").length})` :
-               `Rejected (${officerFarmersList.filter(f => f.status === "REJECTED").length})`}
+              {tab === "ALL" ? `${tUi("All", language)} (${officerFarmersList.length})` :
+               tab === "APPROVED" ? `${getStatusLabel("APPROVED", language)} (${officerFarmersList.filter(f => f.status === "APPROVED").length})` :
+               tab === "PENDING" ? `${getStatusLabel("PENDING", language)} (${officerFarmersList.filter(f => f.status === "PENDING").length})` :
+               `${getStatusLabel("REJECTED", language)} (${officerFarmersList.filter(f => f.status === "REJECTED").length})`}
             </button>
           ))}
         </div>
@@ -9043,7 +9043,7 @@ export default function Home() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          🌾 {f.primaryCrop}
+                          🌾 {getLocalizedCropName(f.primaryCrop, language)}
                         </span>
                       </td>
                       <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
@@ -9066,7 +9066,7 @@ export default function Home() {
                               f.status === "APPROVED" ? "bg-emerald-600" : f.status === "PENDING" ? "bg-amber-600" : "bg-rose-600"
                             )}
                           />
-                          {f.status}
+                          {getStatusLabel(f.status, language)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-700">
@@ -9110,13 +9110,13 @@ export default function Home() {
               <article key={centre.id}>
                 <div>
                   <span className={`centre-status ${(centre.status || "active").toLowerCase()}`}><MapPin/></span>
-                  <Pill kind={centre.status === "Open" ? "green" : centre.status === "Busy" ? "yellow" : "blue"}>{centre.status}</Pill>
+                  <Pill kind={centre.status === "Open" ? "green" : centre.status === "Busy" ? "yellow" : "blue"}>{getStatusLabel(centre.status, language)}</Pill>
                 </div>
                 <h3>{centre.name}</h3>
                 <p>{centre.place}</p>
-                <div><span><UsersRound/> {queueCount} in queue</span><span><Clock3/> ~{Math.max(5, queueCount * 2)} min wait</span></div>
+                <div><span><UsersRound/> {queueCount} {tUi("in queue", language)}</span><span><Clock3/> ~{Math.max(5, queueCount * 2)} {tUi("min", language)} {tUi("wait", language)}</span></div>
                 <Progress value={Math.min(100, queueCount * 2.5)} />
-                <small>{slotsCount} booking slots remaining</small>
+                <small>{slotsCount} {tUi("booking slots remaining", language)}</small>
               </article>
             );
           })}
@@ -9135,12 +9135,12 @@ export default function Home() {
                 <span className="avatar small">{getInitials(b.farmer?.name, "FM")}</span>
                 <div>
                   <h3>{b.farmer?.name ?? "Farmer"} <Pill kind="green">{b.tokenNumber ?? "AP-001"}</Pill></h3>
-                  <p>{b.paddyVariety ?? "Common paddy"} · {b.expectedQuantityQuintals ?? 18} qtl · <small>{b.centre?.name ?? "Procurement Centre"}</small></p>
+                  <p>{getLocalizedCropAndVariety(b.paddyVariety ?? "Common paddy", language)} · {b.expectedQuantityQuintals ?? 18} {tUi("qtl", language)} · <small>{b.centre?.name ?? "Procurement Centre"}</small></p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Pill kind={b.procurement?.status === "COMPLETED" ? "green" : b.procurement?.status === "PROCESSING" || b.procurement?.status === "WEIGHING" ? "blue" : "yellow"}>
-                  {(b.procurement?.status || "BOOKED").replaceAll("_", " ")}
+                  {getStatusLabel(b.procurement?.status || "BOOKED", language)}
                 </Pill>
                 <Button
                   size="sm"
@@ -9154,7 +9154,7 @@ export default function Home() {
                     setShowProcurementModal(true);
                   }}
                 >
-                  Update stage <ChevronRight size={14} className="ml-1"/>
+                  {tUi("Update stage", language)} <ChevronRight size={14} className="ml-1"/>
                 </Button>
               </div>
             </article>
@@ -9177,10 +9177,10 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-3 text-xs bg-muted/40 p-3 rounded-lg">
               <div><span className="text-muted-foreground">{tUi("Centre:", language)}</span> <b>{selectedOfficerBooking.centre?.name ?? "Procurement Centre"}</b></div>
               <div><span className="text-muted-foreground">{tUi("Booking Code:", language)}</span> <b>{selectedOfficerBooking.bookingCode}</b></div>
-              <div><span className="text-muted-foreground">{tUi("Expected:", language)}</span> <b>{selectedOfficerBooking.expectedQuantityQuintals} quintals</b></div>
-              <div><span className="text-muted-foreground">{tUi("Variety:", language)}</span> <b>{selectedOfficerBooking.paddyVariety}</b></div>
+              <div><span className="text-muted-foreground">{tUi("Expected:", language)}</span> <b>{selectedOfficerBooking.expectedQuantityQuintals} {tUi("quintals", language)}</b></div>
+              <div><span className="text-muted-foreground">{tUi("Variety:", language)}</span> <b>{getLocalizedCropAndVariety(selectedOfficerBooking.paddyVariety, language)}</b></div>
             </div>
-            <label className="text-sm font-medium">Procurement Stage
+            <label className="text-sm font-medium">{tUi("Procurement Stage", language)}
               <select
                 className="w-full mt-1 p-2 rounded-md border bg-background text-sm"
                 value={procurementForm.status}
@@ -9581,12 +9581,12 @@ export default function Home() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{tUi("Primary Crop:", language)}</span>
-                <b className="text-slate-800">{viewingQcFarmerProfile.primaryCrop ?? "Paddy"}</b>
+                <b className="text-slate-800">{getLocalizedCropName(viewingQcFarmerProfile.primaryCrop ?? "Paddy", language)}</b>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{tUi("Account Status:", language)}</span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  {viewingQcFarmerProfile.status ?? "APPROVED"}
+                  {getStatusLabel(viewingQcFarmerProfile.status ?? "APPROVED", language)}
                 </span>
               </div>
               <div className="flex justify-between pt-2 border-t border-slate-200/80">
@@ -9807,7 +9807,7 @@ export default function Home() {
                   : "bg-slate-100 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
               }`}
             >
-              <span>{tab.label}</span>
+              <span>{tUi(tab.label, language)}</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                 transportFilterStatus === tab.id ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
               }`}>
@@ -9938,7 +9938,7 @@ export default function Home() {
                     </span>
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusConfig.bg}`}>
                       <span className={`w-2 h-2 rounded-full ${t.status === "IN_TRANSIT" ? "bg-amber-500 animate-ping" : t.status === "DELIVERED_AT_CENTRE" ? "bg-emerald-600" : "bg-blue-600"}`} />
-                      {statusConfig.label}
+                      {tUi(statusConfig.label, language)}
                     </span>
                   </div>
                 </div>
@@ -10239,7 +10239,7 @@ export default function Home() {
               <div>
                 <span className="text-muted-foreground block text-[11px]">{tUi("Trip Status", language)}</span>
                 <Pill kind={viewingTransportRouteItem.status === "DELIVERED_AT_CENTRE" ? "green" : "blue"}>
-                  {(viewingTransportRouteItem.status || "REQUESTED").replaceAll("_", " ")}
+                  {getStatusLabel(viewingTransportRouteItem.status || "REQUESTED", language)}
                 </Pill>
               </div>
             </div>
@@ -10500,8 +10500,8 @@ export default function Home() {
                   <div className="p-4">
                     <div className="crop-card-head mb-3">
                       <div>
-                        <h3 className="text-base font-extrabold text-[#153e2a] m-0">{item.cropName}</h3>
-                        <p className="text-xs text-muted-foreground m-0 mt-0.5">{item.variety}</p>
+                        <h3 className="text-base font-extrabold text-[#153e2a] m-0">{getLocalizedCropName(item.cropName, language)}</h3>
+                        <p className="text-xs text-muted-foreground m-0 mt-0.5">{getLocalizedVariety(item.variety, language)}</p>
                       </div>
                     </div>
 
@@ -10536,7 +10536,7 @@ export default function Home() {
                       toast.success(`Selected ${item.cropName} for valuation calculator.`);
                     }}
                   >
-                    Calculate Value →
+                    {tUi("Calculate Value →", language)}
                   </button>
                 </div>
               </div>
@@ -10557,7 +10557,7 @@ export default function Home() {
           >
             {cropPricesList.map(p => (
               <option key={p.id} value={`${p.cropName} — ${p.variety}`}>
-                {p.cropName} — {p.variety} (₹{p.effectiveRatePerQuintal}/qtl)
+                {getLocalizedCropName(p.cropName, language)} — {getLocalizedVariety(p.variety, language)} (₹{p.effectiveRatePerQuintal}/{tUi("qtl", language)})
               </option>
             ))}
           </select>
@@ -10848,8 +10848,8 @@ export default function Home() {
           ]).map((item, idx) => (
             <div className="variety-progress-row" key={idx}>
               <div className="flex justify-between font-bold text-xs">
-                <span>{item.variety}</span>
-                <span className="text-emerald-800 font-mono">₹{item.earnings.toLocaleString("en-IN")} ({item.quantityQuintals} Qtl)</span>
+                <span>{getLocalizedCropAndVariety(item.variety, language)}</span>
+                <span className="text-emerald-800 font-mono">₹{item.earnings.toLocaleString("en-IN")} ({item.quantityQuintals} {tUi("Qtl", language)})</span>
               </div>
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(30, (item.quantityQuintals / 30) * 100))}%` }} />
@@ -11091,9 +11091,9 @@ export default function Home() {
                 <td><b>{item.tokenNumber}</b></td>
                 <td className="font-mono">{item.bookingCode}</td>
                 <td>{item.centreName}</td>
-                <td>{item.variety}</td>
-                <td><b>{item.weighedQuintals ?? item.expectedQuintals} Qtl</b></td>
-                <td><Badge variant="outline">{item.qualityGrade}</Badge></td>
+                <td>{getLocalizedVariety(item.variety, language)}</td>
+                <td><b>{item.weighedQuintals ?? item.expectedQuintals} {tUi("Qtl", language)}</b></td>
+                <td><Badge variant="outline">{getStatusLabel(item.qualityGrade, language)}</Badge></td>
                 <td><Pill kind={item.procurementStatus === "COMPLETED" ? "green" : "yellow"}>{getStatusLabel(item.procurementStatus, language)}</Pill></td>
                 <td><Pill kind={item.paymentStatus === "SUCCESS" ? "green" : "blue"}>{getStatusLabel(item.paymentStatus, language)}</Pill></td>
                 <td><strong className="text-emerald-800 dark:text-emerald-300 font-mono">₹{(item.amount ?? 41400).toLocaleString("en-IN")}</strong></td>
@@ -11296,7 +11296,7 @@ export default function Home() {
                           <strong className="text-xs font-bold text-[#153828]">{item.transportCode}</strong>
                           <Pill kind="blue">{item.vehicleName}</Pill>
                           <Pill kind={isCancelled ? "yellow" : isOngoing ? "blue" : "green"}>
-                            {isCancelled ? "CANCELLED" : item.status}
+                            {isCancelled ? getStatusLabel("CANCELLED", language) : getStatusLabel(item.status, language)}
                           </Pill>
                         </div>
                         <p className="text-[11px] text-muted-foreground m-0">
@@ -11632,7 +11632,7 @@ export default function Home() {
 
                     <div className="flex items-center gap-2">
                       <Pill kind={isCompleted ? "blue" : isCancelled ? "yellow" : "green"}>
-                        {item.status}
+                        {getStatusLabel(item.status, language)}
                       </Pill>
                     </div>
                   </div>
@@ -11647,8 +11647,8 @@ export default function Home() {
                       />
                       <div className="min-w-0">
                         <span className="text-[10px] font-bold text-slate-400 uppercase block">{tUi("Crop & Variety", language)}</span>
-                        <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{item.crop}</div>
-                        <span className="text-slate-500 font-semibold">{item.quantity} Quintals expected</span>
+                        <div className="font-bold text-slate-900 dark:text-slate-100 truncate">{getLocalizedCropName(item.crop, language)}</div>
+                        <span className="text-slate-500 font-semibold">{item.quantity} {tUi("Quintals expected", language)}</span>
                       </div>
                     </div>
 
@@ -11666,7 +11666,7 @@ export default function Home() {
                         <Ticket size={13} /> {item.tokenNumber || "Token Generated"}
                       </div>
                       <span className="text-slate-500">
-                        {b.procurement?.status ? `Stage: ${b.procurement.status.replaceAll("_", " ")}` : b.queue?.status || "In Queue"}
+                        {b.procurement?.status ? `${tUi("Stage:", language)} ${getStatusLabel(b.procurement.status, language)}` : getStatusLabel(b.queue?.status || "In Queue", language)}
                       </span>
                     </div>
                   </div>
@@ -11733,7 +11733,7 @@ export default function Home() {
 
                     <div className="flex items-center gap-2">
                       <Pill kind={isDelivered ? "green" : isCancelled ? "yellow" : "blue"}>
-                        {item.status}
+                        {getStatusLabel(item.status, language)}
                       </Pill>
                     </div>
                   </div>
@@ -11809,7 +11809,7 @@ export default function Home() {
                     </div>
 
                     <Pill kind={isSuccess ? "green" : "yellow"}>
-                      {item.status}
+                      {getStatusLabel(item.status, language)}
                     </Pill>
                   </div>
 
@@ -12242,7 +12242,7 @@ export default function Home() {
                                   : "bg-slate-100 text-slate-700 border-slate-200"
                               }`}
                             >
-                              {req.status === "PENDING_APPROVAL" ? "PENDING REVIEW" : req.status}
+                              {req.status === "PENDING_APPROVAL" ? getStatusLabel("PENDING_REVIEW", language) : getStatusLabel(req.status, language)}
                             </Badge>
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
@@ -12665,7 +12665,7 @@ export default function Home() {
               <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("BRANCH CENTRE", language)}</span><b>{viewingStaffDetails.branch}</b></div>
               <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("CONTACT PHONE", language)}</span><b>{viewingStaffDetails.phone || "—"}</b></div>
               <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("EMAIL ADDRESS", language)}</span><b>{viewingStaffDetails.email || "—"}</b></div>
-              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("STATUS", language)}</span><b className="text-emerald-700">{viewingStaffDetails.status}</b></div>
+              <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("STATUS", language)}</span><b className="text-emerald-700">{getStatusLabel(viewingStaffDetails.status, language)}</b></div>
               <div><span className="text-slate-400 font-bold block text-[10px]">{tUi("ENROLLED AT", language)}</span><b>{new Date(viewingStaffDetails.createdAt).toLocaleDateString("en-IN")}</b></div>
             </div>
 

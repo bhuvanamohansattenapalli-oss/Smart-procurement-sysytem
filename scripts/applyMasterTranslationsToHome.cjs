@@ -108,3 +108,4 @@ console.log(`Master transformations applied to Home.tsx:`);
 console.log(`- Text nodes localized: ${textReplaced}`);
 console.log(`- Attributes localized: ${attrReplaced}`);
 console.log(`- Toasts localized: ${toastReplaced}`);
+

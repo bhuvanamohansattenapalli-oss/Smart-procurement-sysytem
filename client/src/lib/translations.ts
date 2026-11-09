@@ -680,6 +680,19 @@ export const statusTranslations: Record<Language, Record<string, string>> = {
     BUSY: "Busy",
     LIMITED: "Limited Capacity",
     CLOSED: "Closed",
+    PENDING_APPROVAL: "Pending Approval",
+    PENDING_VERIFICATION: "Pending Verification",
+    PENDING_REVIEW: "Pending Review",
+    OFFICER_INITIATED: "Officer Initiated",
+    DISABLED: "Disabled",
+    ARRIVED: "Arrived",
+    UNPAID: "Unpaid",
+    AVAILABLE: "Available",
+    UNAVAILABLE: "Unavailable",
+    CREDITED: "Credited",
+    DEPOSITED: "Deposited",
+    ON: "ON",
+    OFF: "OFF",
   },
   HI: {
     PENDING: "लंबित",
@@ -715,6 +728,19 @@ export const statusTranslations: Record<Language, Record<string, string>> = {
     BUSY: "व्यस्त",
     LIMITED: "सीमित क्षमता",
     CLOSED: "बंद है",
+    PENDING_APPROVAL: "स्वीकृति लंबित",
+    PENDING_VERIFICATION: "सत्यापन लंबित",
+    PENDING_REVIEW: "समीक्षा लंबित",
+    OFFICER_INITIATED: "अधिकारी द्वारा शुरू",
+    DISABLED: "अक्षम",
+    ARRIVED: "पहुंच गए",
+    UNPAID: "अप्राप्त / बकाया",
+    AVAILABLE: "उपलब्ध",
+    UNAVAILABLE: "अनुपलब्ध",
+    CREDITED: "खाते में जमा",
+    DEPOSITED: "जमा",
+    ON: "चालू",
+    OFF: "बंद",
   },
   TE: {
     PENDING: "పెండింగ్",
@@ -750,6 +776,19 @@ export const statusTranslations: Record<Language, Record<string, string>> = {
     BUSY: "రద్దీగా ఉంది",
     LIMITED: "పరిమిత స్లాట్లు",
     CLOSED: "మూసివేయబడింది",
+    PENDING_APPROVAL: "ఆమోదం పెండింగ్",
+    PENDING_VERIFICATION: "ధృవీకరణ పెండింగ్",
+    PENDING_REVIEW: "సమీక్ష పెండింగ్",
+    OFFICER_INITIATED: "అధికారి ప్రారంభించారు",
+    DISABLED: "నిష్క్రియం చేయబడింది",
+    ARRIVED: "చేరుకున్నారు",
+    UNPAID: "చెల్లించలేదు",
+    AVAILABLE: "లభ్యంగా ఉంది",
+    UNAVAILABLE: "అందుబాటులో లేదు",
+    CREDITED: "ఖాతాలో జమ చేయబడింది",
+    DEPOSITED: "జమ అయింది",
+    ON: "ఆన్",
+    OFF: "ఆఫ్",
   },
   TA: {
     PENDING: "நிலுவையில்",
@@ -1105,12 +1144,149 @@ export const statusTranslations: Record<Language, Record<string, string>> = {
 
 export function getStatusLabel(status: string | undefined | null, lang: Language): string {
   if (!status) return "";
-  const cleaned = status.toUpperCase().trim().replace(/[\s-]+/g, "_");
+  const trimmed = status.trim();
+  const cleaned = trimmed.toUpperCase().replace(/[\s-]+/g, "_");
   const dict = statusTranslations[lang] || statusTranslations.EN;
   if (dict[cleaned]) return dict[cleaned];
+
+  // Try direct lookup in localizedUiText / master locales
+  const uiText = getLocalizedText(trimmed, lang);
+  if (uiText && uiText !== trimmed) return uiText;
+
+  const uiCleaned = getLocalizedText(cleaned, lang);
+  if (uiCleaned && uiCleaned !== cleaned) return uiCleaned;
+
   const fallback = statusTranslations.EN[cleaned];
   if (fallback) return fallback;
-  return status.replaceAll("_", " ");
+  return trimmed.replaceAll("_", " ");
+}
+
+/**
+ * Normalizes and localizes any crop name from database records, APIs, or user selections.
+ * Handles singular/plural variations, parenthetical annotations, and casing.
+ * Example:
+ * getLocalizedCropName("Paddy", "TE") -> "వరి"
+ * getLocalizedCropName("Paddy", "HI") -> "धान"
+ */
+export function getLocalizedCropName(cropName: string | undefined | null, lang: Language): string {
+  if (!cropName) return "";
+  const trimmed = cropName.trim();
+  if (lang === "EN") return trimmed;
+
+  // 1. Direct dictionary match
+  const direct = getLocalizedText(trimmed, lang);
+  if (direct && direct !== trimmed) return direct;
+
+  // 2. Canonical matching map (case-insensitive & variation insensitive)
+  const norm = trimmed.toLowerCase().replace(/[()_–—\/-]+/g, " ").replace(/\s+/g, " ").trim();
+
+  const CROP_CANONICAL_KEYS: [RegExp, string][] = [
+    [/^paddy|^dhan\b|^rice\b/i, "Paddy"],
+    [/^wheat|^gehun\b/i, "Wheat"],
+    [/^maize|^makka\b|^corn\b/i, "Maize"],
+    [/^cotton|^kapas\b/i, "Cotton"],
+    [/^bengal gram|^chana\b|^chickpea\b/i, "Bengal Gram"],
+    [/^red gram|^tur\b|^toor\b|^arhar\b|^pigeon pea\b/i, "Red Gram"],
+    [/^green gram|^moong\b|^mung\b/i, "Green Gram"],
+    [/^black gram|^urad\b/i, "Black Gram"],
+    [/^groundnut|^peanut|^palleelu\b/i, "Groundnut"],
+    [/^soybean|^soya\b/i, "Soybean"],
+    [/^sugarcane|^ganna\b|^cheruku\b/i, "Sugarcane"],
+    [/^chilli|^chillies|^mirchi\b/i, "Chilli"],
+    [/^turmeric|^haldi\b|^pasupu\b/i, "Turmeric"],
+    [/^tobacco|^tambaku\b|^pogaku\b/i, "Tobacco"],
+    [/^jowar|^sorghum\b|^jonna\b/i, "Jowar"],
+    [/^bajra|^pearl millet\b|^sajje\b/i, "Bajra"],
+    [/^ragi|^finger millet\b|^nachni\b/i, "Ragi"],
+    [/^barley|^jau\b/i, "Barley"],
+    [/^lentil|^masoor\b/i, "Lentils"],
+    [/^sunflower/i, "Sunflower"],
+    [/^sesame|^til\b|^nuvvulu\b/i, "Sesame"],
+    [/^mustard|^sarson\b|^rai\b/i, "Mustard"],
+    [/^jute|^patson\b/i, "Jute"],
+    [/^tomato|^tamatar\b/i, "Tomato"],
+    [/^potato|^aloo\b/i, "Potato"],
+    [/^onion|^pyaz\b|^ulli\b/i, "Onion"],
+    [/^brinjal|^eggplant\b|^vankaya\b|^aubergine\b/i, "Brinjal"],
+    [/^cabbage|^patta gobhi\b/i, "Cabbage"],
+    [/^cauliflower|^phool gobhi\b/i, "Cauliflower"],
+    [/^carrot|^gajar\b/i, "Carrot"],
+    [/^okra|^bhindi\b|^ladyfinger\b|^bendakaya\b/i, "Okra"],
+    [/^spinach|^palak\b|^palakura\b/i, "Spinach"],
+    [/^mango|^aam\b|^mamidi\b/i, "Mango"],
+    [/^banana|^kela\b|^arati\b/i, "Banana"],
+    [/^orange|^mandarin\b|^santra\b/i, "Orange"],
+    [/^sweet orange|^mosambi\b|^battayi\b/i, "Sweet Orange"],
+    [/^apple|^seb\b/i, "Apple"],
+    [/^grapes|^angoor\b|^draksha\b/i, "Grapes"],
+    [/^guava|^amrood\b|^jaama\b/i, "Guava"],
+    [/^papaya|^papita\b|^boppayi\b/i, "Papaya"],
+    [/^pomegranate|^anaar\b|^danimma\b/i, "Pomegranate"],
+    [/^watermelon|^tarbooz\b|^pulla\b/i, "Watermelon"],
+  ];
+
+  for (const [pattern, canonicalKey] of CROP_CANONICAL_KEYS) {
+    if (pattern.test(norm)) {
+      const canonicalResult = getLocalizedText(canonicalKey, lang);
+      if (canonicalResult && canonicalResult !== canonicalKey) {
+        if (/grade\s*a/i.test(trimmed)) {
+          const gradeA = getLocalizedText("Grade A", lang);
+          return `${canonicalResult} (${gradeA})`;
+        }
+        if (/common/i.test(trimmed)) {
+          const common = getLocalizedText("Common", lang);
+          return `${canonicalResult} (${common})`;
+        }
+        return canonicalResult;
+      }
+    }
+  }
+
+  return trimmed;
+}
+
+/**
+ * Localizes crop variety descriptions (e.g. "Standard / MTU 1010 / IR 64", "BPT 5204", "Grade A")
+ */
+export function getLocalizedVariety(variety: string | undefined | null, lang: Language): string {
+  if (!variety) return "";
+  const trimmed = variety.trim();
+  if (lang === "EN") return trimmed;
+
+  const direct = getLocalizedText(trimmed, lang);
+  if (direct && direct !== trimmed) return direct;
+
+  if (trimmed.includes(" / ")) {
+    const parts = trimmed.split(" / ").map(p => getLocalizedText(p.trim(), lang));
+    return parts.join(" / ");
+  }
+  if (trimmed.includes(" — ")) {
+    const parts = trimmed.split(" — ").map(p => getLocalizedText(p.trim(), lang));
+    return parts.join(" — ");
+  }
+
+  return trimmed;
+}
+
+/**
+ * Localizes compound crop strings such as "Common paddy — Grade A" or "Paddy (Grade A) — BPT 5204"
+ */
+export function getLocalizedCropAndVariety(text: string | undefined | null, lang: Language): string {
+  if (!text) return "";
+  const trimmed = text.trim();
+  if (lang === "EN") return trimmed;
+
+  const direct = getLocalizedText(trimmed, lang);
+  if (direct && direct !== trimmed) return direct;
+
+  if (trimmed.includes(" — ")) {
+    const [c, v] = trimmed.split(" — ");
+    const locCrop = getLocalizedCropName(c.trim(), lang);
+    const locVariety = getLocalizedVariety(v.trim(), lang);
+    return `${locCrop} — ${locVariety}`;
+  }
+
+  return getLocalizedCropName(trimmed, lang);
 }
 
 // Complete dictionary of UI strings mapped to all 13 languages

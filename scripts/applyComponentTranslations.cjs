@@ -45,3 +45,4 @@ for (const rel of targetFiles) {
   fs.writeFileSync(full, modifiedLines.join('\n'), 'utf8');
   console.log(`Transformed ${rel}: ${count} text nodes localized.`);
 }
+

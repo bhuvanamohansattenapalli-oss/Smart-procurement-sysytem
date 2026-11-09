@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { tUi, type Language } from "@/lib/translations";
+import { tUi, getStatusLabel, type Language } from "@/lib/translations";
 
 export type MapMode = "roadmap" | "satellite";
 
@@ -720,13 +720,13 @@ export function MapView({
       >
         <div className="flex items-center gap-3 px-3 py-1.5 bg-white/90 backdrop-blur-md rounded-lg border border-slate-200 shadow-sm text-[11px] font-semibold text-slate-700">
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> Open ({filteredCentres.filter(c => c.status === "Open").length})
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> {getStatusLabel("Open", language)} ({filteredCentres.filter(c => c.status === "Open").length})
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Limited ({filteredCentres.filter(c => c.status === "Limited").length})
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> {getStatusLabel("Limited", language)} ({filteredCentres.filter(c => c.status === "Limited").length})
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-600" /> Busy ({filteredCentres.filter(c => c.status === "Busy").length})
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-600" /> {getStatusLabel("Busy", language)} ({filteredCentres.filter(c => c.status === "Busy").length})
           </span>
           {clusters.length > 0 && (
             <span className="flex items-center gap-1 text-emerald-800 font-bold">
@@ -764,7 +764,7 @@ export function MapView({
                   : "bg-amber-100 text-amber-800 border-amber-300"
               )}
             >
-              {activeCentre.status}
+              {getStatusLabel(activeCentre.status, language)}
             </Badge>
           </div>
 

@@ -2,7 +2,7 @@ import React from "react";
 import { Smartphone, Monitor } from "lucide-react";
 import { useMobileView } from "@/contexts/MobileViewContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { tUi } from "@/lib/translations";
+import { tUi, getStatusLabel } from "@/lib/translations";
 
 interface MobileViewToggleProps {
   className?: string;
@@ -43,7 +43,7 @@ export function MobileViewToggle({
       {!compact && <span className="mobile-toggle-text">{label}</span>}
       {showBadge && (
         <span className={`mobile-toggle-badge ${isMobileView ? "active" : ""}`}>
-          {isMobileView ? "ON" : "OFF"}
+          {getStatusLabel(isMobileView ? "ON" : "OFF", language)}
         </span>
       )}
     </button>

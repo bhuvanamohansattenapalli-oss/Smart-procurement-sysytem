@@ -20,7 +20,7 @@ import {
   Calendar,
   Sparkles,
 } from "lucide-react";
-import { tUi, type Language } from "@/lib/translations";
+import { tUi, getStatusLabel, getLocalizedCropName, type Language } from "@/lib/translations";
 
 export interface SellingAdvisoryData {
   title: string;
@@ -114,23 +114,23 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
-              ProcureFlow Meteorological Decision Support
+              {tUi("ProcureFlow Meteorological Decision Support", language)}
             </span>
             <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${badgeStyles}`}>
               {status === "OPTIMAL"
-                ? "Optimal Harvesting & Selling Conditions"
+                ? tUi("Optimal Harvesting & Selling Conditions", language)
                 : status === "FAVORABLE"
-                ? "Favorable Conditions (High Humidity)"
+                ? tUi("Favorable Conditions (High Humidity)", language)
                 : status === "CAUTION"
-                ? "Caution Advised (Rain Forecasted)"
-                : "High Rain Risk (Delay Transit)"}
+                ? tUi("Caution Advised (Rain Forecasted)", language)
+                : tUi("High Rain Risk (Delay Transit)", language)}
             </span>
           </div>
           <h3 className="text-lg sm:text-xl font-black text-[#0a1f33] dark:text-emerald-100 mt-1">
-            Weather-Based Selling Advisory
+            {tUi("Weather-Based Selling Advisory", language)}
           </h3>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-            Forecast Horizon: <b>{actualAdvisory?.forecastPeriodUsed || "Next 24 to 72 Hours"}</b> {tUi("· Target Location:", language)} <b>{district}</b>
+            {tUi("Forecast Horizon:", language)} <b>{actualAdvisory?.forecastPeriodUsed || "Next 24 to 72 Hours"}</b> {tUi("· Target Location:", language)} <b>{district}</b>
           </p>
         </div>
 
@@ -192,15 +192,15 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                 {actualRainProb}% <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{tUi("probability", language)}</span>
               </div>
               <div className="text-xs text-slate-700 dark:text-slate-200 mt-1 font-semibold">
-                Forecasted Rain: <b className="text-slate-900 dark:text-white">{actualRainMm.toFixed(1)} mm</b>
+                {tUi("Forecasted Rain:", language)} <b className="text-slate-900 dark:text-white">{actualRainMm.toFixed(1)} mm</b>
               </div>
             </div>
             <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium leading-relaxed">
               {actualRainProb >= 50
-                ? "Active rain likely. Delay field threshing."
+                ? tUi("Active rain likely. Delay field threshing.", language)
                 : actualRainProb >= 25
-                ? "Isolated showers possible. Keep tarpaulins on hand."
-                : "Minimal rain likelihood over next 24h."}
+                ? tUi("Isolated showers possible. Keep tarpaulins on hand.", language)
+                : tUi("Minimal rain likelihood over next 24h.", language)}
             </p>
           </div>
 
@@ -214,14 +214,14 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
               <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                 {actualAdvisory?.transportAdvice ||
                   (actualRainProb >= 50
-                    ? "Delay dispatch until active rain passes"
+                    ? tUi("Delay dispatch until active rain passes", language)
                     : actualRainProb >= 25
-                    ? "Protect bags with heavy-gauge waterproof tarpaulin"
-                    : "Normal transit permitted")}
+                    ? tUi("Protect bags with heavy-gauge waterproof tarpaulin", language)
+                    : tUi("Normal transit permitted", language))}
               </div>
             </div>
             <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium">
-              Wind Velocity: <b className="text-slate-900 dark:text-white">{actualWind} km/h</b> · Smooth transit corridor.
+              {tUi("Wind Velocity:", language)} <b className="text-slate-900 dark:text-white">{actualWind} km/h</b> · {tUi("Smooth transit corridor.", language)}
             </p>
           </div>
 
@@ -244,7 +244,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                         : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
-                    Covered
+                    {tUi("Covered", language)}
                   </button>
                   <button
                     type="button"
@@ -255,18 +255,18 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                         : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
-                    Open Field
+                    {tUi("Open Field", language)}
                   </button>
                 </div>
               </div>
               <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                 {storageType === "OPEN_FIELD"
-                  ? "Elevate bags on wooden pallets; double-tarp immediately."
-                  : actualAdvisory?.storageAdvice || "Standard covered warehouse storage recommended."}
+                  ? tUi("Elevate bags on wooden pallets; double-tarp immediately.", language)
+                  : actualAdvisory?.storageAdvice || tUi("Standard covered warehouse storage recommended.", language)}
               </div>
             </div>
             <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium">
-              Ambient Humidity: <b className="text-slate-900 dark:text-white">{actualHumidity}%</b> (Govt MSP Limit: &lt;17%).
+              {tUi("Ambient Humidity:", language)} <b className="text-slate-900 dark:text-white">{actualHumidity}%</b> ({tUi("Govt MSP Limit: <17%", language)}).
             </p>
           </div>
 
@@ -289,7 +289,7 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                         : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
-                    Harvested
+                    {tUi("Harvested", language)}
                   </button>
                   <button
                     type="button"
@@ -300,18 +300,18 @@ export const WeatherSellingAdvisory: React.FC<WeatherSellingAdvisoryProps> = ({
                         : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                     }`}
                   >
-                    Standing
+                    {tUi("Standing", language)}
                   </button>
                 </div>
               </div>
               <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                 {cropStage === "HARVESTED"
-                  ? "Sun-dry grain during peak noon hours to meet 17% moisture limit."
-                  : "Safe for combine harvester operations during dry daylight hours."}
+                  ? tUi("Sun-dry grain during peak noon hours to meet 17% moisture limit.", language)
+                  : tUi("Safe for combine harvester operations during dry daylight hours.", language)}
               </div>
             </div>
             <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 font-medium">
-              Target Crop: <b className="text-slate-900 dark:text-white">{selectedCrop}</b>
+              {tUi("Target Crop:", language)} <b className="text-slate-900 dark:text-white">{getLocalizedCropName(selectedCrop, language)}</b>
             </p>
           </div>
         </div>
